@@ -1,12 +1,12 @@
 # Deklaracja projektu (Blok 1 – E2)
 
-**Nazwa grupy:** _do uzupełnienia_
+**Nazwa grupy:** qubit-mindless
 
 **Skład grupy:**
 1. PM/DevOps – Nazwisko, Imię, Nr studenta: Fiebich Mateusz 94866
 2. Frontend – Nazwisko, Imię, Nr studenta: Szymański Adam 89528
-3. Backend – Nazwisko, Imię, Nr studenta: Ernst Oskar
-4. DBA – Nazwisko, Imię, Nr studenta: Radziszewski Bartosz 
+3. Backend – Nazwisko, Imię, Nr studenta: Ernst Oskar _(indeks do uzupełnienia)_
+4. DBA – Nazwisko, Imię, Nr studenta: Radziszewski Bartosz _(indeks do uzupełnienia)_
 
 **Nazwa projektu:** CloudDesk – system zgłoszeń IT z SLA i asystentem AI
 
