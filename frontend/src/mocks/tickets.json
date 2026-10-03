@@ -1,0 +1,6 @@
+[
+  { "id": 1, "title": "Nie działa VPN po aktualizacji", "status": "NEW", "priority": "P2", "reporter": "anna.k", "assignee": null, "createdAt": "2026-10-03T08:10:00Z", "slaDueAt": "2026-10-03T16:10:00Z" },
+  { "id": 2, "title": "Drukarka 2. piętro – zacięcie papieru", "status": "ASSIGNED", "priority": "P4", "reporter": "piotr.m", "assignee": "tech.jan", "createdAt": "2026-10-02T12:00:00Z", "slaDueAt": "2026-10-07T12:00:00Z" },
+  { "id": 3, "title": "Brak dostępu do systemu ERP", "status": "IN_PROGRESS", "priority": "P1", "reporter": "ewa.z", "assignee": "tech.ola", "createdAt": "2026-10-03T07:30:00Z", "slaDueAt": "2026-10-03T11:30:00Z" },
+  { "id": 4, "title": "Prośba o nowy monitor", "status": "RESOLVED", "priority": "P3", "reporter": "marek.w", "assignee": "tech.jan", "createdAt": "2026-09-29T09:00:00Z", "slaDueAt": "2026-10-01T09:00:00Z" }
+]

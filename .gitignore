@@ -1,0 +1,35 @@
+# Sekrety – NIGDY do repo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node
+node_modules/
+dist/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl.bak
+
+# Testy E2E
+playwright-report/
+test-results/
+
+# System / IDE
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,33 @@
+flowchart TB
+    user(["👤 Użytkownik / Przeglądarka"])
+    gh["GitHub Actions<br/>CI/CD + OIDC"]
+
+    subgraph azure["Azure – Resource Group: rg-clouddesk"]
+        subgraph vnet["VNet vnet-clouddesk 10.0.0.0/16"]
+            subgraph web["PUBLIC – snet-web 10.0.1.0/24 · NSG: 443/80 z Internetu"]
+                nginx["VM Linux: Nginx<br/>React (statyczny) + reverse proxy /api"]
+            end
+            subgraph app["PRIVATE A – snet-app 10.0.2.0/24 · NSG: 8000 tylko z snet-web"]
+                api["Azure Container Apps<br/>FastAPI (ingress: internal)"]
+            end
+            subgraph data["PRIVATE B – snet-db 10.0.3.0/24 · NSG: 5432 tylko z snet-app"]
+                db[("PostgreSQL Flexible Server<br/>brak publicznego IP")]
+            end
+        end
+        ai["Azure OpenAI<br/>Asystent AI (pierwsza linia wsparcia)"]
+        blob["Blob Storage<br/>załączniki"]
+        mail["Communication Services<br/>powiadomienia e-mail"]
+        kv["Key Vault<br/>sekrety"]
+        logs["Log Analytics +<br/>Application Insights"]
+    end
+
+    user -->|"HTTPS 443"| nginx
+    nginx -->|"HTTP /api"| api
+    api -->|"TCP 5432"| db
+    api -->|"HTTPS"| ai
+    api --> blob
+    api --> mail
+    kv -. sekrety .-> api
+    api -. logi i metryki .-> logs
+    gh -. deploy .-> nginx
+    gh -. deploy .-> api
