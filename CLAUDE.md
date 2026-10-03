@@ -1,7 +1,11 @@
 # CloudDesk – kontekst dla Claude
 
 Projekt studencki (WSB Merito, „Projekt zespołowy: aplikacja w chmurze publicznej”): helpdesk IT z SLA i asystentem AI.
-Oceniany w 14 blokach. Każdy blok ma checklistę E1–E5, którą prowadzący sprawdza na podstawie repo i screenshotów.
+Rozwijany w 14 etapach i kończony prezentacją. Po każdym etapie oddajemy sprawozdanie z punktami E1–E5 i screenami.
+
+Przed pracą przeczytaj:
+- `docs/ROADMAPA.md`: etapy, terminy i ustalenia techniczne;
+- `docs/ONBOARDING.md`: jak pracujemy (gałęzie, PR, tablica Kanban, sprawozdania).
 
 ## Stos
 - `frontend/`: React 19 + TypeScript + Vite. Lint: `npm run lint` (oxlint). Build: `npm run build`.
@@ -16,4 +20,5 @@ Oceniany w 14 blokach. Każdy blok ma checklistę E1–E5, którą prowadzący s
 - Każdy endpoint waliduje dane i zwraca poprawne statusy (200/201/204/400/404/422/500).
 - Zmiany endpointów aktualizują tabelę API w README.md.
 - Elementy UI używane w testach E2E dostają `data-testid`.
+- Nie wklejaj do repo treści materiałów z zajęć (slajdów, checklist, cytatów). Repo jest publiczne, a materiały dydaktyczne są własnością ich autora. Piszemy własnymi słowami.
 - Kod, komentarze, commity i opisy PR mogą być po polsku. Nazwy w kodzie są po angielsku.
