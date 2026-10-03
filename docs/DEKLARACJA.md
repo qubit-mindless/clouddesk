@@ -3,10 +3,10 @@
 **Nazwa grupy:** _do uzupełnienia_
 
 **Skład grupy:**
-1. PM/DevOps – Nazwisko, Imię, Nr studenta: _…_
-2. Frontend – Nazwisko, Imię, Nr studenta: _…_
-3. Backend – Nazwisko, Imię, Nr studenta: _…_
-4. DBA – Nazwisko, Imię, Nr studenta: _…_
+1. PM/DevOps – Nazwisko, Imię, Nr studenta: Fiebich Mateusz 94866
+2. Frontend – Nazwisko, Imię, Nr studenta: Szymański Adam 89528
+3. Backend – Nazwisko, Imię, Nr studenta: Ernst Oskar
+4. DBA – Nazwisko, Imię, Nr studenta: Radziszewski Bartosz 
 
 **Nazwa projektu:** CloudDesk – system zgłoszeń IT z SLA i asystentem AI
 
