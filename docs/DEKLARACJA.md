@@ -29,4 +29,4 @@ CloudDesk to chmurowy helpdesk IT zgodny z cyklem życia incydentu ITIL. Pracown
 
 **Infrastruktura i DevOps:** Terraform (azurerm), GitHub Actions (CI/CD, OIDC), Key Vault, Log Analytics / Application Insights
 
-**Repozytorium GitHub (link):** https://github.com/_ORGANIZACJA_/clouddesk
+**Repozytorium GitHub (link):** https://github.com/qubit-mindless/clouddesk
