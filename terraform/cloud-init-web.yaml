@@ -1,0 +1,43 @@
+#cloud-config
+# Warstwa WEB: Nginx serwuje frontend (React) i w kolejnych etapach przekazuje /api do backendu.
+package_update: true
+package_upgrade: true
+packages:
+  - nginx
+  - unattended-upgrades
+
+write_files:
+  - path: /var/www/clouddesk/index.html
+    permissions: "0644"
+    content: |
+      <!doctype html>
+      <html lang="pl"><head><meta charset="utf-8"><title>CloudDesk</title></head>
+      <body style="font-family:sans-serif;max-width:40rem;margin:4rem auto">
+        <h1>CloudDesk</h1>
+        <p>Warstwa WEB działa. Frontend zostanie wdrożony automatycznie przez pipeline CI/CD.</p>
+      </body></html>
+  - path: /etc/nginx/sites-available/clouddesk
+    permissions: "0644"
+    content: |
+      server {
+          listen 80 default_server;
+          listen [::]:80 default_server;
+          server_name _;
+          server_tokens off;
+
+          root /var/www/clouddesk;
+          index index.html;
+
+          add_header X-Content-Type-Options nosniff always;
+          add_header X-Frame-Options DENY always;
+          add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+          location / {
+              try_files $uri /index.html;
+          }
+      }
+
+runcmd:
+  - rm -f /etc/nginx/sites-enabled/default
+  - ln -sf /etc/nginx/sites-available/clouddesk /etc/nginx/sites-enabled/clouddesk
+  - nginx -t && systemctl reload nginx

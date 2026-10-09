@@ -17,3 +17,11 @@ output "subnet_ids" {
     db  = azurerm_subnet.db.id
   }
 }
+
+output "web_public_ip" {
+  value = azurerm_public_ip.web.ip_address
+}
+
+output "web_url" {
+  value = "http://${azurerm_public_ip.web.fqdn}"
+}
