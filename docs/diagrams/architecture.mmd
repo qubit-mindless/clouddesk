@@ -1,33 +1,55 @@
-flowchart TB
-    user(["👤 Użytkownik / Przeglądarka"])
+flowchart LR
+    user(["👤 Użytkownik<br/>przeglądarka"])
     gh["GitHub Actions<br/>CI/CD + OIDC"]
 
-    subgraph azure["Azure – Resource Group: rg-clouddesk"]
-        subgraph vnet["VNet vnet-clouddesk 10.0.0.0/16"]
-            subgraph web["PUBLIC – snet-web 10.0.1.0/24 · NSG: 443/80 z Internetu"]
-                nginx["VM Linux: Nginx<br/>React (statyczny) + reverse proxy /api"]
+    subgraph azure["Microsoft Azure · rg-clouddesk"]
+        direction LR
+        subgraph vnet["VNet vnet-clouddesk · 10.0.0.0/16"]
+            direction LR
+            subgraph web["1 · WEB · snet-web 10.0.1.0/24 · publiczna"]
+                nginx["VM Linux + Nginx<br/>React (statyczny)<br/>reverse proxy /api"]
             end
-            subgraph app["PRIVATE A – snet-app 10.0.2.0/24 · NSG: 8000 tylko z snet-web"]
-                api["Azure Container Apps<br/>FastAPI (ingress: internal)"]
+            subgraph app["2 · APP · snet-app 10.0.2.0/24 · prywatna"]
+                api["Azure Container Apps<br/>FastAPI<br/>ingress: internal"]
             end
-            subgraph data["PRIVATE B – snet-db 10.0.3.0/24 · NSG: 5432 tylko z snet-app"]
-                db[("PostgreSQL Flexible Server<br/>brak publicznego IP")]
+            subgraph data["3 · DATA · snet-db 10.0.3.0/24 · prywatna"]
+                db[("PostgreSQL<br/>Flexible Server<br/>bez publicznego IP")]
             end
         end
-        ai["Azure OpenAI<br/>Asystent AI (pierwsza linia wsparcia)"]
-        blob["Blob Storage<br/>załączniki"]
-        mail["Communication Services<br/>powiadomienia e-mail"]
-        kv["Key Vault<br/>sekrety"]
-        logs["Log Analytics +<br/>Application Insights"]
+        subgraph services["Usługi zarządzane"]
+            direction TB
+            ai["Azure OpenAI<br/>asystent AI"]
+            blob["Blob Storage<br/>załączniki"]
+            mail["Communication Services<br/>e-mail"]
+            kv["Key Vault<br/>sekrety"]
+            logs["Log Analytics +<br/>App Insights"]
+        end
     end
 
     user -->|"HTTPS 443"| nginx
-    nginx -->|"HTTP /api"| api
-    api -->|"TCP 5432"| db
-    api -->|"HTTPS"| ai
+    nginx -->|"HTTP 8000<br/>tylko z snet-web"| api
+    api -->|"TCP 5432<br/>tylko z snet-app"| db
+    api --> ai
     api --> blob
     api --> mail
-    kv -. sekrety .-> api
-    api -. logi i metryki .-> logs
-    gh -. deploy .-> nginx
-    gh -. deploy .-> api
+    kv -.->|sekrety| api
+    api -.->|logi| logs
+    gh -.->|deploy| nginx
+    gh -.->|deploy| api
+
+    classDef tierWeb fill:#e8f1ff,stroke:#2563eb,color:#1e3a8a
+    classDef tierApp fill:#e9f9ef,stroke:#16a34a,color:#14532d
+    classDef tierDb fill:#fdecec,stroke:#dc2626,color:#7f1d1d
+    classDef svc fill:#f5f3ff,stroke:#7c3aed,color:#3b0764
+    classDef ext fill:#ffffff,stroke:#475569,color:#0f172a
+    class nginx tierWeb
+    class api tierApp
+    class db tierDb
+    class ai,blob,mail,kv,logs svc
+    class user,gh ext
+    style web fill:#f3f8ff,stroke:#2563eb
+    style app fill:#f2fcf5,stroke:#16a34a
+    style data fill:#fff6f6,stroke:#dc2626
+    style vnet fill:#fafafa,stroke:#94a3b8
+    style services fill:#fbfaff,stroke:#7c3aed
+    style azure fill:#ffffff,stroke:#0078d4
