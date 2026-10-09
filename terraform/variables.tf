@@ -51,3 +51,21 @@ variable "subnet_cidrs" {
     db  = "10.0.3.0/24"
   }
 }
+
+variable "web_vm_size" {
+  description = "Rozmiar maszyny warstwy WEB (B1s mieści się w darmowej puli 750 h/mies.)."
+  type        = string
+  default     = "Standard_B1s"
+}
+
+variable "web_dns_label" {
+  description = "Etykieta DNS publicznego IP: <label>.<region>.cloudapp.azure.com"
+  type        = string
+  default     = "clouddesk-qubit"
+}
+
+variable "web_ssh_public_key_path" {
+  description = "Klucz publiczny administratora VM (logowanie tylko kluczem; port 22 zamknięty w NSG)."
+  type        = string
+  default     = "~/.ssh/clouddesk_vm.pub"
+}
