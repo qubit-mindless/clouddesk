@@ -60,5 +60,5 @@ Plan dostarczania projektu etapami. Każdy etap kończy się oddaniem sprawozdan
 - Baza: **PostgreSQL 16**, port 5432.
 - Backend: **FastAPI na porcie 8000**.
 - Ścieżki API: `/api/<zasób w liczbie mnogiej>`.
-- Chmura: **Azure for Students**. Region ustalamy w etapie 03 (`westeurope` lub `polandcentral`).
+- Chmura: **Azure for Students**. Region: `polandcentral` (asystent AI: `swedencentral`).
 - Gotowych przykładów z sieci nie kopiujemy. Piszemy konfigurację pod nasz stos i sprawdzamy ją w dokumentacji narzędzi.
