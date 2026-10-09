@@ -21,7 +21,7 @@ Witaj w projekcie **CloudDesk**! Ten plik jest dla Ciebie i dla Twojego Claude'a
 6. [Kamienie milowe](https://github.com/qubit-mindless/clouddesk/milestones): zadania pogrupowane w bloki, z terminami.
 
 ## 3. Ustalenia, których nie zmieniamy bez rozmowy z zespołem
-- Chmura **Azure for Students**, region `westeurope` lub `polandcentral` (do ustalenia w Bloku 3).
+- Chmura **Azure for Students**, region `polandcentral` (asystent AI w `swedencentral`).
 - Sieć: VNet `10.0.0.0/16`:
   - `snet-web` `10.0.1.0/24` (publiczna);
   - `snet-app` `10.0.2.0/24` (prywatna);
