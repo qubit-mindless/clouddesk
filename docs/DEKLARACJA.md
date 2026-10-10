@@ -7,6 +7,7 @@
 2. Frontend – Nazwisko, Imię, Nr studenta: Szymański Adam 89528
 3. Backend – Nazwisko, Imię, Nr studenta: Ernst Oskar 96801
 4. DBA – Nazwisko, Imię, Nr studenta: Radziszewski Bartosz 96516
+
 **Nazwa projektu:** CloudDesk – system zgłoszeń IT z SLA i asystentem AI
 
 **Opis projektu:**
