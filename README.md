@@ -41,7 +41,7 @@ CloudDesk to helpdesk IT oparty na cyklu życia incydentu ITIL.
 | Project Manager / DevOps | Mateusz Fiebich | [@Mateusz5532](https://github.com/Mateusz5532) |
 | Frontend | Adam Szymański | [@Adam89528](https://github.com/Adam89528) |
 | Backend | Oskar Ernst | [@OskarErsiu](https://github.com/OskarErsiu) |
-| Database (DBA) | Bartosz Radziszewski | _w trakcie zakładania konta_ |
+| Database (DBA) | Bartosz Radziszewski | [@chlopodkwiatow](https://github.com/chlopodkwiatow) |
 
 ## Stos technologiczny
 | Warstwa | Technologie |
