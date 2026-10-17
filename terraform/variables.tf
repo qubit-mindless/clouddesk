@@ -75,3 +75,15 @@ variable "web_ssh_public_key_path" {
   type        = string
   default     = "~/.ssh/clouddesk_vm.pub"
 }
+
+variable "db_sku" {
+  description = "Rozmiar serwera PostgreSQL (Burstable B1ms wystarcza na projekt)."
+  type        = string
+  default     = "B_Standard_B1ms"
+}
+
+variable "db_admin_login" {
+  description = "Login administratora PostgreSQL (hasło generuje Terraform i trzyma w Key Vault)."
+  type        = string
+  default     = "clouddeskadmin"
+}
