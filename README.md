@@ -157,11 +157,11 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 | WEB | `vm-web` (Ubuntu 24.04, B1s) z Nginx, publiczny IP + DNS `clouddesk-qubit.polandcentral.cloudapp.azure.com` | ✅ |
 | APP | Container Apps `cae-clouddesk` (tylko wewnętrzny LB) z `ca-clouddesk-backend`, obraz z GHCR po digeście | ✅ |
 | DATA | PostgreSQL 16 Flexible `psql-clouddesk-…` (B1ms) bez dostępu publicznego, hasło w Key Vault | ✅ |
-| Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic) | 🚧 po scaleniu modelu danych |
+| Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic), uruchamiane `scripts/azure-migrate.sh [--seed]` | ✅ schemat 6 tabel + dane przykładowe |
 
 **Jak wdrażamy (do czasu CD w Bloku 8):**
 - **Infrastruktura:** `terraform plan` → przegląd planu z kosztami → `terraform apply` (PM/DevOps). Zmiany kodu Terraform przez PR z review.
-- **Backend:** każdy merge do `main` w `backend/` buduje obraz `linux/amd64`, skanuje go Trivy (krytyczne podatności i sekrety blokują) i publikuje w `ghcr.io/qubit-mindless/clouddesk-backend`. Nowy digest wpisujemy w `backend_image` w Terraformie.
+- **Backend:** każdy merge do `main` w `backend/` buduje obraz `linux/amd64`, skanuje go Trivy (krytyczne podatności i sekrety blokują) i publikuje w `ghcr.io/qubit-mindless/clouddesk-backend`. Nowy digest wpisujemy w `backend_image` w Terraformie, a po zmianach w modelu uruchamiamy `scripts/azure-migrate.sh`.
 - **Frontend:** `config/package-web.sh` buduje paczkę, a `config/deploy-web.sh` instaluje ją na VM przez `az vm run-command` – bez otwierania SSH (szczegóły: [`config/README.md`](config/README.md)).
 - **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
 

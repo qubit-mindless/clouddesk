@@ -1,9 +1,7 @@
 # Migracje bazy (Alembic) jako jednorazowe zadanie Container Apps, uruchamiane ręcznie po wdrożeniu nowego obrazu:
-#   az containerapp job start -g rg-clouddesk -n caj-clouddesk-migrate
+#   scripts/azure-migrate.sh          – alembic upgrade head
+#   scripts/azure-migrate.sh --seed   – migracje + dane przykładowe
 # Ten sam obraz, tożsamość i DATABASE_URL z Key Vault co backend; działa w snet-app, więc ma dostęp do bazy (nsg-db).
-# Dane przykładowe (seed) – jednorazowo, z nadpisaniem polecenia:
-#   az containerapp job start -g rg-clouddesk -n caj-clouddesk-migrate \
-#     --image <obraz backendu> --command "sh" --args "-c" "alembic upgrade head && python -m app.db.seed"
 
 resource "azurerm_container_app_job" "migrate" {
   name                         = "caj-${var.prefix}-migrate"
