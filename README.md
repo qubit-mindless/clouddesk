@@ -66,6 +66,12 @@ Trójwarstwowa architektura z izolacją sieciową. Ruch przechodzi kaskadowo prz
 
 *Diagram w wysokiej jakości: [PNG](docs/diagrams/architecture.png) · [SVG](docs/diagrams/architecture.svg). Źródło: [`docs/diagrams/architecture.mmd`](docs/diagrams/architecture.mmd), wykonane w darmowym narzędziu Mermaid.*
 
+*Po zmianie `architecture.mmd` odtwórz obrazy:*
+```bash
+npx -p @mermaid-js/mermaid-cli mmdc -i docs/diagrams/architecture.mmd -o docs/diagrams/architecture.png -s 4 -b white
+npx -p @mermaid-js/mermaid-cli mmdc -i docs/diagrams/architecture.mmd -o docs/diagrams/architecture.svg -b white
+```
+
 <details>
 <summary>Kod diagramu (Mermaid, renderowany przez GitHub)</summary>
 
@@ -78,13 +84,13 @@ flowchart LR
         direction LR
         subgraph vnet["VNet vnet-clouddesk · 10.0.0.0/16"]
             direction LR
-            subgraph web["1 · WEB · snet-web 10.0.1.0/24 · publiczna"]
+            subgraph web["1 · WEB · snet-web 10.0.1.0/24 · publiczna · NSG: 443 + 80→443 z Internetu"]
                 nginx["VM Linux + Nginx<br/>React (statyczny)<br/>reverse proxy /api"]
             end
-            subgraph app["2 · APP · snet-app 10.0.2.0/24 · prywatna"]
+            subgraph app["2 · APP · snet-app 10.0.2.0/24 · prywatna · NSG: 8000 tylko z snet-web"]
                 api["Azure Container Apps<br/>FastAPI<br/>ingress: internal"]
             end
-            subgraph data["3 · DATA · snet-db 10.0.3.0/24 · prywatna"]
+            subgraph data["3 · DATA · snet-db 10.0.3.0/24 · prywatna · NSG: 5432 tylko z snet-app"]
                 db[("PostgreSQL<br/>Flexible Server<br/>bez publicznego IP")]
             end
         end
@@ -101,7 +107,7 @@ flowchart LR
     user -->|"HTTPS 443"| nginx
     nginx -->|"HTTP 8000<br/>tylko z snet-web"| api
     api -->|"TCP 5432<br/>tylko z snet-app"| db
-    api --> ai
+    api -->|HTTPS| ai
     api --> blob
     api --> mail
     kv -.->|sekrety| api
