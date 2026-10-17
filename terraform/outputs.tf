@@ -37,3 +37,8 @@ output "db_name" {
 output "key_vault_name" {
   value = azurerm_key_vault.main.name
 }
+
+output "backend_internal_url" {
+  description = "Adres backendu dla Nginx na VM (BACKEND_INTERNAL_URL, bez końcowego /)."
+  value       = "https://${azurerm_container_app.backend.ingress[0].fqdn}"
+}

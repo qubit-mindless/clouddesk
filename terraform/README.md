@@ -11,6 +11,7 @@ Region: **polandcentral** (polityka subskrypcji dopuszcza też swedencentral, ge
 | `network.tf` | VNet 10.0.0.0/16, podsieci `snet-web` / `snet-app` / `snet-db`, NSG dla każdej warstwy |
 | `web.tf` | VM `vm-web` z Nginx, publiczny IP z nazwą DNS |
 | `database.tf` | PostgreSQL 16 Flexible (B1ms, tylko prywatny dostęp w `snet-db`), prywatna strefa DNS, Key Vault z hasłem administratora |
+| `app.tf` | środowisko Container Apps (tylko wewnętrzny LB, profil Consumption) w `snet-app`, prywatna strefa DNS, Log Analytics, backend z tożsamością czytającą `DATABASE_URL` z Key Vault |
 | `versions.tf` | provider `azurerm`, stan zdalny w Azure Storage |
 
 W kolejnych etapach: baza, backend, frontend.
@@ -20,7 +21,7 @@ W kolejnych etapach: baza, backend, frontend.
 |---|---|---|---|---|
 | nsg-web | 100 | Allow | Internet | 443 |
 | nsg-web | 110 | Allow | Internet | 80 (przekierowanie na HTTPS) |
-| nsg-app | 100 | Allow | snet-web 10.0.1.0/24 | 80, 443 (ingress Container Apps → kontener :8000) |
+| nsg-app | 100 | Allow | snet-web 10.0.1.0/24 | 80, 443 oraz 31080, 31443 (ingress Container Apps za wewnętrznym LB → kontener :8000) |
 | nsg-app | 110 | Allow | snet-app (ruch wewnątrz środowiska) | * |
 | nsg-app | 120 | Allow | AzureLoadBalancer | * |
 | nsg-db | 100 | Allow | snet-app 10.0.2.0/24 | 5432 |

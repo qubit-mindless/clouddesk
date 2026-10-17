@@ -87,3 +87,20 @@ variable "db_admin_login" {
   type        = string
   default     = "clouddeskadmin"
 }
+
+variable "backend_image" {
+  description = "Obraz backendu przypięty po skrócie (repo@sha256:...), nie po tagu – adres z podsumowania workflow „Backend image”."
+  type        = string
+  default     = "ghcr.io/qubit-mindless/clouddesk-backend@sha256:30f3bb9797ba600b3e0f38d3ef6321f52c34fe75f9bb3b5ba07cb6c3ce44ccde"
+
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.backend_image))
+    error_message = "Podaj obraz po digeście (…@sha256:<64 znaki hex>), nie po tagu."
+  }
+}
+
+variable "backend_port" {
+  description = "Port, na którym słucha kontener backendu (uvicorn w backend/Dockerfile)."
+  type        = number
+  default     = 8000
+}

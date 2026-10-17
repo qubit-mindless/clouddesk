@@ -93,7 +93,9 @@ resource "azurerm_network_security_group" "app" {
   resource_group_name = azurerm_resource_group.main.name
   tags                = local.tags
 
-  # Wewnętrzny ingress Container Apps nasłuchuje na 80/443 i przekazuje ruch do kontenera FastAPI (:8000).
+  # Wewnętrzny ingress Container Apps: klient łączy się na 80/443 adresu ILB, a load balancer przekazuje ruch
+  # do proxy środowiska na 31080/31443 (środowisko z workload profiles) – NSG widzi oba porty.
+  # Proxy przekazuje dalej do kontenera FastAPI (:8000).
   security_rule {
     name                       = "AllowIngressFromWeb"
     priority                   = 100
@@ -103,7 +105,7 @@ resource "azurerm_network_security_group" "app" {
     source_address_prefix      = var.subnet_cidrs.web
     source_port_range          = "*"
     destination_address_prefix = var.subnet_cidrs.app
-    destination_port_ranges    = ["80", "443"]
+    destination_port_ranges    = ["80", "443", "31080", "31443"]
   }
 
   # Komunikacja wewnątrz środowiska Container Apps.
