@@ -7,3 +7,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff.lint.isort]
+# Katalog backend/alembic/ to skrypty migracji, a nie pakiet – "alembic" to biblioteka.
+known-third-party = ["alembic"]
