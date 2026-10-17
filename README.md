@@ -170,7 +170,7 @@ cd backend
 cp .env.example .env
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-alembic upgrade head      # schemat bazy (model danych: docs/ERD.md)
+alembic upgrade head      # schemat bazy (model danych: docs/database/ERD.md)
 python -m app.db.seed     # dane testowe (opcjonalnie)
 uvicorn app.main:app --reload
 

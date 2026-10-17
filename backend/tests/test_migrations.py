@@ -22,12 +22,13 @@ from app.db.seed import seed  # noqa: E402
 from app.models import Base  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-APP_TABLES = {"users", "tickets"}
+APP_TABLES = {"users", "tickets", "ticket_history", "comments", "attachments", "ai_messages"}
 TICKET_INDEXES = {
     "ix_tickets_status",
     "ix_tickets_priority",
     "ix_tickets_assignee_id",
     "ix_tickets_reporter_id",
+    "ix_tickets_sla_due_at",
 }
 
 
@@ -73,5 +74,13 @@ def test_migrations_on_empty_db(engine):
 
     _alembic(engine, "upgrade", "head")
     with Session(engine) as db:
-        assert seed(db) == (11, 8)
-        assert seed(db) == (0, 0)
+        added = seed(db)
+        assert added == {
+            "users": 11,
+            "tickets": 8,
+            "ticket_history": 9,
+            "comments": 3,
+            "attachments": 1,
+            "ai_messages": 3,
+        }
+        assert not any(seed(db).values())
