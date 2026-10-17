@@ -7,6 +7,7 @@ Region: **polandcentral** (polityka subskrypcji dopuszcza też swedencentral, ge
 |---|---|
 | `main.tf` | grupa zasobów `rg-clouddesk` |
 | `budget.tf` | budżet miesięczny grupy zasobów z alertami e-mail: 50%, 80%, 100% (rzeczywiste) i 100% (prognoza) |
+| `rbac.tf` | role zespołu na `rg-clouddesk` (konta Entra ID po UPN, mapa `team_members`) |
 | `network.tf` | VNet 10.0.0.0/16, podsieci `snet-web` / `snet-app` / `snet-db`, NSG dla każdej warstwy |
 | `versions.tf` | provider `azurerm`, stan zdalny w Azure Storage |
 
