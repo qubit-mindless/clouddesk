@@ -1,38 +1,60 @@
+import { Link, useLocation, useNavigate } from 'react-router'
 import type { Ticket } from '../api/types'
-
-const STATUS_LABEL: Record<Ticket['status'], string> = {
-  NEW: 'Nowe',
-  ASSIGNED: 'Przypisane',
-  IN_PROGRESS: 'W toku',
-  RESOLVED: 'Rozwiązane',
-  CLOSED: 'Zamknięte',
-}
+import { PriorityBadge } from './PriorityBadge'
+import { SlaDue } from './SlaDue'
+import { StatusBadge } from './StatusBadge'
 
 export function TicketList({ tickets }: { tickets: Ticket[] }) {
+  const navigate = useNavigate()
+  // Szczegóły dostają aktualne filtry, żeby przycisk powrotu wrócił do tego samego widoku.
+  const { search } = useLocation()
+  const state = { listSearch: search }
+
+  if (tickets.length === 0) {
+    return (
+      <p className="empty" data-testid="ticket-list-empty">
+        Brak zgłoszeń spełniających kryteria.
+      </p>
+    )
+  }
+
   return (
-    <table data-testid="ticket-list">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Tytuł</th>
-          <th>Priorytet</th>
-          <th>Status</th>
-          <th>Technik</th>
-          <th>Termin SLA</th>
-        </tr>
-      </thead>
-      <tbody>
-        {tickets.map((t) => (
-          <tr key={t.id}>
-            <td>{t.id}</td>
-            <td>{t.title}</td>
-            <td>{t.priority}</td>
-            <td>{STATUS_LABEL[t.status]}</td>
-            <td>{t.assignee ?? '—'}</td>
-            <td>{new Date(t.slaDueAt).toLocaleString('pl-PL')}</td>
+    <div className="table-wrap">
+      <table data-testid="ticket-list">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tytuł</th>
+            <th>Priorytet</th>
+            <th>Status</th>
+            <th>Technik</th>
+            <th>Termin SLA</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {tickets.map((t) => (
+            <tr key={t.id} data-testid={`ticket-row-${t.id}`} className="clickable" onClick={() => navigate(`/tickets/${t.id}`, { state })}>
+              <td>{t.id}</td>
+              <td>
+                {/* Link zostaje dla klawiatury i czytników ekranu, kliknięcie w wiersz to skrót dla myszy. */}
+                <Link to={`/tickets/${t.id}`} state={state} onClick={(e) => e.stopPropagation()}>
+                  {t.title}
+                </Link>
+              </td>
+              <td>
+                <PriorityBadge priority={t.priority} />
+              </td>
+              <td>
+                <StatusBadge status={t.status} />
+              </td>
+              <td>{t.assignee ?? '—'}</td>
+              <td>
+                <SlaDue ticket={t} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
