@@ -1,13 +1,37 @@
+# Aktualizacje zależności: raz w tygodniu jeden zbiorczy PR na ekosystem (minor + patch).
+# Duże skoki wersji (major) pomijamy – podnosimy je świadomie, osobnym PR z testami.
+# Poprawki bezpieczeństwa (Dependabot security updates) przychodzą niezależnie od tego harmonogramu.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /frontend
-    schedule: { interval: weekly }
-    open-pull-requests-limit: 5
+    schedule: { interval: weekly, day: monday, time: "06:00", timezone: Europe/Warsaw }
+    open-pull-requests-limit: 3
+    groups:
+      frontend:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: pip
     directory: /backend
-    schedule: { interval: weekly }
-    open-pull-requests-limit: 5
+    schedule: { interval: weekly, day: monday, time: "06:00", timezone: Europe/Warsaw }
+    open-pull-requests-limit: 3
+    groups:
+      backend:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: weekly, day: monday, time: "06:00", timezone: Europe/Warsaw }
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
