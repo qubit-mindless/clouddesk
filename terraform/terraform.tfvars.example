@@ -1,0 +1,3 @@
+# Skopiuj do terraform.tfvars (plik jest w .gitignore).
+subscription_id = "00000000-0000-0000-0000-000000000000"
+budget_emails   = ["imie.nazwisko@example.com"]
