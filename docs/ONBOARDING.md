@@ -53,7 +53,7 @@ Zasady:
 - W Issue lub PR możesz napisać komentarz `@claude …`, a Claude w GitHub Actions wykona zadanie albo zrobi review.
 
 ## 5. Pierwsze uruchomienie
-Wymagania: Git, [GitHub CLI](https://cli.github.com/), Node.js 20+, Python 3.12+, Docker (dla lokalnej bazy).
+Wymagania: Git, [GitHub CLI](https://cli.github.com/), Node.js 22.22+ (zalecany 24 LTS), Python 3.12+, Docker (dla lokalnej bazy).
 
 ```bash
 gh auth login

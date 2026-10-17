@@ -4,6 +4,7 @@ export type TicketPriority = 'P1' | 'P2' | 'P3' | 'P4'
 export interface Ticket {
   id: number
   title: string
+  description: string
   status: TicketStatus
   priority: TicketPriority
   reporter: string

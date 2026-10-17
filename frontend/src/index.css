@@ -7,3 +7,42 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
 table { width: 100%; border-collapse: collapse; background: #fff; }
 th, td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; text-align: left; }
 th { background: #f1f5f9; }
+a { color: #1d4ed8; }
+.app-header h1 a { color: inherit; text-decoration: none; }
+.app-header p { margin-top: -8px; color: #64748b; }
+
+table { min-width: 720px; }
+.table-wrap { overflow-x: auto; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover { background: #f8fafc; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.filters label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #475569; }
+.filters select, .filters input { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; color: #1f2937; background: #fff; }
+.filters-search { flex: 1; min-width: 200px; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+.priority-p1 { background: #fee2e2; color: #991b1b; }
+.priority-p2 { background: #ffedd5; color: #9a3412; }
+.priority-p3 { background: #e0f2fe; color: #075985; }
+.priority-p4 { background: #f1f5f9; color: #475569; }
+.status-new { background: #ede9fe; color: #5b21b6; }
+.status-assigned { background: #e0f2fe; color: #075985; }
+.status-in_progress { background: #fef9c3; color: #854d0e; }
+.status-resolved { background: #dcfce7; color: #166534; }
+.status-closed { background: #f1f5f9; color: #475569; }
+
+.sla-warning { color: #b45309; font-weight: 600; }
+.sla-breached { color: #b91c1c; font-weight: 600; }
+.sla-done { color: #94a3b8; }
+
+.empty { padding: 24px; background: #fff; border: 1px dashed #cbd5e1; text-align: center; color: #64748b; }
+
+.details { margin-top: 16px; padding: 20px 24px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; }
+.details header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.details h2 { margin: 0; }
+.details-badges { display: flex; gap: 8px; }
+.details dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 24px; margin: 20px 0; }
+.details dt { color: #64748b; }
+.details dd { margin: 0; }
+.details-description { white-space: pre-line; line-height: 1.5; }

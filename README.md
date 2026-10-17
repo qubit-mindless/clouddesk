@@ -153,7 +153,7 @@ clouddesk/
 ```
 
 ## Uruchomienie lokalne
-Wymagania: Node.js 20+, Python 3.12+, Docker.
+Wymagania: Node.js 22.22+ (zalecany 24 LTS), Python 3.12+, Docker.
 
 ```bash
 # 1. Baza danych
