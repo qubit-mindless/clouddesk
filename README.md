@@ -59,7 +59,7 @@ Trójwarstwowa architektura z izolacją sieciową. Ruch przechodzi kaskadowo prz
 | Warstwa | Podsieć | Komponent | Kto może się połączyć |
 |---|---|---|---|
 | 1. Dostępowa (WEB) | `snet-web` 10.0.1.0/24, **publiczna** | VM z Nginx: frontend React + reverse proxy `/api` | Internet: 443 (80 → przekierowanie) |
-| 2. Logiki (APP) | `snet-app` 10.0.2.0/24, **prywatna** | Azure Container Apps: FastAPI | tylko `snet-web`, port 8000 |
+| 2. Logiki (APP) | `snet-app` 10.0.2.0/24, **prywatna** | Azure Container Apps: FastAPI | tylko `snet-web`, porty 80/443 (ingress → kontener :8000) |
 | 3. Danych (DB) | `snet-db` 10.0.3.0/24, **prywatna** | PostgreSQL Flexible Server | tylko `snet-app`, port 5432 |
 
 ![Architektura CloudDesk w Azure](docs/diagrams/architecture.png)
@@ -87,7 +87,7 @@ flowchart LR
             subgraph web["1 · WEB · snet-web 10.0.1.0/24 · publiczna · NSG: 443 + 80→443 z Internetu"]
                 nginx["VM Linux + Nginx<br/>React (statyczny)<br/>reverse proxy /api"]
             end
-            subgraph app["2 · APP · snet-app 10.0.2.0/24 · prywatna · NSG: 8000 tylko z snet-web"]
+            subgraph app["2 · APP · snet-app 10.0.2.0/24 · prywatna · NSG: 80/443 tylko z snet-web"]
                 api["Azure Container Apps<br/>FastAPI<br/>ingress: internal"]
             end
             subgraph data["3 · DATA · snet-db 10.0.3.0/24 · prywatna · NSG: 5432 tylko z snet-app"]
@@ -105,7 +105,7 @@ flowchart LR
     end
 
     user -->|"HTTPS 443"| nginx
-    nginx -->|"HTTP 8000<br/>tylko z snet-web"| api
+    nginx -->|"HTTPS 443 (ingress)<br/>tylko z snet-web"| api
     api -->|"TCP 5432<br/>tylko z snet-app"| db
     api -->|HTTPS| ai
     api --> blob
