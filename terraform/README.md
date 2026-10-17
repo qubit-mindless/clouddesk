@@ -14,7 +14,7 @@ Region: **polandcentral** (polityka subskrypcji dopuszcza też swedencentral, ge
 | `app.tf` | środowisko Container Apps (tylko wewnętrzny LB, profil Consumption) w `snet-app`, prywatna strefa DNS, Log Analytics, backend z tożsamością czytającą `DATABASE_URL` z Key Vault |
 | `versions.tf` | provider `azurerm`, stan zdalny w Azure Storage |
 
-W kolejnych etapach: baza, backend, frontend.
+Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnych etapach: HTTPS, monitoring i usługi zarządzane (Azure OpenAI, Blob Storage, e-mail).
 
 ## Reguły sieciowe (NSG)
 | NSG | Priorytet | Reguła | Źródło | Port |
