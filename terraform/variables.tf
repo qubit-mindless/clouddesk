@@ -32,6 +32,12 @@ variable "budget_emails" {
   type        = list(string)
 }
 
+variable "team_members" {
+  description = "Członkowie zespołu: UPN (mail uczelniany) => rola RBAC na grupie zasobów. PM ma rolę Owner na subskrypcji, więc go tu nie ma."
+  type        = map(string)
+  default     = {}
+}
+
 variable "vnet_cidr" {
   description = "Pula adresów sieci VNet."
   type        = string
