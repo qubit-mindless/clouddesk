@@ -12,6 +12,7 @@ Region: **polandcentral** (polityka subskrypcji dopuszcza też swedencentral, ge
 | `web.tf` | VM `vm-web` z Nginx, publiczny IP z nazwą DNS |
 | `database.tf` | PostgreSQL 16 Flexible (B1ms, tylko prywatny dostęp w `snet-db`), prywatna strefa DNS, Key Vault z hasłem administratora |
 | `app.tf` | środowisko Container Apps (tylko wewnętrzny LB, profil Consumption) w `snet-app`, prywatna strefa DNS, Log Analytics, backend z tożsamością czytającą `DATABASE_URL` z Key Vault |
+| `migrations.tf` | zadanie Container Apps `caj-clouddesk-migrate` uruchamiające migracje Alembic (ręcznie, po wdrożeniu nowego obrazu) |
 | `versions.tf` | provider `azurerm`, stan zdalny w Azure Storage |
 
 W kolejnych etapach: baza, backend, frontend.
