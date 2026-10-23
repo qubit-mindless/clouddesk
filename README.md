@@ -209,6 +209,8 @@ npm install
 npm run dev
 ```
 
+Frontend bez backendu: w `frontend/.env.local` ustaw `VITE_FAKE_API=true`. Wtedy `npm run dev` odpowiada na `/api/tickets` udawanym API (`frontend/dev/fakeApi.ts`), które korzysta z danych testowych z `src/mocks` i zwraca te same statusy i błędy 422 co FastAPI. Dane siedzą w pamięci i znikają po restarcie serwera.
+
 Testy i lint:
 ```bash
 cd backend && pytest && ruff check .

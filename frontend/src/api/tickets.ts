@@ -1,14 +1,24 @@
-import mockTickets from '../mocks/tickets.json'
-import type { Ticket } from './types'
+import { request } from './client'
+import type { Ticket, TicketCreate, TicketQuery, TicketUpdate } from './types'
 
-// Blok 4: dane makietowe. W Bloku 6 (#16) te funkcje zaczną wołać GET ${API_BASE_URL}/tickets,
-// a komponenty korzystające z nich zostaną bez zmian.
-const tickets = mockTickets as Ticket[]
+// Lista może przyjść jako tablica albo strona { items, total, page, size } (paginacja z #13).
+type TicketListResponse = Ticket[] | { items: Ticket[] }
 
-export function getTickets(): Ticket[] {
-  return tickets
+export async function getTickets(query: TicketQuery = {}, signal?: AbortSignal): Promise<Ticket[]> {
+  const params = new URLSearchParams(Object.entries(query).filter(([, value]) => value) as [string, string][])
+  const search = params.size ? `?${params}` : ''
+  const body = await request<TicketListResponse>(`/tickets${search}`, { signal })
+  return Array.isArray(body) ? body : body.items
 }
 
-export function getTicket(id: number): Ticket | undefined {
-  return tickets.find((t) => t.id === id)
+export function getTicket(id: number, signal?: AbortSignal): Promise<Ticket> {
+  return request<Ticket>(`/tickets/${id}`, { signal })
+}
+
+export function createTicket(data: TicketCreate): Promise<Ticket> {
+  return request<Ticket>('/tickets', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export function updateTicket(id: number, data: TicketUpdate): Promise<Ticket> {
+  return request<Ticket>(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 }
