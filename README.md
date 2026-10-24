@@ -18,6 +18,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 - [Architektura](#architektura)
 - [Wdrożenie w Azure](#wdrożenie-w-azure)
 - [Struktura repozytorium](#struktura-repozytorium)
+- [API](#api)
 - [Uruchomienie lokalne](#uruchomienie-lokalne)
 - [Sposób pracy](#sposób-pracy)
 - [Roadmapa](#roadmapa)
@@ -186,6 +187,20 @@ clouddesk/
 └── .github/           # workflows (obraz backendu + Trivy, Claude Code), Dependabot
 ```
 
+## API
+Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Azure API jest dostępne wyłącznie przez Nginx pod `/api` (backend nie ma publicznego adresu). JSON w camelCase; błędy walidacji w formacie FastAPI: `{"detail": [{"loc": ["body", "<pole>"], "msg": "…"}]}`.
+
+| Metoda | Ścieżka | Opis | Odpowiedzi | Autoryzacja |
+|---|---|---|---|---|
+| GET | `/health` | stan aplikacji i połączenia z bazą | 200, 503 | – |
+| GET | `/api/tickets` | lista zgłoszeń; filtry `status`, `priority`, `assignee` (login technika), `q` (tytuł); paginacja `page`, `size` (1–100) | 200, 422 | brak (logowanie w #14) |
+| GET | `/api/tickets/{id}` | szczegóły zgłoszenia | 200, 404 | brak |
+| POST | `/api/tickets` | nowe zgłoszenie: `title` (5–200 znaków), `description`, `priority` (P1–P4); status `NEW` i termin SLA nadaje backend | 201, 422 | brak |
+| PATCH | `/api/tickets/{id}` | zmiana wybranych pól: `title`, `description`, `priority` (przelicza SLA), `status`, `assignee` (login technika lub `null`); każda zmiana trafia do historii | 200, 404, 422 | brak |
+| DELETE | `/api/tickets/{id}` | usunięcie zgłoszenia razem z historią, komentarzami i załącznikami | 204, 404 | brak |
+
+Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni. Do czasu logowania zgłoszenia i zmiany zapisują się na konto demonstracyjne (`DEMO_USER_EMAIL`).
+
 ## Uruchomienie lokalne
 Wymagania: Node.js 22.22+ (zalecany 24 LTS), Python 3.12+, Docker.
 
@@ -231,7 +246,7 @@ cd frontend && npm run lint && npm run build
 | 1–2 | Zespół, deklaracja, repo, Kanban, architektura | ✅ |
 | 3 | Konto Azure, IAM + MFA, VNet i podsieci, NSG, Terraform | ✅ |
 | 4 | Frontend: lista zgłoszeń, hosting w warstwie WEB | ✅ |
-| 5 | Backend: CRUD zgłoszeń, walidacja, PostgreSQL | 🚧 baza w Azure gotowa, model danych i API w review/realizacji |
+| 5 | Backend: CRUD zgłoszeń, walidacja, PostgreSQL | 🚧 model danych i baza w Azure gotowe, API zgłoszeń w review |
 | 6 | Integracja UI ↔ API, stany ładowania i błędów | 🚧 |
 | 7–8 | CI (skanery bezpieczeństwa) i CD do Azure | 🚧 obraz backendu z Trivy w CI; CD w planie |
 | 9 | Hardening, HTTPS | ⏳ |

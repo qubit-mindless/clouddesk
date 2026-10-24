@@ -23,5 +23,5 @@ def test_health_down(monkeypatch):
 
     monkeypatch.setattr(session, "ping_db", fail)
     res = client.get("/health")
-    assert res.status_code == 500
+    assert res.status_code == 503
     assert res.json()["database"] == "DISCONNECTED"
