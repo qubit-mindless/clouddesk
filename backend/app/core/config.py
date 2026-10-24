@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     database_url: str
     cors_origins: str = "http://localhost:5173"
+    # Konto, na które zapisujemy zgłoszenia i zmiany, dopóki nie ma logowania (#14).
+    demo_user_email: str = "demo@clouddesk.example"
 
     @property
     def cors_origin_list(self) -> list[str]:
