@@ -91,7 +91,7 @@ variable "db_admin_login" {
 variable "backend_image" {
   description = "Obraz backendu przypięty po skrócie (repo@sha256:...), nie po tagu – adres z podsumowania workflow „Backend image”."
   type        = string
-  default     = "ghcr.io/qubit-mindless/clouddesk-backend@sha256:af61a3599f92690734ac76521821dcd84767428a2c0acec468895098f12e464f"
+  default     = "ghcr.io/qubit-mindless/clouddesk-backend@sha256:f7eae06f29659a7077c2bacff870526dcb47a21f5ce686c121c60e3bff1aa31e"
 
   validation {
     condition     = can(regex("@sha256:[0-9a-f]{64}$", var.backend_image))
