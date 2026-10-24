@@ -28,7 +28,9 @@ class TicketRepository:
         if assignee_id is not None:
             filters.append(Ticket.assignee_id == assignee_id)
         if q:
-            filters.append(Ticket.title.ilike(f"%{q}%"))
+            # %, _ i \ z wyszukiwarki traktujemy dosłownie, a nie jako symbole wieloznaczne LIKE.
+            escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            filters.append(Ticket.title.ilike(f"%{escaped}%", escape="\\"))
 
         total = self.db.scalar(select(func.count()).select_from(Ticket).where(*filters)) or 0
         rows = self.db.scalars(

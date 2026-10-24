@@ -8,18 +8,20 @@ from datetime import datetime, timedelta  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine, select  # noqa: E402
+from sqlalchemy import create_engine, event, func, select  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Base, TicketHistory, User, UserRole  # noqa: E402
+from app.models import Base, Ticket, TicketHistory, User, UserRole  # noqa: E402
 
 
 @pytest.fixture
 def db():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    # SQLite domyślnie ignoruje klucze obce – bez tego testy nie wyłapałyby błędów CASCADE/RESTRICT.
+    event.listen(engine, "connect", lambda dbapi_conn, _: dbapi_conn.execute("PRAGMA foreign_keys=ON"))
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, autoflush=False)
     with session_factory() as session:
@@ -173,3 +175,19 @@ def test_delete_returns_204_then_404(client):
     assert res.status_code == 204 and res.content == b""
     assert client.get(f"/api/tickets/{tid}").status_code == 404
     assert client.delete(f"/api/tickets/{tid}").status_code == 404
+
+
+def test_delete_cascades_history(client, db):
+    tid = create(client).json()["id"]
+    client.patch(f"/api/tickets/{tid}", json={"assignee": "tech.jan", "status": "ASSIGNED"})
+    assert client.delete(f"/api/tickets/{tid}").status_code == 204
+    with db() as session:
+        assert session.scalar(select(func.count()).select_from(TicketHistory)) == 0
+        assert session.get(Ticket, tid) is None
+
+
+def test_search_treats_like_wildcards_literally(client):
+    create(client, title="Drukarka zacięta")
+    create(client, title="Rabat 100% na licencje")
+    assert client.get("/api/tickets?q=_").json()["total"] == 0
+    assert client.get("/api/tickets", params={"q": "100%"}).json()["total"] == 1
