@@ -1,14 +1,24 @@
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
+import { PRIORITY_LABEL, STATUS_LABEL } from '../api/labels'
 import { getTickets } from '../api/tickets'
+import type { TicketPriority, TicketStatus } from '../api/types'
+import { ErrorState } from '../components/ErrorState'
+import { Loading } from '../components/Loading'
 import { TicketFilters, type TicketFilterValues } from '../components/TicketFilters'
 import { TicketList } from '../components/TicketList'
+import { useRequest } from '../hooks/useRequest'
+
+// Nieznana wartość w adresie (np. ?status=FOO) jest pomijana, zamiast dawać pustą listę.
+function pick<T extends string>(value: string | null, allowed: Record<T, string>): T | '' {
+  return value && value in allowed ? (value as T) : ''
+}
 
 export function TicketListPage() {
   // Filtry siedzą w adresie (?status=&priority=&q=), więc powrót ze szczegółów ich nie gubi.
   const [params, setParams] = useSearchParams()
   const filters: TicketFilterValues = {
-    status: (params.get('status') ?? '') as TicketFilterValues['status'],
-    priority: (params.get('priority') ?? '') as TicketFilterValues['priority'],
+    status: pick<TicketStatus>(params.get('status'), STATUS_LABEL),
+    priority: pick<TicketPriority>(params.get('priority'), PRIORITY_LABEL),
     query: params.get('q') ?? '',
   }
 
@@ -17,18 +27,26 @@ export function TicketListPage() {
     setParams(entries.filter(([, value]) => value !== ''), { replace: true })
   }
 
-  const query = filters.query.trim().toLowerCase()
-  const tickets = getTickets().filter(
-    (t) =>
-      (!filters.status || t.status === filters.status) &&
-      (!filters.priority || t.priority === filters.priority) &&
-      (!query || t.title.toLowerCase().includes(query)),
+  // Status i priorytet filtruje API, a wyszukiwanie po tytule działa od razu w przeglądarce.
+  const { status, priority } = filters
+  const { data, error, loading, reload } = useRequest(`${status}|${priority}`, (signal) =>
+    getTickets({ status: status || undefined, priority: priority || undefined }, signal),
   )
+
+  const query = filters.query.trim().toLowerCase()
+  const tickets = data?.filter((t) => !query || t.title.toLowerCase().includes(query))
 
   return (
     <>
+      <div className="page-actions">
+        <Link to="/tickets/new" className="button primary" data-testid="ticket-new">
+          + Nowe zgłoszenie
+        </Link>
+      </div>
       <TicketFilters values={filters} onChange={handleChange} />
-      <TicketList tickets={tickets} />
+      {loading && <Loading label="Ładowanie zgłoszeń…" />}
+      {error !== undefined && <ErrorState error={error} onRetry={reload} />}
+      {tickets && <TicketList tickets={tickets} />}
     </>
   )
 }

@@ -14,6 +14,9 @@
   --sla-warning: #b45309;
   --sla-breached: #b91c1c;
   --sla-done: #94a3b8;
+  --primary: #1d4ed8;
+  --primary-fg: #fff;
+  --danger: #b91c1c;
 
   /* etykiety: tło / tekst */
   --red-bg: #fee2e2;    --red-fg: #991b1b;
@@ -41,6 +44,9 @@
     --sla-warning: #fbbf24;
     --sla-breached: #f87171;
     --sla-done: #64748b;
+    --primary: #3b82f6;
+    --primary-fg: #0f172a;
+    --danger: #f87171;
 
     --red-bg: #7f1d1d66;    --red-fg: #fecaca;
     --orange-bg: #7c2d1266; --orange-fg: #fed7aa;
@@ -96,3 +102,37 @@ tr.clickable:hover { background: var(--surface-muted); }
 .details dt { color: var(--text-muted); }
 .details dd { margin: 0; }
 .details-description { white-space: pre-line; line-height: 1.5; }
+
+/* Blok 6: stany ładowania i błędu, formularz, toasty */
+.page-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+
+button, .button { display: inline-block; padding: 6px 14px; border: 1px solid var(--border-strong); border-radius: 6px; font: inherit; color: var(--text); background: var(--surface); text-decoration: none; cursor: pointer; }
+button:hover, .button:hover { background: var(--surface-muted); }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+.primary, .primary:hover { margin-left: auto; border-color: var(--primary); background: var(--primary); color: var(--primary-fg); font-weight: 600; }
+.primary:hover:not(:disabled) { filter: brightness(1.1); }
+.danger { border-color: var(--danger); color: var(--danger); }
+.page-actions-group { display: flex; gap: 8px; }
+
+.loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 24px; color: var(--text-muted); }
+.spinner { width: 18px; height: 18px; border: 2px solid var(--border-strong); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+.error-state { padding: 20px; background: var(--red-bg); color: var(--red-fg); border-radius: 8px; text-align: center; }
+.error-state p { margin: 0 0 12px; }
+
+.ticket-form { display: grid; gap: 6px; max-width: 640px; margin-top: 16px; }
+.ticket-form label { margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); }
+.ticket-form input, .ticket-form select, .ticket-form textarea { padding: 8px; border: 1px solid var(--border-strong); border-radius: 6px; font: inherit; color: var(--text); background: var(--surface); }
+.ticket-form [aria-invalid='true'] { border-color: var(--danger); }
+.field-error, .form-error { color: var(--danger); font-size: 0.85rem; }
+.form-error { margin: 8px 0 0; }
+.form-actions { display: flex; gap: 8px; margin-top: 16px; }
+.form-actions .primary { margin-left: 0; }
+
+.toasts { position: fixed; right: 16px; bottom: 16px; left: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 12px; max-width: 420px; padding: 10px 14px; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 16px #0004; pointer-events: auto; }
+.toast button { padding: 0 6px; border: 0; background: transparent; color: inherit; font-size: 1.2rem; }
+.toast-success { background: var(--green-bg); color: var(--green-fg); backdrop-filter: blur(8px); }
+.toast-error { background: var(--red-bg); color: var(--red-fg); backdrop-filter: blur(8px); }
