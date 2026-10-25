@@ -246,8 +246,8 @@ cd frontend && npm run lint && npm run build
 | 1–2 | Zespół, deklaracja, repo, Kanban, architektura | ✅ |
 | 3 | Konto Azure, IAM + MFA, VNet i podsieci, NSG, Terraform | ✅ |
 | 4 | Frontend: lista zgłoszeń, hosting w warstwie WEB | ✅ |
-| 5 | Backend: CRUD zgłoszeń, walidacja, PostgreSQL | 🚧 model danych i baza w Azure gotowe, API zgłoszeń w review |
-| 6 | Integracja UI ↔ API, stany ładowania i błędów | 🚧 |
+| 5 | Backend: CRUD zgłoszeń, walidacja, PostgreSQL | ✅ API `/api/tickets` wdrożone w Azure |
+| 6 | Integracja UI ↔ API, stany ładowania i błędów | 🚧 integracja w review (#45) |
 | 7–8 | CI (skanery bezpieczeństwa) i CD do Azure | 🚧 obraz backendu z Trivy w CI; CD w planie |
 | 9 | Hardening, HTTPS | ⏳ |
 | 10 | FinOps, monitoring, /health | ⏳ |
