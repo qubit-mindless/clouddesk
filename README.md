@@ -4,14 +4,21 @@
 
 Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WSB Merito Wrocław, 2026/2027.
 
-> Status: 🚧 w budowie (Blok 2: szkielet repozytorium i architektura)
+[![CodeQL](https://github.com/qubit-mindless/clouddesk/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/qubit-mindless/clouddesk/security/code-scanning)
+[![Backend image](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml/badge.svg)](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml)
+
+**Live:** http://clouddesk-qubit.polandcentral.cloudapp.azure.com (HTTPS w Bloku 9)
+
+> Status: 🚧 w budowie – Bloki 1–4 gotowe (infrastruktura Azure w Terraformie, frontend w chmurze); w toku Bloki 5–6: API zgłoszeń, model danych i integracja frontendu z API.
 
 ## Spis treści
 - [O projekcie](#o-projekcie)
 - [Zespół](#zespół)
 - [Stos technologiczny](#stos-technologiczny)
 - [Architektura](#architektura)
+- [Wdrożenie w Azure](#wdrożenie-w-azure)
 - [Struktura repozytorium](#struktura-repozytorium)
+- [API](#api)
 - [Uruchomienie lokalne](#uruchomienie-lokalne)
 - [Sposób pracy](#sposób-pracy)
 - [Roadmapa](#roadmapa)
@@ -58,7 +65,7 @@ Trójwarstwowa architektura z izolacją sieciową. Ruch przechodzi kaskadowo prz
 
 | Warstwa | Podsieć | Komponent | Kto może się połączyć |
 |---|---|---|---|
-| 1. Dostępowa (WEB) | `snet-web` 10.0.1.0/24, **publiczna** | VM z Nginx: frontend React + reverse proxy `/api` | Internet: 443 (80 → przekierowanie) |
+| 1. Dostępowa (WEB) | `snet-web` 10.0.1.0/24, **publiczna** | VM z Nginx: frontend React + reverse proxy `/api` | Internet: 80 i 443 (certyfikat i przekierowanie 80 → 443 w Bloku 9) |
 | 2. Logiki (APP) | `snet-app` 10.0.2.0/24, **prywatna** | Azure Container Apps: FastAPI | tylko `snet-web`, porty 80/443 (ingress → kontener :8000) |
 | 3. Danych (DB) | `snet-db` 10.0.3.0/24, **prywatna** | PostgreSQL Flexible Server | tylko `snet-app`, port 5432 |
 
@@ -134,10 +141,32 @@ flowchart LR
 ```
 </details>
 
+Diagram pokazuje architekturę docelową. Usługi zarządzane (Azure OpenAI, Blob Storage, Communication Services, Application Insights) i HTTPS dochodzą w kolejnych blokach – aktualny stan jest w sekcji [Wdrożenie w Azure](#wdrożenie-w-azure).
+
 **Wzorce w kodzie:**
 - **MVC:** widoki React, routery FastAPI jako kontrolery, modele SQLAlchemy;
 - **Repository:** dostęp do bazy wyłącznie przez `app/repositories`;
 - **DTO:** schematy Pydantic w `app/schemas`, przenoszące dane między backendem a frontendem.
+
+## Wdrożenie w Azure
+Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegóły, reguły NSG i pierwsze uruchomienie: [`terraform/README.md`](terraform/README.md)). Region: `polandcentral`, grupa zasobów `rg-clouddesk`.
+
+| Warstwa | Zasób w Azure | Stan |
+|---|---|---|
+| Dostęp i koszty | role RBAC zespołu (Contributor tylko na `rg-clouddesk`), budżet 35 €/mies. z alertami 50/80/100% | ✅ |
+| Sieć | `vnet-clouddesk` 10.0.0.0/16, podsieci `snet-web` / `snet-app` / `snet-db`, NSG kaskadowo, SSH zamknięty | ✅ |
+| WEB | `vm-web` (Ubuntu 24.04, B1s) z Nginx, publiczny IP + DNS `clouddesk-qubit.polandcentral.cloudapp.azure.com` | ✅ |
+| APP | Container Apps `cae-clouddesk` (tylko wewnętrzny LB) z `ca-clouddesk-backend`, obraz z GHCR po digeście | ✅ |
+| DATA | PostgreSQL 16 Flexible `psql-clouddesk-…` (B1ms) bez dostępu publicznego, hasło w Key Vault | ✅ |
+| Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic), uruchamiane `scripts/azure-migrate.sh [--seed]` | ✅ schemat 6 tabel + dane przykładowe |
+
+**Jak wdrażamy (do czasu CD w Bloku 8):**
+- **Infrastruktura:** `terraform plan` → przegląd planu z kosztami → `terraform apply` (PM/DevOps). Zmiany kodu Terraform przez PR z review.
+- **Backend:** każdy merge do `main` w `backend/` buduje obraz `linux/amd64`, skanuje go Trivy (krytyczne podatności i sekrety blokują) i publikuje w `ghcr.io/qubit-mindless/clouddesk-backend`. Nowy digest wpisujemy w `backend_image` w Terraformie, a po zmianach w modelu uruchamiamy `scripts/azure-migrate.sh`.
+- **Frontend:** `config/package-web.sh` buduje paczkę, a `config/deploy-web.sh` instaluje ją na VM przez `az vm run-command` – bez otwierania SSH (szczegóły: [`config/README.md`](config/README.md)).
+- **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
+
+**Koszt (cennik Azure, polandcentral):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).
 
 ## Struktura repozytorium
 ```
@@ -155,8 +184,22 @@ clouddesk/
 ├── config/            # konfiguracje lokalne: docker-compose (PostgreSQL), nginx
 ├── terraform/         # infrastruktura Azure jako kod
 ├── docs/              # deklaracja, diagramy, dokumentacja
-└── .github/workflows/ # CI/CD oraz Claude Code
+└── .github/           # workflows (obraz backendu + Trivy, Claude Code), Dependabot
 ```
+
+## API
+Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Azure API jest dostępne wyłącznie przez Nginx pod `/api` (backend nie ma publicznego adresu). JSON w camelCase; błędy walidacji w formacie FastAPI: `{"detail": [{"loc": ["body", "<pole>"], "msg": "…"}]}`.
+
+| Metoda | Ścieżka | Opis | Odpowiedzi | Autoryzacja |
+|---|---|---|---|---|
+| GET | `/health` | stan aplikacji i połączenia z bazą | 200, 503 | – |
+| GET | `/api/tickets` | lista zgłoszeń; filtry `status`, `priority`, `assignee` (login technika), `q` (tytuł); paginacja `page`, `size` (1–100) | 200, 422 | brak (logowanie w #14) |
+| GET | `/api/tickets/{id}` | szczegóły zgłoszenia | 200, 404 | brak |
+| POST | `/api/tickets` | nowe zgłoszenie: `title` (5–200 znaków), `description`, `priority` (P1–P4); status `NEW` i termin SLA nadaje backend | 201, 422 | brak |
+| PATCH | `/api/tickets/{id}` | zmiana wybranych pól: `title`, `description`, `priority` (przelicza SLA), `status`, `assignee` (login technika lub `null`); każda zmiana trafia do historii | 200, 404, 422 | brak |
+| DELETE | `/api/tickets/{id}` | usunięcie zgłoszenia razem z historią, komentarzami i załącznikami | 204, 404 | brak |
+
+Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni. Do czasu logowania zgłoszenia i zmiany zapisują się na konto demonstracyjne (`DEMO_USER_EMAIL`).
 
 ## Uruchomienie lokalne
 Wymagania: Node.js 22.22+ (zalecany 24 LTS), Python 3.12+, Docker.
@@ -170,6 +213,8 @@ cd backend
 cp .env.example .env
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
+alembic upgrade head      # schemat bazy (model danych: docs/database/ERD.md)
+python -m app.db.seed     # dane testowe (opcjonalnie)
 uvicorn app.main:app --reload
 
 # 3. Frontend – http://localhost:5173
@@ -193,17 +238,19 @@ cd frontend && npm run lint && npm run build
 - Zadania śledzimy w **GitHub Projects** (kolumny: Todo → In Progress → In Review → Done). Każde zadanie to Issue z przypisaną osobą.
 - Każda zmiana powstaje na osobnej gałęzi (`feature/…`, `fix/issue-N`). Potem idzie Pull Request z `Closes #N`, review innej osoby i merge do `main`.
 - Commity są małe, a ich opisy czytelne.
+- `main` jest chroniony: wymagany 1 approve, a nowy commit w PR kasuje wcześniejsze zatwierdzenia.
+- Zależności aktualizuje Dependabot: jeden zbiorczy PR tygodniowo na ekosystem (wersje major podnosimy ręcznie).
 - W Issue lub PR można wywołać **Claude Code**, pisząc komentarz `@claude …`.
 
 ## Roadmapa
 | Blok | Zakres | Status |
 |---|---|---|
-| 1–2 | Zespół, deklaracja, repo, Kanban, architektura | 🚧 |
-| 3 | Konto Azure, IAM + MFA, VNet i podsieci, NSG, Terraform | ⏳ |
-| 4 | Frontend: lista zgłoszeń, hosting w warstwie WEB | ⏳ |
-| 5 | Backend: CRUD zgłoszeń, walidacja, PostgreSQL | ⏳ |
-| 6 | Integracja UI ↔ API, stany ładowania i błędów | ⏳ |
-| 7–8 | CI (skanery bezpieczeństwa) i CD do Azure | ⏳ |
+| 1–2 | Zespół, deklaracja, repo, Kanban, architektura | ✅ |
+| 3 | Konto Azure, IAM + MFA, VNet i podsieci, NSG, Terraform | ✅ |
+| 4 | Frontend: lista zgłoszeń, hosting w warstwie WEB | ✅ |
+| 5 | Backend: CRUD zgłoszeń, walidacja, PostgreSQL | 🚧 model danych i baza w Azure gotowe, API zgłoszeń w review |
+| 6 | Integracja UI ↔ API, stany ładowania i błędów | 🚧 |
+| 7–8 | CI (skanery bezpieczeństwa) i CD do Azure | 🚧 obraz backendu z Trivy w CI; CD w planie |
 | 9 | Hardening, HTTPS | ⏳ |
 | 10 | FinOps, monitoring, /health | ⏳ |
 | 11 | Testy API i E2E (Playwright) | ⏳ |

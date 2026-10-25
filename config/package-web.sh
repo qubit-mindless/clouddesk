@@ -19,5 +19,7 @@ cp -r "$repo_root/frontend/dist" "$staging/html"
 cp "$repo_root/config/nginx.conf" "$repo_root/config/deploy-web.sh" "$staging/"
 
 mkdir -p "$(dirname "$out")"
-tar -czf "$out" -C "$staging" html nginx.conf deploy-web.sh
+# Bez rozszerzonych atrybutów: tar z macOS dokłada je do archiwum, a GNU tar na VM ostrzega
+# przy rozpakowaniu (LIBARCHIVE.xattr...). COPYFILE_DISABLE wyłącza też pliki ._* z macOS.
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "$out" -C "$staging" html nginx.conf deploy-web.sh
 echo "Gotowe: $out"
