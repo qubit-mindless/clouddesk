@@ -34,6 +34,11 @@ function validate(body: Record<string, unknown>, partial: boolean): FieldError[]
     if (title.length < 5) err('title', 'String should have at least 5 characters')
     if (title.length > 200) err('title', 'String should have at most 200 characters')
   }
+  if (!partial || 'description' in body) {
+    const description = typeof body.description === 'string' ? body.description.trim() : ''
+    if (description.length < 1) err('description', 'String should have at least 1 character')
+    if (description.length > 5000) err('description', 'String should have at most 5000 characters')
+  }
   if ((!partial || 'priority' in body) && !PRIORITIES.includes(body.priority as string)) {
     err('priority', "Input should be 'P1', 'P2', 'P3' or 'P4'")
   }
@@ -102,7 +107,7 @@ export function fakeApi(): Plugin {
           const created: Ticket = {
             id: nextId++,
             title: String(body.title).trim(),
-            description: typeof body.description === 'string' ? body.description : '',
+            description: String(body.description).trim(),
             status: 'NEW',
             priority: String(body.priority),
             reporter: 'dev.user',

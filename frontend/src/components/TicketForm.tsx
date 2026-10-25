@@ -6,6 +6,7 @@ import type { Ticket, TicketPriority, TicketStatus, TicketUpdate } from '../api/
 // Te same reguły co w DTO z #13. Backend sprawdza je ponownie, a jego 422 trafia do tych samych pól.
 const TITLE_MIN = 5
 const TITLE_MAX = 200
+const DESCRIPTION_MAX = 5000
 
 export interface TicketFormValues {
   title: string
@@ -29,6 +30,9 @@ function validate(values: TicketFormValues): FieldErrors {
   if (title.length < TITLE_MIN) errors.title = `Tytuł musi mieć co najmniej ${TITLE_MIN} znaków.`
   else if (title.length > TITLE_MAX) errors.title = `Tytuł może mieć najwyżej ${TITLE_MAX} znaków.`
   if (!values.priority) errors.priority = 'Wybierz priorytet.'
+  const description = values.description.trim()
+  if (!description) errors.description = 'Opisz problem.'
+  else if (description.length > DESCRIPTION_MAX) errors.description = `Opis może mieć najwyżej ${DESCRIPTION_MAX} znaków.`
   return errors
 }
 
@@ -156,7 +160,7 @@ export function TicketForm({ ticket, submitLabel, onSubmit, onCancel }: Props) {
         </>
       )}
 
-      <label htmlFor="ticket-description">Opis</label>
+      <label htmlFor="ticket-description">Opis *</label>
       <textarea
         {...fieldProps('description')}
         data-testid="ticket-form-description"

@@ -22,3 +22,7 @@ export function createTicket(data: TicketCreate): Promise<Ticket> {
 export function updateTicket(id: number, data: TicketUpdate): Promise<Ticket> {
   return request<Ticket>(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 }
+
+export function deleteTicket(id: number): Promise<void> {
+  return request<void>(`/tickets/${id}`, { method: 'DELETE' })
+}
