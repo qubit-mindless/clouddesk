@@ -104,3 +104,20 @@ variable "backend_port" {
   type        = number
   default     = 8000
 }
+
+variable "backup_image" {
+  description = "Obraz z pg_dump w wersji serwera (PostgreSQL 16), przypięty po digeście."
+  type        = string
+  default     = "postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
+
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.backup_image))
+    error_message = "Podaj obraz po digeście (…@sha256:<64 znaki hex>), nie po tagu."
+  }
+}
+
+variable "backup_retention_days" {
+  description = "Ile dni trzymać kopie bazy w udziale plików."
+  type        = number
+  default     = 30
+}

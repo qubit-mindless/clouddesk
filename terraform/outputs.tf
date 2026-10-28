@@ -42,3 +42,8 @@ output "backend_internal_url" {
   description = "Adres backendu dla Nginx na VM (BACKEND_INTERNAL_URL, bez końcowego /)."
   value       = "https://${azurerm_container_app.backend.ingress[0].fqdn}"
 }
+
+output "backup_storage_account" {
+  description = "Konto Storage z kopiami bazy (udział db-backups) – scripts/azure-db-backup.sh."
+  value       = azurerm_storage_account.backup.name
+}
