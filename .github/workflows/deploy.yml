@@ -1,6 +1,6 @@
 # CD (Blok 8): po zielonym CI na main wdrażamy do Azure – bez haseł, logowanie przez OIDC.
 #   1. backend-image  – obraz backendu z SHA commita → skan Trivy → GHCR
-#   2. deploy-backend – (migracje, #73) → nowy obraz w Container Apps → czekamy na zdrową rewizję
+#   2. deploy-backend – migracje bazy nowym obrazem → nowy obraz w Container Apps → czekamy na zdrową rewizję
 #   3. deploy-web     – (#72) build frontendu i wdrożenie na vm-web
 # Joby z dostępem do Azure działają w środowisku GitHub „azure” (tylko gałąź main); tylko ono dostaje token,
 # który Entra ID przyjmuje (federated credential w terraform/cicd.tf).
@@ -103,7 +103,28 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # --- #73 (Bartek): migracje bazy nowym obrazem przed podmianą backendu ---
+      # Skrypt migracji z repozytorium – ta sama wersja co wdrażany kod.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+          sparse-checkout: scripts
+
+      # Migracje przed podmianą backendu: nowy kod może wymagać nowych kolumn. Przez chwilę stary backend działa
+      # na nowym schemacie, więc migracje muszą być zgodne wstecz (najpierw dodajemy, usuwamy w kolejnym wydaniu).
+      # Błąd migracji kończy job tutaj – backend zostaje na poprzednim obrazie.
+      - name: Migracje bazy (alembic upgrade head)
+        shell: bash # -o pipefail: błąd skryptu nie zginie za `| tee`
+        env:
+          NEW_IMAGE: ${{ needs.backend-image.outputs.image }}
+          JOB: caj-clouddesk-migrate
+        run: |
+          # Zadanie dostaje nowy obraz na stałe, więc ręczne uruchomienie skryptu też użyje wdrożonej wersji.
+          az containerapp job update -g "$RG" -n "$JOB" --image "$NEW_IMAGE" -o none
+          scripts/azure-migrate.sh | tee "$RUNNER_TEMP/migrate.log"
+          {
+            echo "### Migracje bazy"
+            echo "\`$(head -n1 "$RUNNER_TEMP/migrate.log")\` → zakończone powodzeniem"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Nowy obraz w Container Apps
         env:
