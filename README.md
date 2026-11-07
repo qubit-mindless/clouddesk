@@ -247,6 +247,8 @@ Każdy PR do `main` i każdy push na `main` uruchamia workflow **CI** (`.github/
 | Migracje | `upgrade → downgrade → upgrade` na PostgreSQL 16 | Alembic, pytest |
 | Zależności | podatności HIGH/CRITICAL w `package-lock.json` i `requirements*.txt` | Trivy |
 
+> Stan na 7.11: działa skan sekretów; joby Frontend (#64), Backend (#65), Migracje i Zależności (#66) są w realizacji.
+
 Poza CI działają: **CodeQL** (analiza kodu JS/TS, Python i workflowów przy każdym PR), **GitHub Secret Scanning z push protection** (blokuje push z rozpoznanym sekretem), **Dependabot** (alerty i cotygodniowe aktualizacje) oraz workflow **Backend image** (obraz kontenera skanowany Trivy przed publikacją w GHCR).
 
 `main` przyjmuje zmiany tylko przez PR z approve innej osoby i z zielonymi wszystkimi jobami CI. Akcje GitHub są przypięte po SHA, a workflowy mają minimalne uprawnienia (`contents: read`).
