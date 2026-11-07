@@ -67,6 +67,32 @@ jobs:
         run: npm run build
 
   # --- Tu dochodzą kolejne joby (zadania Bloku 7) ---
-  # backend:       Oskar  – ruff, pytest
   # migrations:    Bartek – alembic upgrade/downgrade na PostgreSQL 16 (service container)
   # dependencies:  Bartek – Trivy fs: podatności w package-lock.json i requirements*.txt
+
+  backend:
+    name: Backend (ruff + pytest)
+    needs: secret-scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Instalacja zależności
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      # Testy działają na SQLite w pamięci – baza PostgreSQL nie jest potrzebna.
+      # Test migracji na PostgreSQL 16 uruchamia osobny job migrations.
+      - name: Testy (pytest)
+        run: pytest -v

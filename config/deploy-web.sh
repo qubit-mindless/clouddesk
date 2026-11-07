@@ -56,5 +56,14 @@ cp -r "$src/html/." "$web_root/"
 chmod -R a+rX "$web_root"
 
 nginx -t || restore
-systemctl reload nginx
+
+# Po nieudanym starcie (np. restart przy aktualizacji pakietów) systemd próbuje ponownie.
+override=/etc/systemd/system/nginx.service.d/restart.conf
+if [[ ! -f "$override" ]]; then
+  mkdir -p "$(dirname "$override")"
+  printf '[Unit]\nStartLimitIntervalSec=0\n\n[Service]\nRestart=on-failure\nRestartSec=10s\n' > "$override"
+  systemctl daemon-reload
+fi
+
+systemctl reload-or-restart nginx   # start, jeśli Nginx stał (np. po nieudanym restarcie)
 echo "Frontend wdrożony, backend: $BACKEND_INTERNAL_URL"
