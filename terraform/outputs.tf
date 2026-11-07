@@ -42,3 +42,8 @@ output "backend_internal_url" {
   description = "Adres backendu dla Nginx na VM (BACKEND_INTERNAL_URL, bez końcowego /)."
   value       = "https://${azurerm_container_app.backend.ingress[0].fqdn}"
 }
+
+output "github_deploy_client_id" {
+  description = "Client ID tożsamości dla deploy.yml (sekret AZURE_CLIENT_ID w środowisku GitHub „azure”)."
+  value       = azurerm_user_assigned_identity.github.client_id
+}

@@ -1,0 +1,127 @@
+# CD (Blok 8): po zielonym CI na main wdrażamy do Azure – bez haseł, logowanie przez OIDC.
+#   1. backend-image  – obraz backendu z SHA commita → skan Trivy → GHCR
+#   2. deploy-backend – (migracje, #73) → nowy obraz w Container Apps → czekamy na zdrową rewizję
+#   3. deploy-web     – (#72) build frontendu i wdrożenie na vm-web
+# Joby z dostępem do Azure działają w środowisku GitHub „azure” (tylko gałąź main); tylko ono dostaje token,
+# który Entra ID przyjmuje (federated credential w terraform/cicd.tf).
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Wdrożenia po kolei, bez przerywania trwającego (przerwany deploy mógłby zostawić Azure w połowie zmian).
+concurrency:
+  group: deploy-azure
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/clouddesk-backend
+  # workflow_run: commit, który przeszedł CI; ręczne uruchomienie: bieżący main.
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  RG: rg-clouddesk
+  BACKEND_APP: ca-clouddesk-backend
+
+jobs:
+  backend-image:
+    name: Obraz backendu
+    # Tylko po udanym CI dla pusha na main (nie dla PR) albo ręcznie.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build (linux/amd64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          platforms: linux/amd64
+          load: true
+          tags: clouddesk-backend:scan
+          build-args: GIT_SHA=${{ env.SHA }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy – podatności i sekrety w obrazie
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.0
+          image-ref: clouddesk-backend:scan
+          scanners: vuln,secret
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: push
+        name: Publikacja w GHCR (tag sha-<commit>)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:sha-${{ env.SHA }}
+          build-args: GIT_SHA=${{ env.SHA }}
+          cache-from: type=gha
+
+  deploy-backend:
+    name: Wdrożenie backendu (Container Apps)
+    needs: backend-image
+    runs-on: ubuntu-latest
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write # token OIDC dla azure/login
+    steps:
+      - name: Logowanie do Azure (OIDC)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # --- #73 (Bartek): migracje bazy nowym obrazem przed podmianą backendu ---
+
+      - name: Nowy obraz w Container Apps
+        env:
+          NEW_IMAGE: ${{ needs.backend-image.outputs.image }}
+        run: |
+          az containerapp update -g "$RG" -n "$BACKEND_APP" --image "$NEW_IMAGE" -o none
+          for _ in $(seq 1 30); do
+            read -r latest ready image < <(az containerapp show -g "$RG" -n "$BACKEND_APP" --query \
+              "[properties.latestRevisionName, properties.latestReadyRevisionName, properties.template.containers[0].image]" -o tsv | tr '\n' ' ')
+            if [[ "$latest" == "$ready" && "$image" == "$NEW_IMAGE" ]]; then
+              echo "Rewizja $ready działa z obrazem $image"
+              echo "### Backend: rewizja \`$ready\`" >> "$GITHUB_STEP_SUMMARY"
+              echo "\`$image\`" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Nowa rewizja nie jest gotowa po 5 minutach (najnowsza: $latest, gotowa: $ready)." >&2
+          exit 1
+
+  # --- #72 (Adam): job deploy-web – build frontendu i wdrożenie na vm-web ---
