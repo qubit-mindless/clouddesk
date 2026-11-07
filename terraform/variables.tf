@@ -105,10 +105,10 @@ variable "backend_port" {
   default     = 8000
 }
 
-variable "github_repository" {
-  description = "Repozytorium (organizacja/nazwa), którego workflow deploy loguje się do Azure przez OIDC."
+variable "github_subject_prefix" {
+  description = "Początek tematu (sub) tokenu OIDC GitHuba. Repozytorium używa formatu niezmiennego (immutable subject) z numerami ID organizacji i repo – zmiana nazwy repo nie przejmie dostępu. Sprawdzenie: gh api repos/<org>/<repo>/actions/oidc/customization/sub."
   type        = string
-  default     = "qubit-mindless/clouddesk"
+  default     = "repo:qubit-mindless@337266726/clouddesk@1402929245"
 }
 
 variable "github_environment" {

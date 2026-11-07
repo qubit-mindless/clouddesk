@@ -1,6 +1,7 @@
 # CD (Blok 8): GitHub Actions loguje się do Azure przez OIDC – bez haseł i kluczy w GitHubie.
 # GitHub wystawia krótkotrwały token JWT dla joba; Entra ID przyjmuje go tylko wtedy, gdy temat (subject)
-# zgadza się dokładnie z federated credential: to repozytorium i środowisko „azure” (dopuszczona tylko gałąź main).
+# zgadza się dokładnie z federated credential: to repozytorium (po numerach ID, nie nazwie) i środowisko „azure”
+# (dopuszczona tylko gałąź main).
 
 resource "azurerm_user_assigned_identity" "github" {
   name                = "id-${var.prefix}-github"
@@ -14,7 +15,7 @@ resource "azurerm_federated_identity_credential" "github_main" {
   parent_id = azurerm_user_assigned_identity.github.id
   issuer    = "https://token.actions.githubusercontent.com"
   audience  = ["api://AzureADTokenExchange"]
-  subject   = "repo:${var.github_repository}:environment:${var.github_environment}"
+  subject   = "${var.github_subject_prefix}:environment:${var.github_environment}"
 }
 
 # Contributor tylko na rg-clouddesk: aktualizacja Container App (wymaga też przypisania tożsamości backendu),
