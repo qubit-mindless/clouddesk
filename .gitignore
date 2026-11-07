@@ -11,6 +11,7 @@ dist/
 build/
 
 # Python
+backend/.resolved/
 .venv/
 __pycache__/
 *.pyc
