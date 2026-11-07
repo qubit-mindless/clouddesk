@@ -44,5 +44,11 @@ resource "azurerm_container_app_job" "migrate" {
     }
   }
 
+
+  # Obraz podmienia pipeline CD (deploy.yml) przy każdym merge do main – Terraform zarządza resztą konfiguracji.
+  # backend_image zostaje obrazem startowym przy tworzeniu środowiska od zera.
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
   depends_on = [azurerm_role_assignment.backend_kv]
 }

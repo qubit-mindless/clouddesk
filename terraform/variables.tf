@@ -105,6 +105,18 @@ variable "backend_port" {
   default     = 8000
 }
 
+variable "github_repository" {
+  description = "Repozytorium (organizacja/nazwa), którego workflow deploy loguje się do Azure przez OIDC."
+  type        = string
+  default     = "qubit-mindless/clouddesk"
+}
+
+variable "github_environment" {
+  description = "Środowisko GitHub (Settings → Environments) ograniczone do gałęzi main; tylko ono dostaje token do Azure."
+  type        = string
+  default     = "azure"
+}
+
 variable "backup_image" {
   description = "Obraz z pg_dump w wersji serwera (PostgreSQL 16), przypięty po digeście."
   type        = string
