@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -36,6 +36,8 @@ class TicketPriority(StrEnum):
 
 class Ticket(Base):
     __tablename__ = "tickets"
+    # TEST Blok 7: indeks GIN bez klasy operatorów (gin_trgm_ops) – SQLite go przyjmie, PostgreSQL odrzuci.
+    __table_args__ = (Index("ix_tickets_title_search", "title", postgresql_using="gin"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
