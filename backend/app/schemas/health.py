@@ -7,4 +7,5 @@ class HealthDTO(BaseModel):
     status: str
     database: str
     version: str
+    commit: str
     timestamp: datetime

@@ -10,6 +10,8 @@ class Settings(BaseSettings):
 
     app_env: str = "local"
     app_version: str = "0.1.0"
+    # SHA commita, z którego zbudowano obraz (build-arg GIT_SHA w Dockerfile); lokalnie "local".
+    git_sha: str = "local"
     database_url: str
     cors_origins: str = "http://localhost:5173"
     # Konto, na które zapisujemy zgłoszenia i zmiany, dopóki nie ma logowania (#14).

@@ -194,7 +194,7 @@ Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Az
 
 | Metoda | Ścieżka | Opis | Odpowiedzi | Autoryzacja |
 |---|---|---|---|---|
-| GET | `/health` | stan aplikacji i połączenia z bazą | 200, 503 | – |
+| GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`); z zewnątrz przez Nginx tylko `/api/health` | 200, 503 | – |
 | GET | `/api/tickets` | lista zgłoszeń; filtry `status`, `priority`, `assignee` (login technika), `q` (tytuł); paginacja `page`, `size` (1–100) | 200, 422 | brak (logowanie w #14) |
 | GET | `/api/tickets/{id}` | szczegóły zgłoszenia | 200, 404 | brak |
 | POST | `/api/tickets` | nowe zgłoszenie: `title` (5–200 znaków), `description`, `priority` (P1–P4); status `NEW` i termin SLA nadaje backend | 201, 422 | brak |
