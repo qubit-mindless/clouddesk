@@ -13,7 +13,7 @@ client = TestClient(app)
 def test_health_up(monkeypatch):
     monkeypatch.setattr(session, "ping_db", lambda: None)
     res = client.get("/health")
-    assert res.status_code == 201
+    assert res.status_code == 200
     assert res.json()["status"] == "UP"
 
 
