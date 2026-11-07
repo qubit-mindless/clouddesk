@@ -4,6 +4,7 @@
 
 Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WSB Merito Wrocław, 2026/2027.
 
+[![CI](https://github.com/qubit-mindless/clouddesk/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-mindless/clouddesk/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/qubit-mindless/clouddesk/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/qubit-mindless/clouddesk/security/code-scanning)
 [![Backend image](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml/badge.svg)](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml)
 
@@ -20,6 +21,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 - [Struktura repozytorium](#struktura-repozytorium)
 - [API](#api)
 - [Uruchomienie lokalne](#uruchomienie-lokalne)
+- [CI i bezpieczeństwo kodu](#ci-i-bezpieczeństwo-kodu)
 - [Sposób pracy](#sposób-pracy)
 - [Roadmapa](#roadmapa)
 
@@ -184,7 +186,7 @@ clouddesk/
 ├── config/            # konfiguracje lokalne: docker-compose (PostgreSQL), nginx
 ├── terraform/         # infrastruktura Azure jako kod
 ├── docs/              # deklaracja, diagramy, dokumentacja
-└── .github/           # workflows (obraz backendu + Trivy, Claude Code), Dependabot
+└── .github/           # workflows (CI, obraz backendu + Trivy, Claude Code), Dependabot
 ```
 
 ## API
@@ -233,6 +235,23 @@ cd frontend && npm run lint && npm run build
 ```
 
 **Konfiguracja:** wyłącznie przez zmienne środowiskowe. Wzory są w plikach `.env.example`. Pliki `.env` nigdy nie trafiają do repozytorium.
+
+## CI i bezpieczeństwo kodu
+Każdy PR do `main` i każdy push na `main` uruchamia workflow **CI** (`.github/workflows/ci.yml`). Najpierw skan sekretów; dopiero gdy przejdzie, ruszają pozostałe joby (`needs: secret-scan`).
+
+| Job | Co sprawdza | Narzędzie |
+|---|---|---|
+| Sekrety (Gitleaks) | klucze, hasła i tokeny w całej historii repozytorium (wartości maskowane w logach) | Gitleaks |
+| Frontend | `npm ci`, lint, build (TypeScript + Vite) | oxlint, tsc, Vite |
+| Backend | lint i testy API | ruff, pytest |
+| Migracje | `upgrade → downgrade → upgrade` na PostgreSQL 16 | Alembic, pytest |
+| Zależności | podatności HIGH/CRITICAL w `package-lock.json` i `requirements*.txt` | Trivy |
+
+> Stan na 7.11: działa skan sekretów; joby Frontend (#64), Backend (#65), Migracje i Zależności (#66) są w realizacji.
+
+Poza CI działają: **CodeQL** (analiza kodu JS/TS, Python i workflowów przy każdym PR), **GitHub Secret Scanning z push protection** (blokuje push z rozpoznanym sekretem), **Dependabot** (alerty i cotygodniowe aktualizacje) oraz workflow **Backend image** (obraz kontenera skanowany Trivy przed publikacją w GHCR).
+
+`main` przyjmuje zmiany tylko przez PR z approve innej osoby i z zielonymi wszystkimi jobami CI. Akcje GitHub są przypięte po SHA, a workflowy mają minimalne uprawnienia (`contents: read`).
 
 ## Sposób pracy
 - Zadania śledzimy w **GitHub Projects** (kolumny: Todo → In Progress → In Review → Done). Każde zadanie to Issue z przypisaną osobą.

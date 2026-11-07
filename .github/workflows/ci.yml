@@ -1,0 +1,44 @@
+# CI (Blok 7): przy każdym pushu na main i każdym PR do main sprawdzamy sekrety, podatności, build i testy.
+# Każdy job jest osobnym wymaganym checkiem w ochronie main, więc PR z błędem nie zostanie scalony.
+# Joby kolejnych osób (frontend, backend, migracje, zależności) dopisujemy pod secret-scan – z needs: secret-scan,
+# żeby budowanie ruszało dopiero, gdy w kodzie nie ma sekretów.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Sekrety (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # cała historia: sekret usunięty w późniejszym commicie też jest wyciekiem
+
+      # Obraz Gitleaks zamiast gitleaks-action: akcja wymaga licencji dla repozytoriów organizacji.
+      # --redact: znalezione wartości nie trafiają do logów publicznego repozytorium.
+      # --log-opts=HEAD: historia sprawdzanego commita (main + zmiany z PR), a nie wszystkie gałęzie w repo –
+      # inaczej sekret z cudzej, niescalonej gałęzi blokowałby każdy PR.
+      - name: Gitleaks – cała historia repozytorium
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git /repo --log-opts=HEAD --redact --no-banner --verbose --exit-code 1
+
+  # --- Tu dochodzą kolejne joby (zadania Bloku 7) ---
+  # frontend:      Adam   – npm ci, lint (oxlint), build (tsc + vite)
+  # backend:       Oskar  – ruff, pytest
+  # migrations:    Bartek – alembic upgrade/downgrade na PostgreSQL 16 (service container)
+  # dependencies:  Bartek – Trivy fs: podatności w package-lock.json i requirements*.txt
