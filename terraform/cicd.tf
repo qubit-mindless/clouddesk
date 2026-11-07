@@ -11,11 +11,11 @@ resource "azurerm_user_assigned_identity" "github" {
 }
 
 resource "azurerm_federated_identity_credential" "github_main" {
-  name      = "github-${var.github_environment}"
-  parent_id = azurerm_user_assigned_identity.github.id
-  issuer    = "https://token.actions.githubusercontent.com"
-  audience  = ["api://AzureADTokenExchange"]
-  subject   = "${var.github_subject_prefix}:environment:${var.github_environment}"
+  name                      = "github-${var.github_environment}"
+  user_assigned_identity_id = azurerm_user_assigned_identity.github.id
+  issuer                    = "https://token.actions.githubusercontent.com"
+  audience                  = ["api://AzureADTokenExchange"]
+  subject                   = "${var.github_subject_prefix}:environment:${var.github_environment}"
 }
 
 # Contributor tylko na rg-clouddesk: aktualizacja Container App (wymaga też przypisania tożsamości backendu),

@@ -111,8 +111,10 @@ jobs:
         run: |
           az containerapp update -g "$RG" -n "$BACKEND_APP" --image "$NEW_IMAGE" -o none
           for _ in $(seq 1 30); do
-            read -r latest ready image < <(az containerapp show -g "$RG" -n "$BACKEND_APP" --query \
-              "[properties.latestRevisionName, properties.latestReadyRevisionName, properties.template.containers[0].image]" -o tsv | tr '\n' ' ')
+            app="$(az containerapp show -g "$RG" -n "$BACKEND_APP" -o json)"
+            latest="$(jq -r '.properties.latestRevisionName' <<<"$app")"
+            ready="$(jq -r '.properties.latestReadyRevisionName' <<<"$app")"
+            image="$(jq -r '.properties.template.containers[0].image' <<<"$app")"
             if [[ "$latest" == "$ready" && "$image" == "$NEW_IMAGE" ]]; then
               echo "Rewizja $ready działa z obrazem $image"
               echo "### Backend: rewizja \`$ready\`" >> "$GITHUB_STEP_SUMMARY"
