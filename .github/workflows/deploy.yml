@@ -132,8 +132,10 @@ jobs:
         run: |
           az containerapp update -g "$RG" -n "$BACKEND_APP" --image "$NEW_IMAGE" -o none
           for _ in $(seq 1 30); do
+            # paste (a nie tr '\n' ' ') zostawia końcowy znak nowej linii: bez niego read zwraca kod 1
+            # i w powłoce z -e krok kończy się błędem od razu, mimo że zmienne są już ustawione.
             read -r latest ready image < <(az containerapp show -g "$RG" -n "$BACKEND_APP" --query \
-              "[properties.latestRevisionName, properties.latestReadyRevisionName, properties.template.containers[0].image]" -o tsv | tr '\n' ' ')
+              "[properties.latestRevisionName, properties.latestReadyRevisionName, properties.template.containers[0].image]" -o tsv | paste -sd ' ')
             if [[ "$latest" == "$ready" && "$image" == "$NEW_IMAGE" ]]; then
               echo "Rewizja $ready działa z obrazem $image"
               echo "### Backend: rewizja \`$ready\`" >> "$GITHUB_STEP_SUMMARY"
