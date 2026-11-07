@@ -10,15 +10,18 @@ from app.schemas.health import HealthDTO
 router = APIRouter(tags=["health"])
 
 
+# /health – sonda Container Apps i monitoringu; /api/health – ten sam stan z zewnątrz,
+# bo Nginx na vm-web przekazuje do backendu tylko ścieżki /api/...
 @router.get("/health", response_model=HealthDTO)
+@router.get("/api/health", response_model=HealthDTO)
 def health() -> JSONResponse:
-    """Sonda dla Azure Container Apps / monitoringu: 200 gdy baza odpowiada, 503 gdy nie."""
-    version = get_settings().app_version
-    now = datetime.now(UTC)
+    """Stan aplikacji: 200 gdy baza odpowiada, 503 gdy nie; wersja i SHA wdrożonego commita."""
+    settings = get_settings()
+    info = {"version": settings.app_version, "commit": settings.git_sha, "timestamp": datetime.now(UTC)}
     try:
         session.ping_db()
     except Exception:
-        body = HealthDTO(status="DOWN", database="DISCONNECTED", version=version, timestamp=now)
+        body = HealthDTO(status="DOWN", database="DISCONNECTED", **info)
         return JSONResponse(status_code=503, content=body.model_dump(mode="json"))
-    body = HealthDTO(status="UP", database="CONNECTED", version=version, timestamp=now)
+    body = HealthDTO(status="UP", database="CONNECTED", **info)
     return JSONResponse(status_code=200, content=body.model_dump(mode="json"))
