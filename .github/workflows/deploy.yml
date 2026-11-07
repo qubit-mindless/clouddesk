@@ -1,7 +1,7 @@
 # CD (Blok 8): po zielonym CI na main wdrażamy do Azure – bez haseł, logowanie przez OIDC.
 #   1. backend-image  – obraz backendu z SHA commita → skan Trivy → GHCR
 #   2. deploy-backend – migracje bazy nowym obrazem → nowy obraz w Container Apps → czekamy na zdrową rewizję
-#   3. deploy-web     – (#72) build frontendu i wdrożenie na vm-web
+#   3. deploy-web     – build frontendu z SHA w stopce → paczka na vm-web przez az vm run-command → sprawdzenie strony
 # Joby z dostępem do Azure działają w środowisku GitHub „azure” (tylko gałąź main); tylko ono dostaje token,
 # który Entra ID przyjmuje (federated credential w terraform/cicd.tf).
 name: Deploy
@@ -27,6 +27,8 @@ env:
   SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
   RG: rg-clouddesk
   BACKEND_APP: ca-clouddesk-backend
+  WEB_VM: vm-web
+  WEB_PIP: pip-web
 
 jobs:
   backend-image:
@@ -147,4 +149,93 @@ jobs:
           echo "Nowa rewizja nie jest gotowa po 5 minutach (najnowsza: $latest, gotowa: $ready)." >&2
           exit 1
 
-  # --- #72 (Adam): job deploy-web – build frontendu i wdrożenie na vm-web ---
+  deploy-web:
+    name: Wdrożenie frontendu (vm-web)
+    # Po backendzie: nowy frontend może korzystać z nowego API, a sprawdzenie /api/health widzi już nowy commit.
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write # token OIDC dla azure/login
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Ten sam skrypt co przy ręcznym wdrożeniu (config/README.md); SHA trafia do stopki strony.
+      - name: Build i paczka frontendu
+        env:
+          VITE_APP_VERSION: ${{ env.SHA }}
+        run: config/package-web.sh "$RUNNER_TEMP/web.tgz"
+
+      - name: Logowanie do Azure (OIDC)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Port 22 jest zamknięty w NSG, więc paczka jedzie w treści skryptu run-command (base64) – bez SSH
+      # i bez dodatkowego magazynu plików. Adres backendu bierzemy z Container Apps przy każdym wdrożeniu,
+      # więc nie trzymamy go w repozytorium ani w sekretach.
+      - name: Wdrożenie na vm-web (az vm run-command)
+        run: |
+          fqdn="$(az containerapp show -g "$RG" -n "$BACKEND_APP" --query properties.configuration.ingress.fqdn -o tsv)"
+          [[ "$fqdn" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "Brak poprawnego adresu ingress backendu: '$fqdn'." >&2; exit 1; }
+          # Skrypt w czystym sh (bez bashowych dodatków) – niezależnie od tego, czym run-command go uruchomi.
+          script="$RUNNER_TEMP/deploy-web-run.sh"
+          {
+            echo 'set -eu'
+            echo 'dir="$(mktemp -d)"; trap '\''rm -rf "$dir"'\'' EXIT'
+            echo 'base64 -d > "$dir/web.tar.gz" <<'\''ARCHIVE'\'''
+            base64 -w 76 "$RUNNER_TEMP/web.tgz"
+            echo 'ARCHIVE'
+            echo 'tar -xzf "$dir/web.tar.gz" -C "$dir"'
+            echo "BACKEND_INTERNAL_URL='https://$fqdn' bash \"\$dir/deploy-web.sh\""
+          } > "$script"
+          # Treść skryptu idzie w jednym żądaniu do API Azure – pilnujemy, żeby paczka nie urosła bez kontroli.
+          size="$(stat -c %s "$script")"
+          echo "Skrypt run-command: $size B"
+          if (( size > 200000 )); then
+            echo "Paczka za duża dla run-command ($size B > 200000 B)." >&2
+            exit 1
+          fi
+          # run-command kończy się sukcesem nawet wtedy, gdy skrypt na VM padnie: sukces rozpoznajemy po komunikacie
+          # z końca deploy-web.sh (pojawia się dopiero po udanym `nginx -t` i przeładowaniu Nginx).
+          out="$(az vm run-command invoke -g "$RG" -n "$WEB_VM" --command-id RunShellScript \
+            --scripts @"$script" --query 'value[0].message' -o tsv)"
+          echo "$out"
+          grep -q "Frontend wdrożony" <<<"$out" || { echo "Wdrożenie na $WEB_VM nie powiodło się." >&2; exit 1; }
+
+      # Z zewnątrz, tak jak użytkownik: strona, nowy bundle z SHA w stopce i /api/health przez Nginx.
+      - name: Sprawdzenie strony i /api/health
+        run: |
+          host="$(az network public-ip show -g "$RG" -n "$WEB_PIP" --query dnsSettings.fqdn -o tsv)"
+          [[ -n "$host" ]] || { echo "Brak nazwy DNS dla $WEB_PIP." >&2; exit 1; }
+          url="http://$host"
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/index.html" "$url/"
+          bundle="$(grep -o '/assets/index-[A-Za-z0-9_-]*\.js' "$RUNNER_TEMP/index.html" | head -n1)"
+          [[ -n "$bundle" ]] || { echo "Brak bundla JS w index.html." >&2; exit 1; }
+          curl -fsS -o "$RUNNER_TEMP/bundle.js" "$url$bundle"
+          grep -q "$SHA" "$RUNNER_TEMP/bundle.js" || { echo "Strona nie zawiera SHA $SHA." >&2; exit 1; }
+          # Pierwsze zapytanie po podmianie backendu bywa wolne (zimny start Container Apps), a ruch może
+          # jeszcze chwilę trafiać do starej rewizji – kilka prób, zanim uznamy, że wdrożenie się nie udało.
+          for i in $(seq 1 6); do
+            health="$(curl -fsS --max-time 30 "$url/api/health" || true)"
+            commit="$(jq -r '.commit // empty' <<<"$health" 2>/dev/null || true)"
+            echo "Próba $i: ${health:-brak odpowiedzi}"
+            [[ "$commit" == "$SHA" ]] && break
+            sleep 10
+          done
+          [[ "$commit" == "$SHA" ]] || { echo "/api/health: commit '${commit:-?}' zamiast $SHA." >&2; exit 1; }
+          {
+            echo "### Frontend: \`$url\`"
+            echo "Strona i \`/api/health\` → 200, commit \`$SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
