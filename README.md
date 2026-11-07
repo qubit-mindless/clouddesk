@@ -165,7 +165,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 **Jak wdrażamy (do czasu CD w Bloku 8):**
 - **Infrastruktura:** `terraform plan` → przegląd planu z kosztami → `terraform apply` (PM/DevOps). Zmiany kodu Terraform przez PR z review.
 - **Backend:** każdy merge do `main` w `backend/` buduje obraz `linux/amd64`, skanuje go Trivy (krytyczne podatności i sekrety blokują) i publikuje w `ghcr.io/qubit-mindless/clouddesk-backend`. Nowy digest wpisujemy w `backend_image` w Terraformie, a po zmianach w modelu uruchamiamy `scripts/azure-migrate.sh`.
-- **Frontend:** `config/package-web.sh` buduje paczkę, a `config/deploy-web.sh` instaluje ją na VM przez `az vm run-command` – bez otwierania SSH (szczegóły: [`config/README.md`](config/README.md)).
+- **Frontend:** automatycznie po backendzie – job `deploy-web` w `.github/workflows/deploy.yml` buduje paczkę (`config/package-web.sh`, SHA commita w stopce strony), instaluje ją na VM przez `az vm run-command` (`config/deploy-web.sh`, bez otwierania SSH) i sprawdza stronę oraz `/api/health`. Ręcznie: [`config/README.md`](config/README.md).
 - **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
 
 **Koszt (cennik Azure, polandcentral):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).

@@ -1,5 +1,6 @@
 import { Link, Navigate, Route, Routes } from 'react-router'
 import { ToastProvider } from './components/Toast'
+import { APP_VERSION } from './config'
 import { TicketDetailsPage } from './pages/TicketDetailsPage'
 import { TicketEditPage } from './pages/TicketEditPage'
 import { TicketListPage } from './pages/TicketListPage'
@@ -23,6 +24,12 @@ export default function App() {
           <Route path="/tickets/:id/edit" element={<TicketEditPage />} />
           <Route path="*" element={<Navigate to="/tickets" replace />} />
         </Routes>
+        <footer className="app-footer">
+          CloudDesk · wersja{' '}
+          <code data-testid="app-version" title={APP_VERSION}>
+            {APP_VERSION.slice(0, 7)}
+          </code>
+        </footer>
       </main>
     </ToastProvider>
   )
