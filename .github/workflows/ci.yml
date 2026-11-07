@@ -107,15 +107,17 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.txt
 
-      # requirements*.txt mają zakresy (np. fastapi==0.118.*), a skaner potrzebuje dokładnych wersji.
-      # Instalujemy je tak jak w obrazie Dockera i zapisujemy wynik do pliku, który Trivy przeskanuje.
+      # requirements*.txt mają zakresy (np. fastapi==0.118.*), których Trivy nie rozpoznaje – bez tego kroku
+      # backend w ogóle nie trafia do raportu. Instalujemy zależności jak w obrazie Dockera i zapisujemy dokładne
+      # wersje. Plik musi nazywać się requirements.txt, bo Trivy wykrywa projekty pip tylko po tej nazwie.
       # Frontend nie potrzebuje tego kroku: package-lock.json ma już dokładne wersje.
       - name: Dokładne wersje zależności backendu (pip freeze)
         run: |
           python -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet -r backend/requirements-dev.txt
-          "$RUNNER_TEMP/venv/bin/pip" freeze > backend/requirements-resolved.txt
-          cat backend/requirements-resolved.txt
+          mkdir -p backend/.resolved
+          "$RUNNER_TEMP/venv/bin/pip" freeze > backend/.resolved/requirements.txt
+          cat backend/.resolved/requirements.txt
 
       - name: Trivy – podatności CRITICAL/HIGH z dostępną poprawką
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
