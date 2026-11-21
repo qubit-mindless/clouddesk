@@ -52,3 +52,8 @@ output "backup_storage_account" {
   description = "Konto Storage z kopiami bazy (udział db-backups) – scripts/azure-db-backup.sh."
   value       = azurerm_storage_account.backup.name
 }
+
+output "dashboard_url" {
+  description = "Dashboard monitoringu w portalu Azure"
+  value       = "https://portal.azure.com/#dashboard/arm${azurerm_portal_dashboard.monitoring.id}"
+}
