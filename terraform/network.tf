@@ -4,6 +4,8 @@
 #
 # Domyślna reguła Azure AllowVnetInBound wpuszcza ruch z całej sieci VNet, dlatego każda NSG
 # kończy się jawną regułą DenyVnetInBound – inaczej np. snet-web mógłby łączyć się bezpośrednio z bazą.
+#
+# Priorytety: 100–199 Allow, 200–299 jawne Deny z Internetu (porty zarządcze), 4000 DenyVnetInBound.
 
 resource "azurerm_virtual_network" "main" {
   name                = "vnet-${var.prefix}"
@@ -50,6 +52,21 @@ resource "azurerm_network_security_group" "web" {
     source_port_range          = "*"
     destination_address_prefix = var.subnet_cidrs.web
     destination_port_range     = "80"
+  }
+
+  # Porty zarządcze zamknięte jawnie. Domyślna reguła Azure DenyAllInBound też by je zablokowała, ale jawną
+  # regułę widać w portalu i w planie, a przypadkowe Allow na niższym priorytecie (np. 300) jej nie ominie.
+  # VM obsługujemy przez `az vm run-command` (Azure control plane), więc SSH/RDP nie są potrzebne.
+  security_rule {
+    name                       = "DenyMgmtFromInternet"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_address_prefix      = "Internet"
+    source_port_range          = "*"
+    destination_address_prefix = "*"
+    destination_port_ranges    = ["22", "3389"]
   }
 
   security_rule {
@@ -131,6 +148,20 @@ resource "azurerm_network_security_group" "app" {
     source_port_range          = "*"
     destination_address_prefix = "*"
     destination_port_range     = "*"
+  }
+
+  # Backend nie ma publicznego IP, ale porty zarządcze i porty aplikacji (uvicorn 8000, alternatywny 8080)
+  # blokujemy z Internetu jawnie – na wypadek publicznego adresu dodanego kiedyś przez pomyłkę.
+  security_rule {
+    name                       = "DenyMgmtAndAppFromInternet"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_address_prefix      = "Internet"
+    source_port_range          = "*"
+    destination_address_prefix = "*"
+    destination_port_ranges    = ["22", "3389", "8000", "8080"]
   }
 
   security_rule {
