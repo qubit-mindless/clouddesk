@@ -9,3 +9,7 @@ class HealthDTO(BaseModel):
     version: str
     commit: str
     timestamp: datetime
+
+
+class LivenessDTO(BaseModel):
+    status: str

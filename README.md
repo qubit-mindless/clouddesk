@@ -194,7 +194,8 @@ Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Az
 
 | Metoda | Ścieżka | Opis | Odpowiedzi | Autoryzacja |
 |---|---|---|---|---|
-| GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`); z zewnątrz przez Nginx tylko `/api/health` | 200, 503 | – |
+| GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`); z zewnątrz przez Nginx tylko `/api/health`; `/health` służy też monitoringowi | 200, 503 | – |
+| GET | `/health/live` | czy proces backendu odpowiada (bez sprawdzania bazy) – sonda startup, liveness i readiness Container Apps; tylko wewnątrz VNet | 200 | – |
 | POST | `/api/auth/login` | logowanie: `email`, `password` → `accessToken` (JWT, ważny 60 min), `tokenType`, `expiresIn`, `user` (`id`, `email`, `login`, `fullName`, `role`) | 200, 401, 422 | – |
 | GET | `/api/auth/me` | zalogowany użytkownik | 200, 401 | token |
 | GET | `/api/tickets` | lista zgłoszeń; filtry `status`, `priority`, `assignee` (login technika), `q` (tytuł); paginacja `page`, `size` (1–100). REPORTER widzi tylko swoje | 200, 401, 422 | token |
