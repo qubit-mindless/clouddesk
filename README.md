@@ -22,6 +22,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 - [API](#api)
 - [Uruchomienie lokalne](#uruchomienie-lokalne)
 - [CI i bezpieczeństwo kodu](#ci-i-bezpieczeństwo-kodu)
+- [Monitoring i FinOps](#monitoring-i-finops)
 - [Sposób pracy](#sposób-pracy)
 - [Roadmapa](#roadmapa)
 
@@ -265,6 +266,64 @@ Każdy PR do `main` i każdy push na `main` uruchamia workflow **CI** (`.github/
 Poza CI działają: **CodeQL** (analiza kodu JS/TS, Python i workflowów przy każdym PR), **GitHub Secret Scanning z push protection** (blokuje push z rozpoznanym sekretem), **Dependabot** (alerty i cotygodniowe aktualizacje) oraz workflow **Backend image** (obraz kontenera skanowany Trivy przed publikacją w GHCR).
 
 `main` przyjmuje zmiany tylko przez PR z approve innej osoby i z zielonymi wszystkimi pięcioma jobami CI (wymagane checki w ochronie gałęzi). Akcje GitHub są przypięte po SHA, a workflowy mają minimalne uprawnienia (`contents: read`).
+
+## Monitoring i FinOps
+
+### Budżet i alerty kosztów
+Budżet `budget-clouddesk-monthly` (Terraform: [`terraform/budget.tf`](terraform/budget.tf)) obejmuje grupę zasobów `rg-clouddesk`, odnawia się co miesiąc i wynosi **35 €**.
+
+| Próg | Rodzaj | Kto dostaje e-mail |
+|---|---|---|
+| 50% (17,50 €) | faktyczny koszt | cały zespół (4 osoby) |
+| 80% (28 €) | faktyczny koszt – czas sprawdzić, które zasoby rosną | cały zespół |
+| 100% (35 €) | faktyczny koszt | cały zespół |
+| 100% | **prognoza** – ostrzeżenie, zanim budżet zostanie przekroczony | cały zespół |
+
+Adresy zespołu są w `terraform.tfvars` (poza repozytorium). Koszt w listopadzie 2026 (stan na 21.11): **4,37 €**, prognoza na cały miesiąc: **6,40 €**.
+
+Większość kosztu to publiczny adres IP i sieć, Storage (stan Terraformu, kopie bazy) oraz strefy DNS. VM B1s, PostgreSQL B1ms i Log Analytics mieszczą się w darmowych limitach subskrypcji studenckiej.
+
+Jak trzymamy koszty w ryzach:
+- backend skaluje się do zera, gdy nie ma ruchu (`min_replicas = 0`);
+- logi mają dzienny limit 0,15 GB i retencję 30 dni;
+- asystent AI ma limit 10 odpowiedzi na zgłoszenie;
+- przed każdym `terraform apply` sprawdzamy plan i ceny nowych zasobów.
+
+### Endpoint `/health`
+`GET /health` (wewnątrz VNet) i `GET /api/health` (z zewnątrz przez Nginx) odpytują bazę (`SELECT 1`) i zwracają:
+
+```json
+{"status": "UP", "database": "CONNECTED", "version": "0.1.0", "commit": "<SHA wdrożonego commita>", "timestamp": "…"}
+```
+
+Gdy baza nie odpowiada, odpowiedź to **503** z `"status": "DOWN", "database": "DISCONNECTED"`.
+- Pipeline CD po każdym wdrożeniu sprawdza `/api/health`, w tym czy `commit` to wdrożony SHA.
+- Sondy zdrowia Container Apps na `/health`: #89.
+
+### Logi w chmurze
+Wszystkie logi trafiają do jednego workspace **Log Analytics** `log-clouddesk` (retencja 30 dni). Nie trzeba logować się na VM ani do kontenera.
+
+| Źródło | Tabela | Co tam jest |
+|---|---|---|
+| Backend (Container Apps) | `ContainerAppConsoleLogs_CL` | stdout/stderr FastAPI i uvicorna, w tym żądania HTTP i błędy |
+| Platforma Container Apps | `ContainerAppSystemLogs_CL` | starty rewizji, restarty, skalowanie, sondy zdrowia |
+| Zadania (migracje, kopie bazy) | `ContainerAppConsoleLogs_CL` | wynik `alembic upgrade` i `pg_dump` |
+| PostgreSQL | `AzureDiagnostics` / `PostgreSQLLogs` | logi serwera bazy: #90 |
+
+Przykład: błędy backendu z ostatniej doby.
+
+```kusto
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(24h) and ContainerAppName_s == "ca-clouddesk-backend"
+| where Log_s has_any ("ERROR", "Traceback", " 500 ")
+| project TimeGenerated, RevisionName_s, Log_s
+| order by TimeGenerated desc
+```
+
+Treść rozmów z asystentem AI, hasła i tokeny nie trafiają do logów. Logujemy tylko kody błędów.
+
+### Dashboard
+Dashboard w Azure (Terraform) pokazuje: liczbę żądań z podziałem na 2xx/4xx/5xx, czas odpowiedzi API, CPU i pamięć backendu oraz CPU `vm-web`. Szczegóły w #91.
 
 ## Sposób pracy
 - Zadania śledzimy w **GitHub Projects** (kolumny: Todo → In Progress → In Review → Done). Każde zadanie to Issue z przypisaną osobą.
