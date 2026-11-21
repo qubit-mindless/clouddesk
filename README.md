@@ -8,7 +8,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 [![CodeQL](https://github.com/qubit-mindless/clouddesk/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/qubit-mindless/clouddesk/security/code-scanning)
 [![Backend image](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml/badge.svg)](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml)
 
-**Live:** http://clouddesk-qubit.polandcentral.cloudapp.azure.com (HTTPS w Bloku 9)
+**Live:** https://clouddesk-qubit.polandcentral.cloudapp.azure.com
 
 > Status: 🚧 w budowie – Bloki 1–4 gotowe (infrastruktura Azure w Terraformie, frontend w chmurze); w toku Bloki 5–6: API zgłoszeń, model danych i integracja frontendu z API.
 
@@ -67,7 +67,7 @@ Trójwarstwowa architektura z izolacją sieciową. Ruch przechodzi kaskadowo prz
 
 | Warstwa | Podsieć | Komponent | Kto może się połączyć |
 |---|---|---|---|
-| 1. Dostępowa (WEB) | `snet-web` 10.0.1.0/24, **publiczna** | VM z Nginx: frontend React + reverse proxy `/api` | Internet: 80 i 443 (certyfikat i przekierowanie 80 → 443 w Bloku 9) |
+| 1. Dostępowa (WEB) | `snet-web` 10.0.1.0/24, **publiczna** | VM z Nginx: frontend React + reverse proxy `/api` | Internet: 443 (TLS, certyfikat Let's Encrypt) i 80 (tylko przekierowanie 301 na HTTPS) |
 | 2. Logiki (APP) | `snet-app` 10.0.2.0/24, **prywatna** | Azure Container Apps: FastAPI | tylko `snet-web`, porty 80/443 (ingress → kontener :8000) |
 | 3. Danych (DB) | `snet-db` 10.0.3.0/24, **prywatna** | PostgreSQL Flexible Server | tylko `snet-app`, port 5432 |
 
@@ -143,7 +143,7 @@ flowchart LR
 ```
 </details>
 
-Diagram pokazuje architekturę docelową. Usługi zarządzane (Azure OpenAI, Blob Storage, Communication Services, Application Insights) i HTTPS dochodzą w kolejnych blokach – aktualny stan jest w sekcji [Wdrożenie w Azure](#wdrożenie-w-azure).
+Diagram pokazuje architekturę docelową. Usługi zarządzane (Azure OpenAI, Blob Storage, Communication Services, Application Insights) dochodzą w kolejnych blokach – aktualny stan jest w sekcji [Wdrożenie w Azure](#wdrożenie-w-azure).
 
 **Wzorce w kodzie:**
 - **MVC:** widoki React, routery FastAPI jako kontrolery, modele SQLAlchemy;
@@ -157,7 +157,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 |---|---|---|
 | Dostęp i koszty | role RBAC zespołu (Contributor tylko na `rg-clouddesk`), budżet 35 €/mies. z alertami 50/80/100% | ✅ |
 | Sieć | `vnet-clouddesk` 10.0.0.0/16, podsieci `snet-web` / `snet-app` / `snet-db`, NSG kaskadowo, SSH zamknięty | ✅ |
-| WEB | `vm-web` (Ubuntu 24.04, B1s) z Nginx, publiczny IP + DNS `clouddesk-qubit.polandcentral.cloudapp.azure.com` | ✅ |
+| WEB | `vm-web` (Ubuntu 24.04, B1s) z Nginx, publiczny IP + DNS `clouddesk-qubit.polandcentral.cloudapp.azure.com`; HTTPS z certyfikatem Let's Encrypt (certbot, odnawianie automatyczne), HTTP → 301 na HTTPS, HSTS | ✅ |
 | APP | Container Apps `cae-clouddesk` (tylko wewnętrzny LB) z `ca-clouddesk-backend`, obraz z GHCR po digeście | ✅ |
 | DATA | PostgreSQL 16 Flexible `psql-clouddesk-…` (B1ms) bez dostępu publicznego, hasło w Key Vault | ✅ |
 | Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic), uruchamiane `scripts/azure-migrate.sh [--seed]` | ✅ schemat 6 tabel + dane przykładowe |
@@ -165,7 +165,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 **Jak wdrażamy (do czasu CD w Bloku 8):**
 - **Infrastruktura:** `terraform plan` → przegląd planu z kosztami → `terraform apply` (PM/DevOps). Zmiany kodu Terraform przez PR z review.
 - **Backend:** każdy merge do `main` w `backend/` buduje obraz `linux/amd64`, skanuje go Trivy (krytyczne podatności i sekrety blokują) i publikuje w `ghcr.io/qubit-mindless/clouddesk-backend`. Nowy digest wpisujemy w `backend_image` w Terraformie, a po zmianach w modelu uruchamiamy `scripts/azure-migrate.sh`.
-- **Frontend:** automatycznie po backendzie – job `deploy-web` w `.github/workflows/deploy.yml` buduje paczkę (`config/package-web.sh`, SHA commita w stopce strony), instaluje ją na VM przez `az vm run-command` (`config/deploy-web.sh`, bez otwierania SSH) i sprawdza stronę oraz `/api/health`. Ręcznie: [`config/README.md`](config/README.md).
+- **Frontend:** automatycznie po backendzie – job `deploy-web` w `.github/workflows/deploy.yml` buduje paczkę (`config/package-web.sh`, SHA commita w stopce strony), instaluje ją na VM przez `az vm run-command` (`config/deploy-web.sh`, bez otwierania SSH; na nowej VM pobiera też certyfikat TLS) i sprawdza z zewnątrz przekierowanie HTTP → HTTPS, certyfikat, stronę oraz `/api/health`. Ręcznie: [`config/README.md`](config/README.md).
 - **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
 
 **Koszt (cennik Azure, polandcentral):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).

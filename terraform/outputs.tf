@@ -23,7 +23,7 @@ output "web_public_ip" {
 }
 
 output "web_url" {
-  value = "http://${azurerm_public_ip.web.fqdn}"
+  value = "https://${azurerm_public_ip.web.fqdn}"
 }
 
 output "db_host" {
