@@ -58,7 +58,7 @@ interface AssistantMessage {
 }
 
 const ASSISTANT_LIMIT = 10
-const SUGGEST_PROMPT = 'Zaproponuj rozwiązanie problemu z tego zgłoszenia.'
+const SUGGEST_PROMPT = 'Podpowiedz, co mogę sprawdzić samodzielnie, zanim technik zajmie się zgłoszeniem.'
 const FAKE_ANSWER =
   'To odpowiedź udawanego asystenta (VITE_FAKE_API).\n\n1. Uruchom ponownie urządzenie lub aplikację.\n' +
   '2. Sprawdź połączenie z siecią firmową.\n3. Jeśli problem wraca, technik przejmie zgłoszenie.'
@@ -160,7 +160,15 @@ export function fakeApi(): Plugin {
           if (!owner || (!staff && owner.reporter !== actor.login)) return send(res, 404, { detail: 'Ticket not found' })
           const items = conversations.get(ticketId) ?? []
           const answers = () => items.filter((m) => m.role === 'assistant').length
-          const conversation = () => ({ items, enabled: true, remaining: Math.max(ASSISTANT_LIMIT - answers(), 0) })
+          // Jak backend: pyta tylko zgłaszający, do rozwiązania zgłoszenia; technik widzi rozmowę do odczytu.
+          const readOnlyReason = owner.reporter !== actor.login ? 'not_reporter' : ['RESOLVED', 'CLOSED'].includes(owner.status) ? 'resolved' : null
+          const conversation = () => ({
+            items,
+            enabled: true,
+            remaining: Math.max(ASSISTANT_LIMIT - answers(), 0),
+            canAsk: readOnlyReason === null,
+            readOnlyReason,
+          })
           if (req.method === 'GET') return send(res, 200, conversation())
           if (req.method !== 'POST') return send(res, 405, { detail: 'Method Not Allowed' })
 
@@ -170,6 +178,12 @@ export function fakeApi(): Plugin {
           const message = typeof body.message === 'string' ? body.message.trim() : undefined
           if (body.message != null && (!message || message.length > 1000)) {
             return send(res, 422, { detail: [{ loc: ['body', 'message'], msg: 'Wiadomość musi mieć 1–1000 znaków', type: 'value_error' }] })
+          }
+          if (readOnlyReason === 'not_reporter') {
+            return send(res, 403, { detail: 'Z asystentem AI rozmawia osoba zgłaszająca – technik widzi tę rozmowę do odczytu.' })
+          }
+          if (readOnlyReason === 'resolved') {
+            return send(res, 409, { detail: 'Zgłoszenie jest rozwiązane – rozmowa z asystentem AI jest zamknięta.' })
           }
           if (answers() >= ASSISTANT_LIMIT) {
             return send(res, 429, { detail: 'Wyczerpano limit pytań do asystenta dla tego zgłoszenia.' })

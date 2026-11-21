@@ -62,7 +62,7 @@ def url(ticket_id: int) -> str:
 
 def test_empty_conversation(login_as, ai, ticket_of_anna):
     body = login_as("anna.k").get(url(ticket_of_anna)).json()
-    assert body == {"items": [], "enabled": True, "remaining": 10}
+    assert body == {"items": [], "enabled": True, "remaining": 10, "canAsk": True, "readOnlyReason": None}
 
 
 def test_first_suggestion_and_follow_up_are_saved(login_as, ai, ticket_of_anna):
@@ -79,11 +79,49 @@ def test_first_suggestion_and_follow_up_are_saved(login_as, ai, ticket_of_anna):
     second = anna.post(url(ticket_of_anna), json={"message": "  Nie pomogło, co dalej?  "}).json()
     assert len(second["items"]) == 4 and second["remaining"] == 8
     assert second["items"][2]["content"] == "Nie pomogło, co dalej?"
-    # Technik widzi tę samą rozmowę, a jego pytanie jest podpisane jego loginem.
+    assert [m["author"] for m in second["items"] if m["role"] == "user"] == ["anna.k", "anna.k"]
+    assert second["canAsk"] is True and second["readOnlyReason"] is None
+
+
+@pytest.mark.parametrize("staff", ["tech.jan", "admin"])
+def test_staff_sees_reporters_conversation_read_only(login_as, ai, ticket_of_anna, staff):
+    """Z asystentem rozmawia zgłaszający; technik i administrator widzą tę rozmowę, ale nie piszą."""
+    login_as("anna.k").post(url(ticket_of_anna), json={"message": "Nie działa VPN, co sprawdzić?"})
+    client = login_as(staff)
+    conversation = client.get(url(ticket_of_anna)).json()
+    assert [m["author"] for m in conversation["items"]] == ["anna.k", None]
+    assert conversation["canAsk"] is False and conversation["readOnlyReason"] == "not_reporter"
+
+    res = client.post(url(ticket_of_anna), json={"message": "Jaka wersja klienta?"})
+    assert res.status_code == 403 and "osoba zgłaszająca" in res.json()["detail"]
+    assert len(ai.prompts) == 1  # pytanie technika nie trafiło do AI
+    assert len(client.get(url(ticket_of_anna)).json()["items"]) == 2
+
+
+@pytest.mark.parametrize("closed", ["RESOLVED", "CLOSED"])
+def test_conversation_is_closed_after_the_ticket_is_resolved(login_as, ai, ticket_of_anna, db, closed):
+    from app.models import Ticket, TicketStatus
+
+    anna = login_as("anna.k")
+    anna.post(url(ticket_of_anna), json={})
+    with db() as session:
+        session.get(Ticket, ticket_of_anna).status = TicketStatus(closed)
+        session.commit()
+
+    conversation = anna.get(url(ticket_of_anna)).json()
+    assert conversation["canAsk"] is False and conversation["readOnlyReason"] == "resolved"
+    assert len(conversation["items"]) == 2
+    res = anna.post(url(ticket_of_anna), json={"message": "A jednak nie działa"})
+    assert res.status_code == 409 and "rozwiązane" in res.json()["detail"]
+    assert len(ai.prompts) == 1
+
+
+def test_staff_reporting_own_ticket_can_ask(login_as, ai):
+    """Technik, który sam zgłosił problem, jest jego zgłaszającym – może pytać asystenta."""
     tech = login_as("tech.jan")
-    assert len(tech.get(url(ticket_of_anna)).json()["items"]) == 4
-    items = tech.post(url(ticket_of_anna), json={"message": "Jaka wersja klienta?"}).json()["items"]
-    assert [m["author"] for m in items if m["role"] == "user"] == ["anna.k", "anna.k", "tech.jan"]
+    tid = tech.post("/api/tickets", json=TICKET).json()["id"]
+    res = tech.post(url(tid), json={})
+    assert res.status_code == 200 and res.json()["canAsk"] is True
 
 
 def test_prompt_keeps_rules_first_and_ticket_as_data(login_as, ai, ticket_of_anna):

@@ -7,26 +7,31 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models import AiMessage, AiMessageRole, Ticket, User
+from app.models import AiMessage, AiMessageRole, Ticket, TicketStatus, User
 from app.repositories.ai_message_repository import AiMessageRepository
 from app.repositories.ticket_repository import TicketRepository
 from app.schemas.assistant import AssistantConversation, AssistantMessageOut
 from app.services.ai_client import AiClient, Message
 from app.services.errors import (
     AssistantBusyError,
+    AssistantClosedError,
     AssistantUnavailableError,
+    ForbiddenError,
     LimitExceededError,
     NotFoundError,
 )
 from app.services.ticket_service import TicketService, login_of
 
-SUGGEST_PROMPT = "Zaproponuj rozwiązanie problemu z tego zgłoszenia."
+SUGGEST_PROMPT = "Podpowiedz, co mogę sprawdzić samodzielnie, zanim technik zajmie się zgłoszeniem."
 # Ile ostatnich wiadomości rozmowy idzie do modelu jako kontekst (koszt i długość promptu).
 HISTORY_FOR_MODEL = 10
+CLOSED_STATUSES = (TicketStatus.RESOLVED, TicketStatus.CLOSED)
 MAX_DESCRIPTION_IN_PROMPT = 3000
 
 SYSTEM_PROMPT = """Jesteś asystentem pierwszej linii wsparcia IT w systemie zgłoszeń CloudDesk.
-Pomagasz zgłaszającemu i technikowi rozwiązać problem opisany w zgłoszeniu.
+Rozmawiasz z osobą, która zgłosiła problem: pomagasz jej sprawdzić proste rzeczy samodzielnie, zanim
+(albo równolegle z tym, jak) zajmie się nim technik. Technik przeczyta tę rozmowę, więc zbieraj przy okazji
+informacje, które mu się przydadzą (co już sprawdzono, komunikaty błędów, od kiedy problem występuje).
 
 Zasady:
 - Odpowiadaj po polsku, rzeczowo, najwyżej ok. 200 słów. Podawaj konkretne kroki do sprawdzenia, po kolei.
@@ -78,21 +83,37 @@ class AssistantService:
         self.messages = AiMessageRepository(db)
         self.limit = get_settings().ai_max_answers_per_ticket
 
-    def _conversation(self, ticket_id: int) -> AssistantConversation:
-        items = self.messages.list_for_ticket(ticket_id)
+    def _read_only_reason(self, ticket: Ticket) -> str | None:
+        if ticket.reporter_id != self.actor.id:
+            return "not_reporter"
+        if ticket.status in CLOSED_STATUSES:
+            return "resolved"
+        return None
+
+    def _conversation(self, ticket: Ticket) -> AssistantConversation:
+        items = self.messages.list_for_ticket(ticket.id)
         answers = sum(1 for m in items if m.role == AiMessageRole.ASSISTANT)
+        reason = self._read_only_reason(ticket)
         return AssistantConversation(
             items=[_message_dto(m) for m in items],
             enabled=self.client.enabled,
             remaining=max(self.limit - answers, 0),
+            can_ask=reason is None,
+            read_only_reason=reason,
         )
 
     def get(self, ticket_id: int) -> AssistantConversation:
-        self.tickets.visible(ticket_id)
-        return self._conversation(ticket_id)
+        return self._conversation(self.tickets.visible(ticket_id))
 
     def _check_can_ask(self, ticket_id: int) -> Ticket:
         ticket = self.tickets.visible(ticket_id)
+        reason = self._read_only_reason(ticket)
+        if reason == "not_reporter":
+            raise ForbiddenError(
+                "Z asystentem AI rozmawia osoba zgłaszająca – technik widzi tę rozmowę do odczytu."
+            )
+        if reason == "resolved":
+            raise AssistantClosedError("Zgłoszenie jest rozwiązane – rozmowa z asystentem AI jest zamknięta.")
         if not self.client.enabled:
             raise AssistantUnavailableError("Asystent AI nie jest skonfigurowany na tym serwerze.")
         if self.messages.count_answers(ticket_id) >= self.limit:
@@ -145,7 +166,7 @@ class AssistantService:
             )
         )
         self.db.commit()
-        return self._conversation(ticket_id)
+        return self._conversation(ticket)
 
 
 def build_prompt(ticket: Ticket, history: list[AiMessage], question: str) -> list[Message]:

@@ -10,8 +10,10 @@ from app.services.ai_client import AiClient, get_ai_client
 from app.services.assistant_service import AssistantService
 from app.services.errors import (
     AssistantBusyError,
+    AssistantClosedError,
     AssistantRefusedError,
     AssistantUnavailableError,
+    ForbiddenError,
     LimitExceededError,
     NotFoundError,
 )
@@ -49,7 +51,8 @@ def get_conversation(ticket_id: int, service: Service) -> AssistantConversation:
     "",
     response_model=AssistantConversation,
     responses={
-        409: {"description": "Asystent już odpowiada na inne pytanie w tym zgłoszeniu"},
+        403: {"description": "Pytać może tylko osoba zgłaszająca (technik widzi rozmowę do odczytu)"},
+        409: {"description": "Asystent już odpowiada w tym zgłoszeniu albo zgłoszenie jest rozwiązane"},
         422: {"description": "Błędna wiadomość albo odrzucona przez filtr treści"},
         429: {"description": "Wyczerpany limit odpowiedzi asystenta dla zgłoszenia"},
         503: {"description": "Asystent wyłączony albo chwilowo niedostępny"},
@@ -62,7 +65,9 @@ def ask_assistant(ticket_id: int, data: AssistantAsk, service: Service) -> Assis
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     except AssistantRefusedError as exc:
         raise HTTPException(422, str(exc)) from exc
-    except AssistantBusyError as exc:
+    except ForbiddenError as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+    except (AssistantBusyError, AssistantClosedError) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except LimitExceededError as exc:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from exc
