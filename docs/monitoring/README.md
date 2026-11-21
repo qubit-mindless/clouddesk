@@ -88,13 +88,13 @@ AzureDiagnostics
 ```
 
 ### 7. PostgreSQL: połączenia i wolne zapytania
-Bez wewnętrznych połączeń Azure (użytkownik `azuresu` – monitoring i utrzymanie serwera), które stanowią większość wpisów.
+Bez wewnętrznych połączeń Azure (`azuresu` – monitoring i utrzymanie serwera, logowane jako `user=azuresu` albo `identity="CN=azuresu…"`), które stanowią większość wpisów.
 ```kusto
 AzureDiagnostics
 | where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.DBFORPOSTGRESQL" and Category == "PostgreSQLLogs"
 | where Message has_any ("connection authorized", "disconnection", "duration:")
-| where Message !has "user=azuresu"
+| where Message !has "azuresu"
 | extend Kind = case(Message has "duration:", "wolne zapytanie",
                      Message has "disconnection", "rozłączenie", "połączenie")
 | project TimeGenerated, Kind, Message
@@ -121,7 +121,7 @@ union
    | project TimeGenerated, Source = "backend", Text = Log_s),
   (AzureDiagnostics
    | where ResourceProvider == "MICROSOFT.DBFORPOSTGRESQL" and Category == "PostgreSQLLogs"
-   | where Message !has "user=azuresu"
+   | where Message !has "azuresu" and Message !has "connection received"
    | project TimeGenerated, Source = "postgres", Text = Message)
 | where TimeGenerated > ago(1h)
 | order by TimeGenerated desc
