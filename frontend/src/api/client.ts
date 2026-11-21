@@ -1,3 +1,4 @@
+import { expireSession, getToken } from '../auth/session'
 import { API_BASE_URL } from '../config'
 
 // Błędy walidacji przypięte do pól formularza, np. { title: 'Tytuł jest za krótki' }.
@@ -17,6 +18,8 @@ export class ApiError extends Error {
 
 const STATUS_MESSAGE: Record<number, string> = {
   400: 'Serwer odrzucił żądanie.',
+  401: 'Sesja wygasła. Zaloguj się ponownie.',
+  403: 'Nie masz uprawnień do tej operacji.',
   404: 'Nie znaleziono zasobu.',
   422: 'Popraw zaznaczone pola.',
   429: 'Przekroczono limit. Spróbuj później.',
@@ -47,11 +50,17 @@ export function errorMessage(error: unknown): string {
 }
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getToken()
   let response: Response
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
-      headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers },
+      headers: {
+        Accept: 'application/json',
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
+      },
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error
@@ -60,6 +69,10 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 
   if (response.status === 204) return undefined as T
   const body: unknown = await response.json().catch(() => null)
+  // 401 przy wysłanym tokenie: wygasł albo jest nieważny – wylogowanie i powrót do ekranu logowania.
+  // Bez tokenu (np. złe hasło przy logowaniu) to zwykły błąd, który pokazuje formularz. Spóźniona
+  // odpowiedź na stary token nie wylogowuje kogoś, kto w międzyczasie zalogował się ponownie.
+  if (response.status === 401 && token && token === getToken()) expireSession()
   if (!response.ok) throw parseError(response.status, body)
   return body as T
 }

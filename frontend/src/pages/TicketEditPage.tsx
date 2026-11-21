@@ -1,16 +1,19 @@
-import { useLocation, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { ApiError } from '../api/client'
 import { getTicket, updateTicket } from '../api/tickets'
+import { canEditTicket, canManageTicket, isClosed } from '../auth/permissions'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { TicketForm } from '../components/TicketForm'
 import { useToast } from '../hooks/useToast'
+import { useAuth } from '../hooks/useAuth'
 import { useRequest } from '../hooks/useRequest'
 
 export function TicketEditPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
   // Po zapisie wracamy do szczegółów z tym samym stanem, żeby „Wróć do listy” pamiętał filtry.
   const { state } = useLocation()
   const { data: ticket, error, loading, reload } = useRequest(id, (signal) => getTicket(Number(id), signal))
@@ -25,12 +28,27 @@ export function TicketEditPage() {
     )
   }
   if (!ticket) return <ErrorState error={error} onRetry={reload} />
+  if (!canEditTicket(user, ticket)) {
+    return (
+      <div className="empty" data-testid="ticket-edit-forbidden">
+        <p>
+          {isClosed(ticket)
+            ? 'Rozwiązanego lub zamkniętego zgłoszenia nie można już zmieniać.'
+            : 'Nie możesz edytować tego zgłoszenia.'}
+        </p>
+        <Link to={`/tickets/${ticket.id}`} state={state} replace>
+          ← Wróć do zgłoszenia
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <section className="details">
       <h2>Edycja zgłoszenia #{ticket.id}</h2>
       <TicketForm
         ticket={ticket}
+        canManage={canManageTicket(user)}
         submitLabel="Zapisz zmiany"
         onCancel={backToDetails}
         onSubmit={async (data) => {

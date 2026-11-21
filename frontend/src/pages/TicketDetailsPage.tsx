@@ -3,9 +3,11 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { ApiError, errorMessage } from '../api/client'
 import { deleteTicket, getTicket } from '../api/tickets'
 import { AssistantPanel } from '../components/AssistantPanel'
+import { canDeleteTicket, canEditTicket } from '../auth/permissions'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { TicketDetails } from '../components/TicketDetails'
+import { useAuth } from '../hooks/useAuth'
 import { useRequest } from '../hooks/useRequest'
 import { useToast } from '../hooks/useToast'
 
@@ -13,6 +15,7 @@ export function TicketDetailsPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
   const listSearch = (useLocation().state as { listSearch?: string } | null)?.listSearch ?? ''
   const { data: ticket, error, loading, reload } = useRequest(id, (signal) => getTicket(Number(id), signal))
   const [deleting, setDeleting] = useState(false)
@@ -44,12 +47,16 @@ export function TicketDetailsPage() {
         </Link>
         {ticket && (
           <div className="page-actions-group">
-            <Link to={`/tickets/${ticket.id}/edit`} state={{ listSearch }} className="button" data-testid="ticket-edit">
-              Edytuj
-            </Link>
-            <button type="button" className="danger" onClick={handleDelete} disabled={deleting} data-testid="ticket-delete">
-              {deleting ? 'Usuwanie…' : 'Usuń'}
-            </button>
+            {canEditTicket(user, ticket) && (
+              <Link to={`/tickets/${ticket.id}/edit`} state={{ listSearch }} className="button" data-testid="ticket-edit">
+                Edytuj
+              </Link>
+            )}
+            {canDeleteTicket(user) && (
+              <button type="button" className="danger" onClick={handleDelete} disabled={deleting} data-testid="ticket-delete">
+                {deleting ? 'Usuwanie…' : 'Usuń'}
+              </button>
+            )}
           </div>
         )}
       </div>

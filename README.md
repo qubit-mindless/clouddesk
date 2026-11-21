@@ -243,7 +243,7 @@ npm install
 npm run dev
 ```
 
-Frontend bez backendu: w `frontend/.env.local` ustaw `VITE_FAKE_API=true`. Wtedy `npm run dev` odpowiada na `/api/tickets` udawanym API (`frontend/dev/fakeApi.ts`), które korzysta z danych testowych z `src/mocks` i zwraca te same statusy i błędy 422 co FastAPI. Dane siedzą w pamięci i znikają po restarcie serwera.
+Frontend bez backendu: w `frontend/.env.local` ustaw `VITE_FAKE_API=true`. Wtedy `npm run dev` odpowiada na `/api/tickets` udawanym API (`frontend/dev/fakeApi.ts`), które korzysta z danych testowych z `src/mocks` i zwraca te same statusy i błędy 422 co FastAPI. Dane siedzą w pamięci i znikają po restarcie serwera. Logowanie działa jak w backendzie: konta demo z seeda (np. `anna.k@clouddesk.example` – Zgłaszający, `tech.jan@clouddesk.example` – Technik) z dowolnym niepustym hasłem; restart serwera unieważnia tokeny, co pozwala sprawdzić wygaśnięcie sesji.
 
 Testy i lint:
 ```bash
