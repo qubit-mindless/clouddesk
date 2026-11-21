@@ -8,7 +8,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 [![CodeQL](https://github.com/qubit-mindless/clouddesk/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/qubit-mindless/clouddesk/security/code-scanning)
 [![Backend image](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml/badge.svg)](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml)
 
-**Live:** http://clouddesk-qubit.polandcentral.cloudapp.azure.com (HTTPS w Bloku 9)
+**Live:** https://clouddesk-qubit.polandcentral.cloudapp.azure.com
 
 > Status: 🚧 w budowie – Bloki 1–4 gotowe (infrastruktura Azure w Terraformie, frontend w chmurze); w toku Bloki 5–6: API zgłoszeń, model danych i integracja frontendu z API.
 
@@ -21,7 +21,9 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 - [Struktura repozytorium](#struktura-repozytorium)
 - [API](#api)
 - [Uruchomienie lokalne](#uruchomienie-lokalne)
+- [Testy](#testy)
 - [CI i bezpieczeństwo kodu](#ci-i-bezpieczeństwo-kodu)
+- [Monitoring i FinOps](#monitoring-i-finops)
 - [Sposób pracy](#sposób-pracy)
 - [Roadmapa](#roadmapa)
 
@@ -67,7 +69,7 @@ Trójwarstwowa architektura z izolacją sieciową. Ruch przechodzi kaskadowo prz
 
 | Warstwa | Podsieć | Komponent | Kto może się połączyć |
 |---|---|---|---|
-| 1. Dostępowa (WEB) | `snet-web` 10.0.1.0/24, **publiczna** | VM z Nginx: frontend React + reverse proxy `/api` | Internet: 80 i 443 (certyfikat i przekierowanie 80 → 443 w Bloku 9) |
+| 1. Dostępowa (WEB) | `snet-web` 10.0.1.0/24, **publiczna** | VM z Nginx: frontend React + reverse proxy `/api` | Internet: 443 (TLS, certyfikat Let's Encrypt) i 80 (tylko przekierowanie 301 na HTTPS) |
 | 2. Logiki (APP) | `snet-app` 10.0.2.0/24, **prywatna** | Azure Container Apps: FastAPI | tylko `snet-web`, porty 80/443 (ingress → kontener :8000) |
 | 3. Danych (DB) | `snet-db` 10.0.3.0/24, **prywatna** | PostgreSQL Flexible Server | tylko `snet-app`, port 5432 |
 
@@ -143,7 +145,7 @@ flowchart LR
 ```
 </details>
 
-Diagram pokazuje architekturę docelową. Usługi zarządzane (Azure OpenAI, Blob Storage, Communication Services, Application Insights) i HTTPS dochodzą w kolejnych blokach – aktualny stan jest w sekcji [Wdrożenie w Azure](#wdrożenie-w-azure).
+Diagram pokazuje architekturę docelową. Usługi zarządzane (Azure OpenAI, Blob Storage, Communication Services, Application Insights) dochodzą w kolejnych blokach – aktualny stan jest w sekcji [Wdrożenie w Azure](#wdrożenie-w-azure).
 
 **Wzorce w kodzie:**
 - **MVC:** widoki React, routery FastAPI jako kontrolery, modele SQLAlchemy;
@@ -157,18 +159,19 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 |---|---|---|
 | Dostęp i koszty | role RBAC zespołu (Contributor tylko na `rg-clouddesk`), budżet 35 €/mies. z alertami 50/80/100% | ✅ |
 | Sieć | `vnet-clouddesk` 10.0.0.0/16, podsieci `snet-web` / `snet-app` / `snet-db`, NSG kaskadowo, SSH zamknięty | ✅ |
-| WEB | `vm-web` (Ubuntu 24.04, B1s) z Nginx, publiczny IP + DNS `clouddesk-qubit.polandcentral.cloudapp.azure.com` | ✅ |
+| WEB | `vm-web` (Ubuntu 24.04, B1s) z Nginx, publiczny IP + DNS `clouddesk-qubit.polandcentral.cloudapp.azure.com`; HTTPS z certyfikatem Let's Encrypt (certbot, odnawianie automatyczne), HTTP → 301 na HTTPS, HSTS | ✅ |
 | APP | Container Apps `cae-clouddesk` (tylko wewnętrzny LB) z `ca-clouddesk-backend`, obraz z GHCR po digeście | ✅ |
 | DATA | PostgreSQL 16 Flexible `psql-clouddesk-…` (B1ms) bez dostępu publicznego, hasło w Key Vault | ✅ |
+| AI | Azure OpenAI `oai-clouddesk-…` z modelem `gpt-4o-mini` (DataZoneStandard – dane w UE), dostęp backendu tożsamością zarządzaną, bez kluczy | ✅ infrastruktura (asystent w aplikacji: #97) |
 | Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic), uruchamiane `scripts/azure-migrate.sh [--seed]` | ✅ schemat 6 tabel + dane przykładowe |
 
 **Jak wdrażamy (do czasu CD w Bloku 8):**
 - **Infrastruktura:** `terraform plan` → przegląd planu z kosztami → `terraform apply` (PM/DevOps). Zmiany kodu Terraform przez PR z review.
 - **Backend:** każdy merge do `main` w `backend/` buduje obraz `linux/amd64`, skanuje go Trivy (krytyczne podatności i sekrety blokują) i publikuje w `ghcr.io/qubit-mindless/clouddesk-backend`. Nowy digest wpisujemy w `backend_image` w Terraformie, a po zmianach w modelu uruchamiamy `scripts/azure-migrate.sh`.
-- **Frontend:** automatycznie po backendzie – job `deploy-web` w `.github/workflows/deploy.yml` buduje paczkę (`config/package-web.sh`, SHA commita w stopce strony), instaluje ją na VM przez `az vm run-command` (`config/deploy-web.sh`, bez otwierania SSH) i sprawdza stronę oraz `/api/health`. Ręcznie: [`config/README.md`](config/README.md).
+- **Frontend:** automatycznie po backendzie – job `deploy-web` w `.github/workflows/deploy.yml` buduje paczkę (`config/package-web.sh`, SHA commita w stopce strony), instaluje ją na VM przez `az vm run-command` (`config/deploy-web.sh`, bez otwierania SSH; na nowej VM pobiera też certyfikat TLS) i sprawdza z zewnątrz przekierowanie HTTP → HTTPS, certyfikat, stronę oraz `/api/health`. Ręcznie: [`config/README.md`](config/README.md).
 - **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
 
-**Koszt (cennik Azure, polandcentral):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).
+**Koszt (cennik Azure, polandcentral, ceny katalogowe bez darmowych limitów):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Faktycznie płacimy mniej, bo VM B1s i PostgreSQL B1ms mieszczą się w darmowych limitach subskrypcji studenckiej – rzeczywisty koszt: sekcja [Monitoring i FinOps](#monitoring-i-finops). Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).
 
 ## Struktura repozytorium
 ```
@@ -194,14 +197,29 @@ Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Az
 
 | Metoda | Ścieżka | Opis | Odpowiedzi | Autoryzacja |
 |---|---|---|---|---|
-| GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`); z zewnątrz przez Nginx tylko `/api/health` | 200, 503 | – |
-| GET | `/api/tickets` | lista zgłoszeń; filtry `status`, `priority`, `assignee` (login technika), `q` (tytuł); paginacja `page`, `size` (1–100) | 200, 422 | brak (logowanie w #14) |
-| GET | `/api/tickets/{id}` | szczegóły zgłoszenia | 200, 404 | brak |
-| POST | `/api/tickets` | nowe zgłoszenie: `title` (5–200 znaków), `description`, `priority` (P1–P4); status `NEW` i termin SLA nadaje backend | 201, 422 | brak |
-| PATCH | `/api/tickets/{id}` | zmiana wybranych pól: `title`, `description`, `priority` (przelicza SLA), `status`, `assignee` (login technika lub `null`); każda zmiana trafia do historii | 200, 404, 422 | brak |
-| DELETE | `/api/tickets/{id}` | usunięcie zgłoszenia razem z historią, komentarzami i załącznikami | 204, 404 | brak |
+| GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`); z zewnątrz przez Nginx tylko `/api/health`; `/health` służy też monitoringowi | 200, 503 | – |
+| GET | `/health/live` | czy proces backendu odpowiada (bez sprawdzania bazy) – sonda startup, liveness i readiness Container Apps; tylko wewnątrz VNet | 200 | – |
+| POST | `/api/auth/login` | logowanie: `email`, `password` → `accessToken` (JWT, ważny 60 min), `tokenType`, `expiresIn`, `user` (`id`, `email`, `login`, `fullName`, `role`) | 200, 401, 422 | – |
+| GET | `/api/auth/me` | zalogowany użytkownik | 200, 401 | token |
+| GET | `/api/tickets` | lista zgłoszeń; filtry `status`, `priority`, `assignee` (login technika), `q` (tytuł); paginacja `page`, `size` (1–100). REPORTER widzi tylko swoje | 200, 401, 422 | token |
+| GET | `/api/tickets/{id}` | szczegóły zgłoszenia (cudze dla REPORTER → 404) | 200, 401, 404 | token |
+| POST | `/api/tickets` | nowe zgłoszenie: `title` (5–200 znaków), `description`, `priority` (P1–P4); zgłaszający = zalogowany, status `NEW` i termin SLA nadaje backend | 201, 401, 422 | token |
+| PATCH | `/api/tickets/{id}` | zmiana wybranych pól: `title`, `description`, `priority` (przelicza SLA), `status`, `assignee` (login technika lub `null`); każda zmiana trafia do historii z autorem. REPORTER: tylko treść i priorytet własnego zgłoszenia | 200, 401, 403, 404, 422 | token |
+| DELETE | `/api/tickets/{id}` | usunięcie zgłoszenia razem z historią, komentarzami i załącznikami | 204, 401, 403, 404 | token, TECHNICIAN/ADMIN |
 
-Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni. Do czasu logowania zgłoszenia i zmiany zapisują się na konto demonstracyjne (`DEMO_USER_EMAIL`).
+Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni.
+
+**Logowanie i role.** Token przekazujemy w nagłówku `Authorization: Bearer <accessToken>`. Brak, wygasły albo podrobiony token → 401 (`WWW-Authenticate: Bearer`); rola bez uprawnień → 403.
+
+| Rola | Zgłoszenia | Zmiany | Usuwanie |
+|---|---|---|---|
+| REPORTER | tylko własne | treść i priorytet własnych | – |
+| TECHNICIAN | wszystkie | wszystkie pola, w tym status i przypisanie | ✓ |
+| ADMIN | wszystkie | wszystkie pola | ✓ |
+
+- **Hasła:** skrót argon2id; ta sama odpowiedź 401 dla nieznanego e-maila i złego hasła (także w czasie odpowiedzi).
+- **Tokeny:** JWT HS256 podpisany kluczem `JWT_SECRET`. W Azure klucz jest w Key Vault (`jwt-secret`), a bez niego backend nie wystartuje. Użytkownik jest odczytywany z bazy przy każdym żądaniu, więc usunięte konto traci dostęp od razu.
+- **Konta demo** z seeda: `admin@`, `tech.jan@`, `tech.ola@`, `anna.k@`… `clouddesk.example`, wspólne hasło z `DEMO_PASSWORD`. W Azure hasło jest w Key Vault (`demo-password`); odczyt: `terraform output demo_password_hint`.
 
 ## Uruchomienie lokalne
 Wymagania: Node.js 22.22+ (zalecany 24 LTS), Python 3.12+, Docker.
@@ -226,7 +244,7 @@ npm install
 npm run dev
 ```
 
-Frontend bez backendu: w `frontend/.env.local` ustaw `VITE_FAKE_API=true`. Wtedy `npm run dev` odpowiada na `/api/tickets` udawanym API (`frontend/dev/fakeApi.ts`), które korzysta z danych testowych z `src/mocks` i zwraca te same statusy i błędy 422 co FastAPI. Dane siedzą w pamięci i znikają po restarcie serwera.
+Frontend bez backendu: w `frontend/.env.local` ustaw `VITE_FAKE_API=true`. Wtedy `npm run dev` odpowiada na `/api/tickets` udawanym API (`frontend/dev/fakeApi.ts`), które korzysta z danych testowych z `src/mocks` i zwraca te same statusy i błędy 422 co FastAPI. Dane siedzą w pamięci i znikają po restarcie serwera. Logowanie działa jak w backendzie: konta demo z seeda (np. `anna.k@clouddesk.example` – Zgłaszający, `tech.jan@clouddesk.example` – Technik) z dowolnym niepustym hasłem; restart serwera unieważnia tokeny, co pozwala sprawdzić wygaśnięcie sesji.
 
 Testy i lint:
 ```bash
@@ -235,6 +253,45 @@ cd frontend && npm run lint && npm run build
 ```
 
 **Konfiguracja:** wyłącznie przez zmienne środowiskowe. Wzory są w plikach `.env.example`. Pliki `.env` nigdy nie trafiają do repozytorium.
+
+## Testy
+
+| Poziom | Gdzie | Narzędzie | Co sprawdza | Kiedy w CI/CD |
+|---|---|---|---|---|
+| Jednostkowe i integracyjne backendu | `backend/tests/` | pytest + TestClient (SQLite w pamięci) | logika zgłoszeń, walidacja, historia, SLA (role i logowanie – #94, asystent AI – #97) | job **Backend** w `ci.yml`, każdy PR |
+| Migracje bazy | `backend/tests/test_migrations.py` | pytest + Alembic | `upgrade → downgrade → upgrade` i zgodność migracji z modelami na PostgreSQL 16 | job **Migracje** w `ci.yml` |
+| API na działającej aplikacji | `tests/*.test.js` | Jest + Supertest | kontrakt REST (`api.test.js`): statusy 200/201/204/401/404/422, `Content-Type` i nagłówki bezpieczeństwa Nginx, kształt JSON (`items/total/page/size`, typy pól, `/api/health`), logowanie (401 + `WWW-Authenticate`), cykl życia zgłoszenia POST → GET → PATCH → DELETE; plus test dymny `/api/health` | lokalnie; w pipeline po wdrożeniu od #100 (job `e2e-tests`) |
+| E2E w przeglądarce | `tests/*.spec.js` | Playwright (Chromium, headless) | ścieżka użytkownika w UI, selektory `data-testid`; na razie test dymny strony głównej, scenariusz: #99 | lokalnie; w pipeline po wdrożeniu od #100 |
+
+### Uruchomienie lokalne
+Backend (z katalogu `backend/`, w aktywnym `.venv`):
+
+```bash
+ruff check . && ruff format --check .
+pytest                                   # test migracji na PostgreSQL: ustaw TEST_DATABASE_URL (backend/.env.example)
+```
+
+Testy na działającej aplikacji (z katalogu `tests/`, zmienne: [`tests/.env.example`](tests/.env.example)): lokalnie uruchom backend i frontend **bez** `VITE_FAKE_API` (sekcja [Uruchomienie lokalne](#uruchomienie-lokalne)) – Vite przekazuje wtedy `/api` do backendu tak jak Nginx w chmurze. Testy z logowaniem wymagają #94.
+
+```bash
+npm ci
+npx playwright install chromium          # jednorazowo, przeglądarka dla E2E
+export LIVE_APP_URL=http://localhost:5173
+export TEST_USER_EMAIL=tech.jan@clouddesk.example
+export TEST_USER_PASSWORD='...'          # DEMO_PASSWORD z backend/.env
+npm run test:api                         # Jest + Supertest
+npm run test:e2e                         # Playwright
+npx playwright show-report               # raport HTML z ostatniego przebiegu E2E
+```
+
+Te same testy można puścić na produkcję: `LIVE_APP_URL=https://clouddesk-qubit.polandcentral.cloudapp.azure.com` (do wdrożenia HTTPS – #93 – `http://`). **Zasada:** każdy test, który tworzy zgłoszenie, usuwa je na końcu – nie zaśmiecamy produkcji (`api.test.js` oznacza swoje zgłoszenia `[api-test …]` w tytule i sprząta je w `afterAll`, także po błędzie).
+
+Bez `TEST_USER_EMAIL`/`TEST_USER_PASSWORD` testy logowania w `api.test.js` są pomijane. Nagłówki bezpieczeństwa dodaje Nginx, więc `CHECK_SECURITY_HEADERS=auto` (domyślnie) sprawdza je tylko, gdy `LIVE_APP_URL` nie wskazuje na `localhost`; `true`/`false` wymusza. PowerShell: `$env:LIVE_APP_URL="..."; npm run test:api`.
+
+### Jak czytać wyniki
+- **pytest / Jest:** w konsoli lista testów z ✓/✗; przy błędzie – oczekiwana i otrzymana wartość. W GitHub Actions: zakładka *Actions* → przebieg → job.
+- **Playwright:** raport HTML (`tests/playwright-report/`); przy nieudanym teście zrzut ekranu, nagranie wideo i ślad (*trace*) kroków. W pipeline (od #100) raport będzie artefaktem przebiegu (sekcja *Artifacts* na dole strony przebiegu).
+- Pierwsze żądanie po przerwie może trwać do ~20 s (backend skaluje się do zera) – dlatego limit czasu testów to 30 s.
 
 ## CI i bezpieczeństwo kodu
 Każdy PR do `main` i każdy push na `main` uruchamia workflow **CI** (`.github/workflows/ci.yml`). Najpierw skan sekretów; dopiero gdy przejdzie, ruszają pozostałe joby (`needs: secret-scan`).
@@ -250,6 +307,67 @@ Każdy PR do `main` i każdy push na `main` uruchamia workflow **CI** (`.github/
 Poza CI działają: **CodeQL** (analiza kodu JS/TS, Python i workflowów przy każdym PR), **GitHub Secret Scanning z push protection** (blokuje push z rozpoznanym sekretem), **Dependabot** (alerty i cotygodniowe aktualizacje) oraz workflow **Backend image** (obraz kontenera skanowany Trivy przed publikacją w GHCR).
 
 `main` przyjmuje zmiany tylko przez PR z approve innej osoby i z zielonymi wszystkimi pięcioma jobami CI (wymagane checki w ochronie gałęzi). Akcje GitHub są przypięte po SHA, a workflowy mają minimalne uprawnienia (`contents: read`).
+
+## Monitoring i FinOps
+
+### Budżet i alerty kosztów
+Budżet `budget-clouddesk-monthly` (Terraform: [`terraform/budget.tf`](terraform/budget.tf)) obejmuje grupę zasobów `rg-clouddesk`, odnawia się co miesiąc i wynosi **35 €**.
+
+| Próg | Rodzaj | Kto dostaje e-mail |
+|---|---|---|
+| 50% (17,50 €) | faktyczny koszt | cały zespół (4 osoby) |
+| 80% (28 €) | faktyczny koszt – czas sprawdzić, które zasoby rosną | cały zespół |
+| 100% (35 €) | faktyczny koszt | cały zespół |
+| 100% | **prognoza** – ostrzeżenie, zanim budżet zostanie przekroczony | cały zespół |
+
+Adresy zespołu są w `terraform.tfvars` (poza repozytorium). Koszt w listopadzie 2026 (stan na 21.11): **4,37 €**, prognoza na cały miesiąc: **6,40 €**.
+
+Większość kosztu to publiczny adres IP i sieć, Storage (stan Terraformu, kopie bazy) oraz strefy DNS. VM B1s, PostgreSQL B1ms i Log Analytics mieszczą się w darmowych limitach subskrypcji studenckiej.
+
+Jak trzymamy koszty w ryzach:
+- backend skaluje się do zera, gdy nie ma ruchu (`min_replicas = 0`);
+- logi mają dzienny limit 0,15 GB i retencję 30 dni;
+- asystent AI ma limit 10 odpowiedzi na zgłoszenie;
+- przed każdym `terraform apply` sprawdzamy plan i ceny nowych zasobów.
+
+### Endpoint `/health`
+`GET /health` (wewnątrz VNet) i `GET /api/health` (z zewnątrz przez Nginx) odpytują bazę (`SELECT 1`) i zwracają:
+
+```json
+{"status": "UP", "database": "CONNECTED", "version": "0.1.0", "commit": "<SHA wdrożonego commita>", "timestamp": "…"}
+```
+
+Gdy baza nie odpowiada, odpowiedź to **503** z `"status": "DOWN", "database": "DISCONNECTED"`.
+- Pipeline CD po każdym wdrożeniu sprawdza `/api/health`, w tym czy `commit` to wdrożony SHA.
+- Sondy zdrowia Container Apps na `/health`: #89.
+
+### Logi w chmurze
+Wszystkie logi trafiają do jednego workspace **Log Analytics** `log-clouddesk` (retencja 30 dni). Nie trzeba logować się na VM ani do kontenera.
+
+| Źródło | Tabela | Co tam jest |
+|---|---|---|
+| Backend (Container Apps) | `ContainerAppConsoleLogs_CL` | stdout/stderr FastAPI i uvicorna, w tym żądania HTTP i błędy |
+| Platforma Container Apps | `ContainerAppSystemLogs_CL` | starty rewizji, restarty, skalowanie, sondy zdrowia |
+| Zadania (migracje, kopie bazy) | `ContainerAppConsoleLogs_CL` | wynik `alembic upgrade` i `pg_dump` |
+| PostgreSQL – logi | `AzureDiagnostics` (`Category == "PostgreSQLLogs"`) | błędy, połączenia, zapytania wolniejsze niż 500 ms (bez wartości parametrów) – diagnostic setting w [`terraform/monitoring.tf`](terraform/monitoring.tf) |
+| PostgreSQL – metryki | `AzureMetrics` | CPU, pamięć, połączenia, dysk (co minutę) |
+
+Przykład: błędy backendu z ostatniej doby.
+
+```kusto
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(24h) and ContainerAppName_s == "ca-clouddesk-backend"
+| where Log_s has_any ("ERROR", "Traceback", " 500 ")
+| project TimeGenerated, RevisionName_s, Log_s
+| order by TimeGenerated desc
+```
+
+Więcej gotowych zapytań (kody 2xx/4xx/5xx, zmiany zgłoszeń, logi i metryki bazy, backend i baza na jednej osi czasu, koszt logów): [`docs/monitoring/README.md`](docs/monitoring/README.md).
+
+**Co jest w logach:** metoda, ścieżka i kod odpowiedzi każdego żądania, błędy i tracebacki backendu, połączenia i błędy bazy. **Czego nie ma:** treści rozmów z asystentem AI, haseł, tokenów i `DATABASE_URL`, treści zgłoszeń ani wartości parametrów zapytań SQL. Wyjątek: przy naruszeniu ograniczenia w bazie (np. zajęty e-mail) Postgres dopisuje wartość w linii `DETAIL` błędu – widzi ją tylko zespół.
+
+### Dashboard
+Dashboard w Azure (Terraform) pokazuje: liczbę żądań z podziałem na 2xx/4xx/5xx, czas odpowiedzi API, CPU i pamięć backendu oraz CPU `vm-web`. Szczegóły w #91.
 
 ## Sposób pracy
 - Zadania śledzimy w **GitHub Projects** (kolumny: Todo → In Progress → In Review → Done). Każde zadanie to Issue z przypisaną osobą.

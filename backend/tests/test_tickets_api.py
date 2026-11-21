@@ -1,52 +1,14 @@
-"""API /api/tickets: CRUD, filtry, walidacja (422 w formacie FastAPI), 404, SLA i historia zmian."""
+"""API /api/tickets: CRUD, filtry, walidacja (422 w formacie FastAPI), 404, SLA i historia zmian.
 
-import os
+Fixtury (baza, zalogowany klient) są w conftest.py.
+"""
 
-os.environ.setdefault("DATABASE_URL", "sqlite://")
+from datetime import datetime, timedelta
 
-from datetime import datetime, timedelta  # noqa: E402
+import pytest
+from sqlalchemy import func, select
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine, event, func, select  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
-from sqlalchemy.pool import StaticPool  # noqa: E402
-
-from app.db.session import get_db  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import Base, Ticket, TicketHistory, User, UserRole  # noqa: E402
-
-
-@pytest.fixture
-def db():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    # SQLite domyślnie ignoruje klucze obce – bez tego testy nie wyłapałyby błędów CASCADE/RESTRICT.
-    event.listen(engine, "connect", lambda dbapi_conn, _: dbapi_conn.execute("PRAGMA foreign_keys=ON"))
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False)
-    with session_factory() as session:
-        for login, name, role in [
-            ("tech.jan", "Jan Kowalski", UserRole.TECHNICIAN),
-            ("anna.k", "Anna Kaczmarek", UserRole.REPORTER),
-        ]:
-            session.add(
-                User(email=f"{login}@clouddesk.example", full_name=name, role=role, password_hash="!")
-            )
-        session.commit()
-
-    def override():
-        with session_factory() as session:
-            yield session
-
-    app.dependency_overrides[get_db] = override
-    yield session_factory
-    app.dependency_overrides.clear()
-    engine.dispose()
-
-
-@pytest.fixture
-def client(db):
-    return TestClient(app)
+from app.models import Ticket, TicketHistory
 
 
 def create(client, **overrides):
@@ -64,7 +26,7 @@ def test_create_returns_201_with_camel_case_and_sla(client):
     assert res.status_code == 201
     body = res.json()
     assert body["status"] == "NEW"
-    assert body["reporter"] == "demo"
+    assert body["reporter"] == "admin"
     assert body["assignee"] is None
     assert {"createdAt", "slaDueAt", "updatedAt", "resolvedAt"} <= body.keys()
     assert parse(body["slaDueAt"]) - parse(body["createdAt"]) == timedelta(hours=4)

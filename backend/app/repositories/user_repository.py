@@ -1,7 +1,7 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import User, UserRole
+from app.models import User
 
 
 class UserRepository:
@@ -13,11 +13,9 @@ class UserRepository:
         escaped = login.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         return self.db.scalars(select(User).where(User.email.like(f"{escaped}@%", escape="\\"))).first()
 
-    def get_or_create(self, email: str, full_name: str, role: UserRole) -> User:
-        user = self.db.scalars(select(User).where(User.email == email)).first()
-        if user is None:
-            # Konto bez możliwości logowania („!” nie jest poprawnym skrótem hasła).
-            user = User(email=email, full_name=full_name, role=role, password_hash="!")
-            self.db.add(user)
-            self.db.flush()
-        return user
+    def get(self, user_id: int) -> User | None:
+        return self.db.get(User, user_id)
+
+    def get_by_email(self, email: str) -> User | None:
+        # Bez względu na wielkość liter – także dla kont zapisanych kiedyś z wielkimi literami.
+        return self.db.scalars(select(User).where(func.lower(User.email) == email.lower())).first()

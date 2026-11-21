@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.db import session
-from app.schemas.health import HealthDTO
+from app.schemas.health import HealthDTO, LivenessDTO
 
 router = APIRouter(tags=["health"])
 
@@ -25,3 +25,14 @@ def health() -> JSONResponse:
         return JSONResponse(status_code=503, content=body.model_dump(mode="json"))
     body = HealthDTO(status="UP", database="CONNECTED", **info)
     return JSONResponse(status_code=200, content=body.model_dump(mode="json"))
+
+
+# Sondy startup/liveness/readiness Container Apps: sprawdzają tylko, czy proces odpowiada – bez bazy, żeby
+# chwilowa awaria PostgreSQL nie kończyła się restartem kontenera ani wyłączeniem replik z ruchu.
+# Stan bazy raportuje /health (503 przy awarii).
+# Tylko wewnątrz VNet – Nginx nie przekazuje tej ścieżki.
+# async: działa na pętli zdarzeń, nie w puli wątków, którą przy awarii bazy mogą zająć zablokowane zapytania.
+@router.get("/health/live", response_model=LivenessDTO)
+async def liveness() -> LivenessDTO:
+    """Proces aplikacji działa. Zawsze 200, niezależnie od stanu bazy."""
+    return LivenessDTO(status="UP")

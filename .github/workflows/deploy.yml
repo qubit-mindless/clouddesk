@@ -189,6 +189,9 @@ jobs:
         run: |
           fqdn="$(az containerapp show -g "$RG" -n "$BACKEND_APP" --query properties.configuration.ingress.fqdn -o tsv)"
           [[ "$fqdn" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "Brak poprawnego adresu ingress backendu: '$fqdn'." >&2; exit 1; }
+          # Publiczna nazwa DNS VM – na nią wystawiony jest certyfikat TLS i na nią przekierowuje port 80.
+          domain="$(az network public-ip show -g "$RG" -n "$WEB_PIP" --query dnsSettings.fqdn -o tsv)"
+          [[ "$domain" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "Brak poprawnej nazwy DNS dla $WEB_PIP: '$domain'." >&2; exit 1; }
           # Skrypt w czystym sh (bez bashowych dodatków) – niezależnie od tego, czym run-command go uruchomi.
           script="$RUNNER_TEMP/deploy-web-run.sh"
           {
@@ -198,7 +201,7 @@ jobs:
             base64 -w 76 "$RUNNER_TEMP/web.tgz"
             echo 'ARCHIVE'
             echo 'tar -xzf "$dir/web.tar.gz" -C "$dir"'
-            echo "BACKEND_INTERNAL_URL='https://$fqdn' bash \"\$dir/deploy-web.sh\""
+            echo "BACKEND_INTERNAL_URL='https://$fqdn' WEB_DOMAIN='$domain' bash \"\$dir/deploy-web.sh\""
           } > "$script"
           # Treść skryptu idzie w jednym żądaniu do API Azure – pilnujemy, żeby paczka nie urosła bez kontroli.
           size="$(stat -c %s "$script")"
@@ -214,12 +217,22 @@ jobs:
           echo "$out"
           grep -q "Frontend wdrożony" <<<"$out" || { echo "Wdrożenie na $WEB_VM nie powiodło się." >&2; exit 1; }
 
-      # Z zewnątrz, tak jak użytkownik: strona, nowy bundle z SHA w stopce i /api/health przez Nginx.
-      - name: Sprawdzenie strony i /api/health
+      # Z zewnątrz, tak jak użytkownik: przekierowanie HTTP → HTTPS, ważny certyfikat (curl go weryfikuje),
+      # nowy bundle z SHA w stopce i /api/health przez Nginx.
+      - name: Sprawdzenie strony (HTTPS) i /api/health
         run: |
           host="$(az network public-ip show -g "$RG" -n "$WEB_PIP" --query dnsSettings.fqdn -o tsv)"
           [[ -n "$host" ]] || { echo "Brak nazwy DNS dla $WEB_PIP." >&2; exit 1; }
-          url="http://$host"
+          url="https://$host"
+          redirect="$(curl -sS -o /dev/null --max-time 15 --retry 5 --retry-all-errors --retry-delay 5 \
+            -w '%{http_code} %{redirect_url}' "http://$host/tickets?page=2" || true)"
+          echo "HTTP → $redirect"
+          [[ "$redirect" == "301 $url/tickets?page=2" ]] || { echo "Port 80 nie przekierowuje na HTTPS: '$redirect'." >&2; exit 1; }
+          # -verify_return_error: niezaufany albo niepasujący certyfikat przerywa połączenie, więc $cert jest pusty.
+          cert="$(timeout 20 openssl s_client -connect "$host:443" -servername "$host" -verify_hostname "$host" \
+            -verify_return_error </dev/null 2>/dev/null | openssl x509 -noout -issuer -enddate 2>/dev/null | paste -sd ';' - || true)"
+          [[ -n "$cert" ]] || { echo "Brak ważnego certyfikatu TLS dla $host." >&2; exit 1; }
+          echo "Certyfikat: $cert"
           curl -fsS --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/index.html" "$url/"
           bundle="$(grep -o '/assets/index-[A-Za-z0-9_-]*\.js' "$RUNNER_TEMP/index.html" | head -n1)"
           [[ -n "$bundle" ]] || { echo "Brak bundla JS w index.html." >&2; exit 1; }
@@ -238,4 +251,5 @@ jobs:
           {
             echo "### Frontend: \`$url\`"
             echo "Strona i \`/api/health\` → 200, commit \`$SHA\`"
+            echo "HTTP → 301 na HTTPS; certyfikat: $cert"
           } >> "$GITHUB_STEP_SUMMARY"

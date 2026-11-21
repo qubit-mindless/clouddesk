@@ -1,13 +1,15 @@
 // Testy kontraktu REST na działającej aplikacji (lokalnie albo w chmurze przez Nginx).
 // Uzupełniają pytest z backend/tests: tam testujemy kod, tu żywe API – statusy, nagłówki i kształt JSON.
 //
-//   LIVE_APP_URL=http://localhost:8000 npm run test:api
+//   LIVE_APP_URL=http://localhost:5173 npm run test:api
 //
 // Zmienne opisuje tests/.env.example. Test sam usuwa zgłoszenia, które utworzył.
 
 const request = require("supertest");
+const { LIVE_APP_URL } = require("./helpers/env");
 
-const BASE_URL = (process.env.LIVE_APP_URL || "http://localhost:8000").trim().replace(/\/+$/, "");
+// Adres wspólny z E2E (helpers/env.js): lokalnie Vite z proxy /api, w chmurze Nginx.
+const BASE_URL = LIVE_APP_URL.trim();
 const EMAIL = (process.env.TEST_USER_EMAIL || "").trim();
 const PASSWORD = process.env.TEST_USER_PASSWORD || "";
 const AUTH_ENABLED = Boolean(EMAIL && PASSWORD);

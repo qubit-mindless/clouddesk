@@ -78,6 +78,39 @@ resource "azurerm_key_vault_secret" "database_url" {
   depends_on = [azurerm_role_assignment.kv_deployer]
 }
 
+# Klucz podpisu tokenów JWT (HMAC) – generowany raz, trzymany tylko w Key Vault i stanie Terraform.
+resource "random_password" "jwt_secret" {
+  length  = 64
+  special = false
+}
+
+resource "azurerm_key_vault_secret" "jwt_secret" {
+  name         = "jwt-secret"
+  value        = random_password.jwt_secret.result
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "Klucz HMAC do podpisu JWT backendu"
+
+  depends_on = [azurerm_role_assignment.kv_deployer]
+}
+
+# Wspólne hasło kont demo (ustawia je seed). Bez znaków specjalnych, bo jest wpisywane ręcznie w formularzu logowania.
+resource "random_password" "demo_password" {
+  length      = 20
+  special     = false
+  min_upper   = 2
+  min_lower   = 2
+  min_numeric = 2
+}
+
+resource "azurerm_key_vault_secret" "demo_password" {
+  name         = "demo-password"
+  value        = random_password.demo_password.result
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "Hasło kont demo (seed)"
+
+  depends_on = [azurerm_role_assignment.kv_deployer]
+}
+
 resource "azurerm_container_app" "backend" {
   name                         = "ca-${var.prefix}-backend"
   container_app_environment_id = azurerm_container_app_environment.main.id
@@ -94,6 +127,12 @@ resource "azurerm_container_app" "backend" {
   secret {
     name                = "database-url"
     key_vault_secret_id = azurerm_key_vault_secret.database_url.versionless_id
+    identity            = azurerm_user_assigned_identity.backend.id
+  }
+
+  secret {
+    name                = "jwt-secret"
+    key_vault_secret_id = azurerm_key_vault_secret.jwt_secret.versionless_id
     identity            = azurerm_user_assigned_identity.backend.id
   }
 
@@ -128,8 +167,65 @@ resource "azurerm_container_app" "backend" {
         secret_name = "database-url"
       }
       env {
+        name        = "JWT_SECRET"
+        secret_name = "jwt-secret"
+      }
+      env {
         name  = "CORS_ORIGINS"
         value = "http://${azurerm_public_ip.web.fqdn},https://${azurerm_public_ip.web.fqdn}"
+      }
+      # Asystent AI (ai.tf): backend loguje się do Azure OpenAI tożsamością zarządzaną – AZURE_CLIENT_ID wskazuje,
+      # której tożsamości użyć (kontener ma przypisaną tylko tę jedną, ale jawnie jest pewniej).
+      env {
+        name  = "AZURE_OPENAI_ENDPOINT"
+        value = azurerm_cognitive_account.openai.endpoint
+      }
+      env {
+        name  = "AZURE_OPENAI_DEPLOYMENT"
+        value = azurerm_cognitive_deployment.chat.name
+      }
+      env {
+        name  = "AZURE_CLIENT_ID"
+        value = azurerm_user_assigned_identity.backend.client_id
+      }
+
+      # Sondy zdrowia – wszystkie na /health/live (proces odpowiada, bez bazy):
+      # - liveness: restart tylko wtedy, gdy zawiesił się sam proces. Awaria PostgreSQL nie powoduje pętli
+      #   restartów, bo restart i tak by jej nie naprawił.
+      # - readiness: celowo bez bazy. Baza jest jedna dla wszystkich replik, więc przy jej awarii readiness
+      #   zależna od bazy wyłączyłaby z ruchu wszystkie repliki naraz: zamiast naszego JSON-a 503 z /api/health
+      #   użytkownik dostałby błąd Envoya, a deploy w CD nie doczekałby się gotowej rewizji.
+      # Stan bazy raportuje /health (200/503) – na nim opiera się monitoring i sprawdzenie po deployu.
+      # min_replicas = 0, więc każdy start to zimny start (~15 s na 0,25 vCPU) – startup daje do ~53 s,
+      # a liveness i readiness zaczynają działać dopiero po udanym startup.
+      startup_probe {
+        transport               = "HTTP"
+        port                    = var.backend_port
+        path                    = "/health/live"
+        initial_delay           = 3
+        interval_seconds        = 5
+        timeout                 = 3
+        failure_count_threshold = 10
+      }
+
+      liveness_probe {
+        transport               = "HTTP"
+        port                    = var.backend_port
+        path                    = "/health/live"
+        initial_delay           = 1
+        interval_seconds        = 30
+        timeout                 = 5
+        failure_count_threshold = 3
+      }
+
+      readiness_probe {
+        transport               = "HTTP"
+        port                    = var.backend_port
+        path                    = "/health/live"
+        interval_seconds        = 10
+        timeout                 = 5
+        failure_count_threshold = 3
+        success_count_threshold = 1
       }
     }
   }
@@ -140,5 +236,7 @@ resource "azurerm_container_app" "backend" {
   lifecycle {
     ignore_changes = [template[0].container[0].image]
   }
-  depends_on = [azurerm_role_assignment.backend_kv]
+  # Role przed nową rewizją. Uwaga: Azure rozpropagowuje nadanie roli do kilku minut, więc tuż po pierwszym apply
+  # asystent może chwilę dostawać 403 – backend (#108) zwraca wtedy 503 „chwilowo niedostępny”.
+  depends_on = [azurerm_role_assignment.backend_kv, azurerm_role_assignment.backend_openai]
 }

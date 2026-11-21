@@ -23,7 +23,7 @@ output "web_public_ip" {
 }
 
 output "web_url" {
-  value = "http://${azurerm_public_ip.web.fqdn}"
+  value = "https://${azurerm_public_ip.web.fqdn}"
 }
 
 output "db_host" {
@@ -51,4 +51,19 @@ output "github_deploy_client_id" {
 output "backup_storage_account" {
   description = "Konto Storage z kopiami bazy (udział db-backups) – scripts/azure-db-backup.sh."
   value       = azurerm_storage_account.backup.name
+}
+
+output "demo_password_hint" {
+  description = "Jak odczytać hasło kont demo (samo hasło nie jest wyświetlane)"
+  value       = "az keyvault secret show --vault-name ${azurerm_key_vault.main.name} --name demo-password --query value -o tsv"
+}
+
+output "dashboard_url" {
+  description = "Dashboard monitoringu w portalu Azure"
+  value       = "https://portal.azure.com/#dashboard/arm${azurerm_portal_dashboard.monitoring.id}"
+}
+
+output "openai_endpoint" {
+  description = "Punkt końcowy Azure OpenAI (AZURE_OPENAI_ENDPOINT backendu). Dostęp tylko przez Entra ID – bez klucza."
+  value       = azurerm_cognitive_account.openai.endpoint
 }
