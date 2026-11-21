@@ -13,11 +13,12 @@ Region: **polandcentral** (polityka subskrypcji dopuszcza też swedencentral, ge
 | `database.tf` | PostgreSQL 16 Flexible (B1ms, tylko prywatny dostęp w `snet-db`), prywatna strefa DNS, Key Vault z hasłem administratora |
 | `app.tf` | środowisko Container Apps (tylko wewnętrzny LB, profil Consumption) w `snet-app`, prywatna strefa DNS, Log Analytics, backend z tożsamością czytającą `DATABASE_URL` z Key Vault |
 | `migrations.tf` | zadanie Container Apps `caj-clouddesk-migrate` uruchamiające migracje Alembic (ręcznie, po wdrożeniu nowego obrazu) |
-| `monitoring.tf` | dashboard `dash-clouddesk-monitoring` w portalu Azure: żądania backendu wg kodu (2xx/4xx/5xx), czas odpowiedzi API, CPU i RAM backendu oraz `vm-web`, repliki i restarty (adres: output `dashboard_url`) |
+| `dashboard.tf` | dashboard `dash-clouddesk-monitoring` w portalu Azure: żądania backendu wg kodu (2xx/4xx/5xx), czas odpowiedzi API, CPU i RAM backendu, `vm-web` i bazy, połączenia i dysk bazy, repliki i restarty (adres: output `dashboard_url`) |
 | `backup.tf` | codzienna kopia bazy (`pg_dump`, zadanie `caj-clouddesk-backup`, 02:00 UTC) do udziału Azure Files w osobnej grupie `rg-clouddesk-backup` z blokadą usunięcia |
+| `monitoring.tf` | logi i metryki PostgreSQL do Log Analytics `log-clouddesk` (diagnostic setting), logowanie zapytań wolniejszych niż 500 ms bez wartości parametrów; zapytania KQL w [`docs/monitoring/`](../docs/monitoring/README.md) |
 | `versions.tf` | provider `azurerm`, stan zdalny w Azure Storage |
 
-Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). Monitoring: dashboard w `monitoring.tf`. W kolejnych etapach: HTTPS i usługi zarządzane (Azure OpenAI, Blob Storage, e-mail).
+Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnych etapach: HTTPS i usługi zarządzane (Azure OpenAI, Blob Storage, e-mail).
 
 ## Reguły sieciowe (NSG)
 | NSG | Priorytet | Reguła | Źródło | Port |
@@ -28,9 +29,10 @@ Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). Monitoring
 | nsg-app | 110 | Allow | snet-app (ruch wewnątrz środowiska) | * |
 | nsg-app | 120 | Allow | AzureLoadBalancer | * |
 | nsg-db | 100 | Allow | snet-app 10.0.2.0/24 | 5432 |
+| nsg-db | 200 | **Deny** | Internet | 3306, 5432 |
 | wszystkie | 4000 | **Deny** | VirtualNetwork | * |
 
-Reguła `DenyVnetInBound` (4000) wyłącza domyślne `AllowVnetInBound` Azure, więc ruch płynie wyłącznie kaskadowo: web → app → db. SSH (22) nie jest otwarty w żadnej podsieci.
+Reguła `DenyVnetInBound` (4000) wyłącza domyślne `AllowVnetInBound` Azure, więc ruch płynie wyłącznie kaskadowo: web → app → db. SSH (22) nie jest otwarty w żadnej podsieci. `DenyDbPortsFromInternet` (200) zapisuje wprost, że baza nie przyjmuje ruchu z Internetu – ten sam ruch blokuje też domyślne `DenyAllInBound` (65500), a serwer PostgreSQL nie ma publicznego adresu (`public_network_access_enabled = false`).
 
 ## Pierwsze uruchomienie (PM/DevOps)
 ```bash

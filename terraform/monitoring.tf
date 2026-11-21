@@ -1,160 +1,37 @@
-# Monitoring (Blok 10): dashboard w portalu Azure z metrykami platformy – backendu (Container App) i vm-web.
-# Metryki zbiera Azure Monitor bez agentów i bez dodatkowych kosztów; dashboard tylko je wyświetla.
-# Kafelki opisuje lista local.dashboard_charts, a JSON dashboardu składa jsonencode (bez ręcznego JSON-a).
+# Monitoring: logi i metryki bazy w tym samym Log Analytics co logi backendu (log-clouddesk),
+# żeby jednym zapytaniem KQL zobaczyć, co działo się w aplikacji i w bazie. Zapytania: docs/monitoring/.
 
-locals {
-  backend     = azurerm_container_app.backend
-  backend_cpu = local.backend.template[0].container[0].cpu
-  backend_ram = local.backend.template[0].container[0].memory
-  web_vm      = azurerm_linux_virtual_machine.web
+# Logi serwera PostgreSQL (błędy, połączenia, wolne zapytania) i metryki (CPU, pamięć, połączenia, dysk).
+# Trafiają do tabel AzureDiagnostics i AzureMetrics. Limit dzienny workspace'u (app.tf) obejmuje też te dane.
+resource "azurerm_monitor_diagnostic_setting" "postgres" {
+  name                       = "diag-${azurerm_postgresql_flexible_server.main.name}"
+  target_resource_id         = azurerm_postgresql_flexible_server.main.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
 
-  ns_backend = "microsoft.app/containerapps"
-  ns_vm      = "microsoft.compute/virtualmachines"
+  enabled_log {
+    category = "PostgreSQLLogs"
+  }
 
-  # Kody agregacji w portalu Azure i ich nazwy w legendzie.
-  agg       = { sum = 1, max = 3, avg = 4 }
-  agg_label = { sum = "suma", max = "maksimum", avg = "średnio" }
-
-  # Każdy kafelek: jedna metryka jednego zasobu, po jednej serii na statystykę z listy stats.
-  # Siatka: 2 kafelki 6×4 w rzędzie; nagłówek zajmuje rzędy 0–1.
-  dashboard_charts = [
-    {
-      title = "Żądania backendu wg kodu odpowiedzi (2xx / 4xx / 5xx)"
-      id    = local.backend.id, ns = local.ns_backend, metric = "Requests", stats = ["sum"]
-      # Podział jednej metryki na serie po wymiarze.
-      group_by = "statusCodeCategory"
-    },
-    {
-      title    = "Czas odpowiedzi API (ms)"
-      id       = local.backend.id, ns = local.ns_backend, metric = "ResponseTime", stats = ["avg", "max"]
-      group_by = null
-    },
-    {
-      title    = "Backend – CPU (% przydziału ${local.backend_cpu} vCPU)"
-      id       = local.backend.id, ns = local.ns_backend, metric = "CpuPercentage", stats = ["avg", "max"]
-      group_by = null
-    },
-    {
-      title    = "Backend – pamięć RAM (% przydziału ${local.backend_ram})"
-      id       = local.backend.id, ns = local.ns_backend, metric = "MemoryPercentage", stats = ["avg", "max"]
-      group_by = null
-    },
-    {
-      title    = "${local.web_vm.name} (Nginx) – CPU (%)"
-      id       = local.web_vm.id, ns = local.ns_vm, metric = "Percentage CPU", stats = ["avg", "max"]
-      group_by = null
-    },
-    {
-      title    = "${local.web_vm.name} (Nginx) – wolna pamięć RAM (%)"
-      id       = local.web_vm.id, ns = local.ns_vm, metric = "Available Memory Percentage", stats = ["avg"]
-      group_by = null
-    },
-    {
-      title    = "Backend – liczba replik"
-      id       = local.backend.id, ns = local.ns_backend, metric = "Replicas", stats = ["max"]
-      group_by = null
-    },
-    {
-      title    = "Backend – restarty kontenera"
-      id       = local.backend.id, ns = local.ns_backend, metric = "RestartCount", stats = ["max"]
-      group_by = null
-    },
-  ]
-
-  dashboard_header = <<-EOT
-    ## CloudDesk – monitoring produkcji
-    Metryki platformy Azure Monitor: backend `${local.backend.name}` (Container Apps) i `${local.web_vm.name}` (Nginx). Domyślny zakres: ostatnie 24 h.
-    Stan aplikacji i połączenia z bazą: `GET /api/health` (opis w tabeli API w README). Logi: Log Analytics `${azurerm_log_analytics_workspace.main.name}`.
-  EOT
-
-  dashboard_parts = merge(
-    {
-      "0" = {
-        position = { x = 0, y = 0, colSpan = 12, rowSpan = 2 }
-        metadata = {
-          inputs = []
-          type   = "Extension/HubsExtension/PartType/MarkdownPart"
-          settings = {
-            content = {
-              settings = { content = local.dashboard_header, title = "", subtitle = "", markdownSource = 1 }
-            }
-          }
-        }
-      }
-    },
-    {
-      for i, c in local.dashboard_charts : tostring(i + 1) => {
-        position = { x = (i % 2) * 6, y = 2 + floor(i / 2) * 4, colSpan = 6, rowSpan = 4 }
-        metadata = {
-          inputs = [
-            { name = "options", isOptional = true },
-            { name = "sharedTimeRange", isOptional = true },
-          ]
-          type = "Extension/HubsExtension/PartType/MonitorChartPart"
-          settings = {
-            content = {
-              options = {
-                chart = merge(
-                  {
-                    title     = c.title
-                    titleKind = 2 # własny tytuł zamiast nazwy metryki
-                    metrics = [
-                      for st in c.stats : {
-                        resourceMetadata    = { id = c.id }
-                        name                = c.metric
-                        namespace           = c.ns
-                        aggregationType     = local.agg[st]
-                        metricVisualization = { displayName = "${c.metric} (${local.agg_label[st]})" }
-                      }
-                    ]
-                    visualization = {
-                      chartType           = 2 # wykres liniowy
-                      legendVisualization = { isVisible = true, position = 2, hideSubtitle = false }
-                      axisVisualization = {
-                        x = { isVisible = true, axisType = 2 }
-                        y = { isVisible = true, axisType = 1 }
-                      }
-                      disablePinning = true
-                    }
-                  },
-                  { for k, v in { grouping = { dimension = c.group_by, sort = 2, top = 10 } } : k => v if c.group_by != null }
-                )
-              }
-            }
-          }
-        }
-      }
-    }
-  )
+  enabled_metric {
+    category = "AllMetrics"
+  }
 }
 
-resource "azurerm_portal_dashboard" "monitoring" {
-  name                = "dash-${var.prefix}-monitoring"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  # Tag hidden-title to nazwa wyświetlana w portalu (nazwa zasobu nie może mieć spacji).
-  tags = merge(local.tags, { "hidden-title" = "CloudDesk – monitoring" })
+# Zapytania wolniejsze niż 500 ms trafiają do logów z czasem wykonania i treścią SQL. Aplikacja wysyła
+# zapytania z parametrami ($1, $2…), więc sam SQL nie zawiera danych ze zgłoszeń.
+resource "azurerm_postgresql_flexible_server_configuration" "log_min_duration_statement" {
+  name      = "log_min_duration_statement"
+  server_id = azurerm_postgresql_flexible_server.main.id
+  value     = "500"
+}
 
-  dashboard_properties = jsonencode({
-    lenses = {
-      "0" = { order = 0, parts = local.dashboard_parts }
-    }
-    metadata = {
-      model = {
-        timeRange = {
-          type  = "MsPortalFx.Composition.Configuration.ValueTypes.TimeRange"
-          value = { relative = { duration = 24, timeUnit = 1 } }
-        }
-        filterLocale = { value = "pl-pl" }
-        filters = {
-          value = {
-            MsPortalFx_TimeRange = {
-              model        = { format = "local", granularity = "auto", relative = "24h" }
-              displayCache = { name = "Czas lokalny", value = "Ostatnie 24 godziny" }
-            }
-          }
-        }
-      }
-    }
-  })
+# Wartości parametrów (np. opis zgłoszenia, e-mail) nie trafiają do logów: domyślnie (-1) Postgres dopisuje je
+# w całości do wpisu o wolnym zapytaniu. 0 wyłącza ich logowanie.
+resource "azurerm_postgresql_flexible_server_configuration" "log_parameter_max_length" {
+  name      = "log_parameter_max_length"
+  server_id = azurerm_postgresql_flexible_server.main.id
+  value     = "0"
+
+  # Azure przyjmuje jedną zmianę konfiguracji serwera naraz – równoległe zmiany kończą się błędem 409.
+  depends_on = [azurerm_postgresql_flexible_server_configuration.log_min_duration_statement]
 }
