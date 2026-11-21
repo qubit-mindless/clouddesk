@@ -14,9 +14,10 @@ Region: **polandcentral** (polityka subskrypcji dopuszcza też swedencentral, ge
 | `app.tf` | środowisko Container Apps (tylko wewnętrzny LB, profil Consumption) w `snet-app`, prywatna strefa DNS, Log Analytics, backend z tożsamością czytającą `DATABASE_URL` z Key Vault |
 | `migrations.tf` | zadanie Container Apps `caj-clouddesk-migrate` uruchamiające migracje Alembic (ręcznie, po wdrożeniu nowego obrazu) |
 | `backup.tf` | codzienna kopia bazy (`pg_dump`, zadanie `caj-clouddesk-backup`, 02:00 UTC) do udziału Azure Files w osobnej grupie `rg-clouddesk-backup` z blokadą usunięcia |
+| `monitoring.tf` | logi i metryki PostgreSQL do Log Analytics `log-clouddesk` (diagnostic setting), logowanie zapytań wolniejszych niż 500 ms bez wartości parametrów; zapytania KQL w [`docs/monitoring/`](../docs/monitoring/README.md) |
 | `versions.tf` | provider `azurerm`, stan zdalny w Azure Storage |
 
-Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnych etapach: HTTPS, monitoring i usługi zarządzane (Azure OpenAI, Blob Storage, e-mail).
+Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnych etapach: HTTPS i usługi zarządzane (Azure OpenAI, Blob Storage, e-mail).
 
 ## Reguły sieciowe (NSG)
 | NSG | Priorytet | Reguła | Źródło | Port |
@@ -29,11 +30,14 @@ Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnyc
 | nsg-app | 120 | Allow | AzureLoadBalancer | * |
 | nsg-app | 200 | **Deny** | Internet | 22, 3389, 80, 443, 31080, 31443, 8000 (`backend_port`), 8080 |
 | nsg-db | 100 | Allow | snet-app 10.0.2.0/24 | 5432 |
+| nsg-db | 200 | **Deny** | Internet | 3306, 5432 |
 | wszystkie | 4000 | **Deny** | VirtualNetwork | * |
 
 Reguła `DenyVnetInBound` (4000) wyłącza domyślne `AllowVnetInBound` Azure, więc ruch płynie wyłącznie kaskadowo: web → app → db.
 
-Pasma priorytetów: 100–199 Allow, 200–299 jawne Deny z Internetu, 4000 `DenyVnetInBound`. SSH i RDP nie mają żadnej reguły Allow, a reguły 200 blokują je jawnie (domyślne `DenyAllInBound` też by je zablokowało, ale tego nie widać w kodzie). VM administrujemy przez `az vm run-command`.
+Pasma priorytetów: 100–199 Allow, 200–299 jawne Deny z Internetu, 4000 `DenyVnetInBound`. Reguły 200 zapisują wprost to, co blokuje też domyślne `DenyAllInBound` (65500), ale czego nie widać w kodzie:
+- `DenyMgmtFromInternet` (nsg-web) i `DenyMgmtAndAppFromInternet` (nsg-app): SSH i RDP nie mają żadnej reguły Allow; VM administrujemy przez `az vm run-command`;
+- `DenyDbPortsFromInternet` (nsg-db): baza nie przyjmuje ruchu z Internetu, a serwer PostgreSQL nie ma publicznego adresu (`public_network_access_enabled = false`).
 
 ## Pierwsze uruchomienie (PM/DevOps)
 ```bash
