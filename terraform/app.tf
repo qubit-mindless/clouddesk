@@ -131,6 +131,20 @@ resource "azurerm_container_app" "backend" {
         name  = "CORS_ORIGINS"
         value = "http://${azurerm_public_ip.web.fqdn},https://${azurerm_public_ip.web.fqdn}"
       }
+      # Asystent AI (ai.tf): backend loguje się do Azure OpenAI tożsamością zarządzaną – AZURE_CLIENT_ID wskazuje,
+      # której tożsamości użyć (kontener ma przypisaną tylko tę jedną, ale jawnie jest pewniej).
+      env {
+        name  = "AZURE_OPENAI_ENDPOINT"
+        value = azurerm_cognitive_account.openai.endpoint
+      }
+      env {
+        name  = "AZURE_OPENAI_DEPLOYMENT"
+        value = azurerm_cognitive_deployment.chat.name
+      }
+      env {
+        name  = "AZURE_CLIENT_ID"
+        value = azurerm_user_assigned_identity.backend.client_id
+      }
     }
   }
 
@@ -140,5 +154,6 @@ resource "azurerm_container_app" "backend" {
   lifecycle {
     ignore_changes = [template[0].container[0].image]
   }
-  depends_on = [azurerm_role_assignment.backend_kv]
+  # Rola do Azure OpenAI przed nową rewizją – inaczej pierwsze pytania do asystenta kończyłyby się 403.
+  depends_on = [azurerm_role_assignment.backend_kv, azurerm_role_assignment.backend_openai]
 }

@@ -133,3 +133,32 @@ variable "backup_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "openai_location" {
+  description = "Region konta Azure OpenAI. polandcentral ma limit dla gpt-4o-mini (DataZoneStandard) i trzyma dane w strefie EU."
+  type        = string
+  default     = "polandcentral"
+}
+
+variable "openai_model" {
+  description = "Model asystenta AI i jego wersja (nazwa wdrożenia = nazwa modelu, backend: AZURE_OPENAI_DEPLOYMENT). Wersja 2024-07-18 jest wycofywana 14.04.2027."
+  type = object({
+    name    = string
+    version = string
+  })
+  default = {
+    name    = "gpt-4o-mini"
+    version = "2024-07-18"
+  }
+}
+
+variable "openai_capacity" {
+  description = "Pojemność wdrożenia w tysiącach tokenów na minutę (DataZoneStandard). 10 = ok. 10 odpowiedzi asystenta na minutę – wystarczy na demo, a ogranicza koszt przy nadużyciu."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.openai_capacity >= 1 && var.openai_capacity <= 50
+    error_message = "Pojemność 1–50 (tys. tokenów/min) – więcej nie jest potrzebne w projekcie."
+  }
+}

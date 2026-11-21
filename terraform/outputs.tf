@@ -52,3 +52,8 @@ output "backup_storage_account" {
   description = "Konto Storage z kopiami bazy (udział db-backups) – scripts/azure-db-backup.sh."
   value       = azurerm_storage_account.backup.name
 }
+
+output "openai_endpoint" {
+  description = "Punkt końcowy Azure OpenAI (AZURE_OPENAI_ENDPOINT backendu). Dostęp tylko przez Entra ID – bez klucza."
+  value       = azurerm_cognitive_account.openai.endpoint
+}

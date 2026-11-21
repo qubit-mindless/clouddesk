@@ -160,6 +160,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 | WEB | `vm-web` (Ubuntu 24.04, B1s) z Nginx, publiczny IP + DNS `clouddesk-qubit.polandcentral.cloudapp.azure.com` | ✅ |
 | APP | Container Apps `cae-clouddesk` (tylko wewnętrzny LB) z `ca-clouddesk-backend`, obraz z GHCR po digeście | ✅ |
 | DATA | PostgreSQL 16 Flexible `psql-clouddesk-…` (B1ms) bez dostępu publicznego, hasło w Key Vault | ✅ |
+| AI | Azure OpenAI `oai-clouddesk-…` z modelem `gpt-4o-mini` (DataZoneStandard – dane w UE), dostęp backendu tożsamością zarządzaną, bez kluczy | ✅ infrastruktura (asystent w aplikacji: #97) |
 | Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic), uruchamiane `scripts/azure-migrate.sh [--seed]` | ✅ schemat 6 tabel + dane przykładowe |
 
 **Jak wdrażamy (do czasu CD w Bloku 8):**
