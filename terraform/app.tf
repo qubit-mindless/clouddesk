@@ -131,6 +131,45 @@ resource "azurerm_container_app" "backend" {
         name  = "CORS_ORIGINS"
         value = "http://${azurerm_public_ip.web.fqdn},https://${azurerm_public_ip.web.fqdn}"
       }
+
+      # Sondy zdrowia – wszystkie na /health/live (proces odpowiada, bez bazy):
+      # - liveness: restart tylko wtedy, gdy zawiesił się sam proces. Awaria PostgreSQL nie powoduje pętli
+      #   restartów, bo restart i tak by jej nie naprawił.
+      # - readiness: celowo bez bazy. Baza jest jedna dla wszystkich replik, więc przy jej awarii readiness
+      #   zależna od bazy wyłączyłaby z ruchu wszystkie repliki naraz: zamiast naszego JSON-a 503 z /api/health
+      #   użytkownik dostałby błąd Envoya, a deploy w CD nie doczekałby się gotowej rewizji.
+      # Stan bazy raportuje /health (200/503) – na nim opiera się monitoring i sprawdzenie po deployu.
+      # min_replicas = 0, więc każdy start to zimny start (~15 s na 0,25 vCPU) – startup daje do ~53 s,
+      # a liveness i readiness zaczynają działać dopiero po udanym startup.
+      startup_probe {
+        transport               = "HTTP"
+        port                    = var.backend_port
+        path                    = "/health/live"
+        initial_delay           = 3
+        interval_seconds        = 5
+        timeout                 = 3
+        failure_count_threshold = 10
+      }
+
+      liveness_probe {
+        transport               = "HTTP"
+        port                    = var.backend_port
+        path                    = "/health/live"
+        initial_delay           = 1
+        interval_seconds        = 30
+        timeout                 = 5
+        failure_count_threshold = 3
+      }
+
+      readiness_probe {
+        transport               = "HTTP"
+        port                    = var.backend_port
+        path                    = "/health/live"
+        interval_seconds        = 10
+        timeout                 = 5
+        failure_count_threshold = 3
+        success_count_threshold = 1
+      }
     }
   }
 
