@@ -30,7 +30,8 @@ def health() -> JSONResponse:
 # Sonda liveness Container Apps: sprawdza tylko, czy proces odpowiada – bez bazy, żeby chwilowa awaria
 # PostgreSQL nie kończyła się restartem kontenera (tym zajmuje się readiness na /health).
 # Tylko wewnątrz VNet – Nginx nie przekazuje tej ścieżki.
+# async: działa na pętli zdarzeń, nie w puli wątków, którą przy awarii bazy mogą zająć zablokowane zapytania.
 @router.get("/health/live", response_model=LivenessDTO)
-def liveness() -> LivenessDTO:
+async def liveness() -> LivenessDTO:
     """Proces aplikacji działa. Zawsze 200, niezależnie od stanu bazy."""
     return LivenessDTO(status="UP")

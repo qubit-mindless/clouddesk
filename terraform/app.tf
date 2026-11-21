@@ -132,20 +132,22 @@ resource "azurerm_container_app" "backend" {
         value = "http://${azurerm_public_ip.web.fqdn},https://${azurerm_public_ip.web.fqdn}"
       }
 
-      # Sondy zdrowia. Podział:
-      # - startup i liveness na /health/live (bez bazy): restart kontenera tylko wtedy, gdy nie odpowiada sam
-      #   proces. Awaria PostgreSQL nie powoduje pętli restartów, bo restart i tak by jej nie naprawił.
-      # - readiness na /health (z pingiem do bazy, 503 przy awarii): replika bez bazy wypada z ruchu
-      #   i wraca do niego sama, gdy baza znowu odpowiada.
-      # min_replicas = 0, więc każdy start to zimny start (~15 s) – startup daje na to do ~35 s,
+      # Sondy zdrowia – wszystkie na /health/live (proces odpowiada, bez bazy):
+      # - liveness: restart tylko wtedy, gdy zawiesił się sam proces. Awaria PostgreSQL nie powoduje pętli
+      #   restartów, bo restart i tak by jej nie naprawił.
+      # - readiness: celowo bez bazy. Baza jest jedna dla wszystkich replik, więc przy jej awarii readiness
+      #   zależna od bazy wyłączyłaby z ruchu wszystkie repliki naraz: zamiast naszego JSON-a 503 z /api/health
+      #   użytkownik dostałby błąd Envoya, a deploy w CD nie doczekałby się gotowej rewizji.
+      # Stan bazy raportuje /health (200/503) – na nim opiera się monitoring i sprawdzenie po deployu.
+      # min_replicas = 0, więc każdy start to zimny start (~15 s na 0,25 vCPU) – startup daje do ~53 s,
       # a liveness i readiness zaczynają działać dopiero po udanym startup.
       startup_probe {
         transport               = "HTTP"
         port                    = var.backend_port
         path                    = "/health/live"
         initial_delay           = 3
-        interval_seconds        = 3
-        timeout                 = 2
+        interval_seconds        = 5
+        timeout                 = 3
         failure_count_threshold = 10
       }
 
@@ -162,7 +164,7 @@ resource "azurerm_container_app" "backend" {
       readiness_probe {
         transport               = "HTTP"
         port                    = var.backend_port
-        path                    = "/health"
+        path                    = "/health/live"
         interval_seconds        = 10
         timeout                 = 5
         failure_count_threshold = 3
