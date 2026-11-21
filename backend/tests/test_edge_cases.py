@@ -96,6 +96,8 @@ def test_login_field_limits(anonymous):
         '100% \\ _ % [a-z] "cudzysłów"',
         "Linia 1\nLinia 2\tTab",
     ],
+    # Czytelne nazwy w wyniku pytest -v (inaczej pytest pokazuje znaki spoza ASCII jako \uXXXX).
+    ids=["polskie-i-emoji", "cyrylica", "chinski", "arabski", "html", "sql", "znaki-like", "nowe-linie"],
 )
 def test_special_and_unicode_text_round_trips(client, title):
     res = create(client, title=title, description=f"Opis: {title}")
