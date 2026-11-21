@@ -154,6 +154,7 @@ resource "azurerm_container_app" "backend" {
   lifecycle {
     ignore_changes = [template[0].container[0].image]
   }
-  # Rola do Azure OpenAI przed nową rewizją – inaczej pierwsze pytania do asystenta kończyłyby się 403.
+  # Role przed nową rewizją. Uwaga: Azure rozpropagowuje nadanie roli do kilku minut, więc tuż po pierwszym apply
+  # asystent może chwilę dostawać 403 – backend (#108) zwraca wtedy 503 „chwilowo niedostępny”.
   depends_on = [azurerm_role_assignment.backend_kv, azurerm_role_assignment.backend_openai]
 }

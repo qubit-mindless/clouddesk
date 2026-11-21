@@ -138,6 +138,12 @@ variable "openai_location" {
   description = "Region konta Azure OpenAI. polandcentral ma limit dla gpt-4o-mini (DataZoneStandard) i trzyma dane w strefie EU."
   type        = string
   default     = "polandcentral"
+
+  # DataZoneStandard trzyma dane w strefie regionu konta – region spoza UE złamałby zasadę „dane w UE”.
+  validation {
+    condition     = contains(["polandcentral", "swedencentral", "germanywestcentral"], var.openai_location)
+    error_message = "Asystent AI tylko w regionie UE: polandcentral, swedencentral albo germanywestcentral."
+  }
 }
 
 variable "openai_model" {

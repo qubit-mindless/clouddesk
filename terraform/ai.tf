@@ -6,8 +6,10 @@
 # - DataZoneStandard: zapytania przetwarzane są wyłącznie w centrach danych w UE (strefa danych EU).
 # - Koszty: płacimy tylko za tokeny (bez stałej opłaty). Pojemność wdrożenia ogranicza przepustowość
 #   (1 jednostka = 1000 tokenów/min), a backend ogranicza liczbę odpowiedzi na zgłoszenie i ich długość.
-# - Punkt końcowy jest publiczny (Private Endpoint to stała opłata, jak w app.tf), ale bez klucza nikt spoza
-#   zespołu i backendu nie dostanie tokenu z uprawnieniem do modelu.
+# - Punkt końcowy jest publiczny (Private Endpoint to stała opłata, jak w app.tf), ale bez klucza model wywoła
+#   tylko tożsamość z rolą na tym koncie – dziś wyłącznie backend. Zespół (Contributor na grupie) zarządza
+#   kontem, ale sam modelu nie wywoła; do testów lokalnych służy fake API frontendu albo klucz tylko po świadomym
+#   włączeniu local auth.
 
 resource "azurerm_cognitive_account" "openai" {
   name                  = "oai-${var.prefix}-${random_string.suffix.result}"
