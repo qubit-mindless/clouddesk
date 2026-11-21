@@ -55,7 +55,8 @@ resource "azurerm_network_security_group" "web" {
   }
 
   # Porty zarządcze zamknięte jawnie. Domyślna reguła Azure DenyAllInBound też by je zablokowała, ale jawną
-  # regułę widać w portalu i w planie, a przypadkowe Allow na niższym priorytecie (np. 300) jej nie ominie.
+  # regułę widać w portalu i w planie, a przypadkowe Allow z numerem priorytetu powyżej 200 jej nie ominie.
+  # Nowe Allow na 22/3389 w paśmie 100–199 wygrałyby z tą regułą – takich nie dodajemy.
   # VM obsługujemy przez `az vm run-command` (Azure control plane), więc SSH/RDP nie są potrzebne.
   security_rule {
     name                       = "DenyMgmtFromInternet"
@@ -150,8 +151,10 @@ resource "azurerm_network_security_group" "app" {
     destination_port_range     = "*"
   }
 
-  # Backend nie ma publicznego IP, ale porty zarządcze i porty aplikacji (uvicorn 8000, alternatywny 8080)
-  # blokujemy z Internetu jawnie – na wypadek publicznego adresu dodanego kiedyś przez pomyłkę.
+  # Backend nie ma publicznego IP, ale z Internetu blokujemy jawnie – na wypadek publicznego adresu albo
+  # zewnętrznego LB dodanego kiedyś przez pomyłkę: porty zarządcze (22, 3389), porty ingress Container Apps
+  # (80/443 na LB, 31080/31443 na proxy środowiska) i port kontenera (var.backend_port, 8080 jako alternatywny).
+  # Ruch z snet-web i AzureLoadBalancer przechodzi wcześniej przez reguły Allow 100–120, więc to go nie dotyczy.
   security_rule {
     name                       = "DenyMgmtAndAppFromInternet"
     priority                   = 200
@@ -161,7 +164,7 @@ resource "azurerm_network_security_group" "app" {
     source_address_prefix      = "Internet"
     source_port_range          = "*"
     destination_address_prefix = "*"
-    destination_port_ranges    = ["22", "3389", "8000", "8080"]
+    destination_port_ranges    = distinct(["22", "3389", "80", "443", "31080", "31443", tostring(var.backend_port), "8080"])
   }
 
   security_rule {
