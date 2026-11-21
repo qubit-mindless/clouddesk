@@ -22,3 +22,17 @@ Przed pracą przeczytaj:
 - Elementy UI używane w testach E2E dostają `data-testid`.
 - Nie wklejaj do repo treści materiałów z zajęć (slajdów, checklist, cytatów). Repo jest publiczne, a materiały dydaktyczne są własnością ich autora. Piszemy własnymi słowami.
 - Kod, komentarze, commity i opisy PR mogą być po polsku. Nazwy w kodzie są po angielsku.
+
+## Przegląd przed PR – obowiązkowo
+- **`/code-review`**: zanim otworzysz PR (albo dopchniesz do niego większą poprawkę), przejrzyj nim swój diff.
+  - Potwierdzone błędy popraw przed wysłaniem.
+  - W opisie PR dopisz 1–2 zdania, co przegląd znalazł i co poprawiłeś.
+- **`/security-review`**: uruchom dodatkowo, gdy zmiana dotyka:
+  - logowania, ról lub JWT;
+  - sekretów i `.env`;
+  - danych od użytkownika i zapytań do bazy;
+  - reguł NSG, Nginx/HTTPS i nagłówków;
+  - workflowów w `.github/workflows/`;
+  - `terraform/` albo nowych zależności.
+- Przeglądy pomijasz tylko przy zmianach trywialnych: literówki, sama dokumentacja, formatowanie.
+- Przegląd Claude'a nie zastępuje review kolegi: PR dalej musi zatwierdzić inna osoba.
