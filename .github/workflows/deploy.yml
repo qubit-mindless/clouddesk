@@ -2,6 +2,7 @@
 #   1. backend-image  – obraz backendu z SHA commita → skan Trivy → GHCR
 #   2. deploy-backend – migracje bazy nowym obrazem → nowy obraz w Container Apps → czekamy na zdrową rewizję
 #   3. deploy-web     – build frontendu z SHA w stopce → paczka na vm-web przez az vm run-command → sprawdzenie strony
+#   4. e2e-tests      – testy API (Jest + Supertest) i E2E (Playwright) na wdrożonej aplikacji, raporty jako artefakty
 # Joby z dostępem do Azure działają w środowisku GitHub „azure” (tylko gałąź main); tylko ono dostaje token,
 # który Entra ID przyjmuje (federated credential w terraform/cicd.tf).
 name: Deploy
@@ -158,6 +159,8 @@ jobs:
     permissions:
       contents: read
       id-token: write # token OIDC dla azure/login
+    outputs:
+      url: ${{ steps.verify.outputs.url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -220,6 +223,7 @@ jobs:
       # Z zewnątrz, tak jak użytkownik: przekierowanie HTTP → HTTPS, ważny certyfikat (curl go weryfikuje),
       # nowy bundle z SHA w stopce i /api/health przez Nginx.
       - name: Sprawdzenie strony (HTTPS) i /api/health
+        id: verify
         run: |
           host="$(az network public-ip show -g "$RG" -n "$WEB_PIP" --query dnsSettings.fqdn -o tsv)"
           [[ -n "$host" ]] || { echo "Brak nazwy DNS dla $WEB_PIP." >&2; exit 1; }
@@ -252,4 +256,93 @@ jobs:
             echo "### Frontend: \`$url\`"
             echo "Strona i \`/api/health\` → 200, commit \`$SHA\`"
             echo "HTTP → 301 na HTTPS; certyfikat: $cert"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  e2e-tests:
+    name: Testy API i E2E (na wdrożonej aplikacji)
+    # Po deploy-web: aplikacja odpowiada już nowym commitem (sprawdzone wyżej). Testy idą z zewnątrz, jak użytkownik.
+    # Świadomie: czerwony wynik nie cofa wdrożenia (nowa wersja już działa) – sygnalizuje błąd do naprawy kolejnym
+    # commitem. Testy są w tym samym przebiegu, więc kolejny deploy czeka na ich koniec (concurrency, maks. 20 min).
+    needs: deploy-web
+    runs-on: ubuntu-latest
+    # Środowisko „azure” tylko po sekrety konta testowego (TEST_USER_*). Bez id-token: job nie loguje się do Azure.
+    environment: azure
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tests
+    env:
+      LIVE_APP_URL: ${{ needs.deploy-web.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Zależności testów
+        run: npm ci
+
+      # Wersja przeglądarki pasuje do @playwright/test z package-lock.json; --with-deps doinstalowuje biblioteki systemowe.
+      - name: Przeglądarka Playwright (Chromium)
+        run: npx playwright install --with-deps chromium
+
+      # Sekrety konta testowego tylko w krokach z testami – nie widzą ich `npm ci` (skrypty instalacyjne paczek)
+      # ani instalacja przeglądarki.
+      - name: Testy API (Jest + Supertest)
+        id: api
+        env:
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+        run: npx jest --ci
+
+      # E2E uruchamiamy także po nieudanych testach API – wtedy raport pokazuje pełny obraz, a nie tylko pierwszy błąd.
+      # --trace off: repozytorium jest publiczne, a artefakty może pobrać każdy zalogowany użytkownik GitHuba. Trace
+      # zapisuje wpisane wartości (np. hasło w formularzu logowania) i treść żądań – GitHub maskuje sekrety tylko
+      # w logach, nie w artefaktach. Zrzuty i wideo zostają (pole hasła jest na nich zamaskowane).
+      - name: Testy E2E (Playwright)
+        id: e2e
+        if: ${{ !cancelled() && steps.api.outcome != 'skipped' }}
+        env:
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+        run: npx playwright test --trace off
+
+      # Raport HTML zawsze (także przy sukcesie – dowód przebiegu); zrzuty i wideo tylko przy błędach.
+      - name: Raport Playwright (artefakt)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          # run_attempt: ponowne uruchomienie joba nie koliduje z artefaktem z poprzedniej próby.
+          name: playwright-report-${{ env.SHA }}-${{ github.run_attempt }}
+          path: tests/playwright-report/
+          retention-days: 14
+          if-no-files-found: warn
+
+      # Zrzuty i wideo powstają tylko dla nieudanych prób – także wtedy, gdy test przeszedł dopiero przy powtórce
+      # (niestabilny test), dlatego warunkiem jest istnienie plików, a nie wynik kroku.
+      - name: Zrzuty i wideo z nieudanych testów (artefakt)
+        if: ${{ !cancelled() && steps.e2e.outcome != 'skipped' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-failures-${{ env.SHA }}-${{ github.run_attempt }}
+          path: tests/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Podsumowanie
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "### Testy na \`$LIVE_APP_URL\`"
+            echo "- API (Jest): **${{ steps.api.outcome }}**"
+            echo "- E2E (Playwright): **${{ steps.e2e.outcome }}**"
+            echo "Raport HTML: artefakt \`playwright-report-$SHA-$GITHUB_RUN_ATTEMPT\` (sekcja *Artifacts* na dole tej strony)."
           } >> "$GITHUB_STEP_SUMMARY"

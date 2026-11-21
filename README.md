@@ -260,8 +260,8 @@ cd frontend && npm run lint && npm run build
 |---|---|---|---|---|
 | Jednostkowe i integracyjne backendu | `backend/tests/` | pytest + TestClient (SQLite w pamięci) | logika zgłoszeń, walidacja, historia, SLA (role i logowanie – #94, asystent AI – #97) | job **Backend** w `ci.yml`, każdy PR |
 | Migracje bazy | `backend/tests/test_migrations.py` | pytest + Alembic | `upgrade → downgrade → upgrade` i zgodność migracji z modelami na PostgreSQL 16 | job **Migracje** w `ci.yml` |
-| API na działającej aplikacji | `tests/*.test.js` | Jest + Supertest | statusy HTTP, nagłówki, kształt JSON przez Nginx; na razie test dymny `/api/health`, pełne testy: #98 | lokalnie; w pipeline po wdrożeniu od #100 (job `e2e-tests`) |
-| E2E w przeglądarce | `tests/*.spec.js` | Playwright (Chromium, headless) | ścieżka użytkownika w UI, selektory `data-testid`; na razie test dymny strony głównej, scenariusz: #99 | lokalnie; w pipeline po wdrożeniu od #100 |
+| API na działającej aplikacji | `tests/*.test.js` | Jest + Supertest | statusy HTTP, nagłówki, kształt JSON przez Nginx; na razie test dymny `/api/health`, pełne testy: #98 | lokalnie; w pipeline **po każdym wdrożeniu** (job `e2e-tests` w `deploy.yml`) |
+| E2E w przeglądarce | `tests/*.spec.js` | Playwright (Chromium, headless) | ścieżka użytkownika w UI, selektory `data-testid`; na razie test dymny strony głównej, scenariusz: #99 | lokalnie; w pipeline po każdym wdrożeniu (job `e2e-tests`) |
 
 ### Uruchomienie lokalne
 Backend (z katalogu `backend/`, w aktywnym `.venv`):
@@ -288,7 +288,13 @@ Te same testy można puścić na produkcję: `LIVE_APP_URL=https://clouddesk-qub
 
 ### Jak czytać wyniki
 - **pytest / Jest:** w konsoli lista testów z ✓/✗; przy błędzie – oczekiwana i otrzymana wartość. W GitHub Actions: zakładka *Actions* → przebieg → job.
-- **Playwright:** raport HTML (`tests/playwright-report/`); przy nieudanym teście zrzut ekranu, nagranie wideo i ślad (*trace*) kroków. W pipeline (od #100) raport będzie artefaktem przebiegu (sekcja *Artifacts* na dole strony przebiegu).
+- **Playwright:** raport HTML (`tests/playwright-report/`); przy nieudanym teście zrzut ekranu, nagranie wideo i (lokalnie) ślad (*trace*) kroków.
+- **W pipeline** (job `e2e-tests` w `deploy.yml`, po `deploy-web`): przebieg Deploy → sekcja *Artifacts* na dole strony:
+  - `playwright-report-<sha>-<próba>` – raport HTML, zawsze (14 dni);
+  - `playwright-failures-<sha>-<próba>` – zrzuty i wideo nieudanych prób, tylko gdy są.
+
+  W CI trace jest wyłączony (`--trace off`): repozytorium jest publiczne, a trace zapisuje wpisane wartości, np. hasło konta testowego. Czerwony job nie cofa wdrożenia – sygnalizuje błąd do naprawy.
+- **Sekrety środowiska `azure`** potrzebne testom z logowaniem: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD` (konto TECHNICIAN; hasło = `demo-password` z Key Vault). Bez nich przechodzą tylko testy dymne.
 - Pierwsze żądanie po przerwie może trwać do ~20 s (backend skaluje się do zera) – dlatego limit czasu testów to 30 s.
 
 ## CI i bezpieczeństwo kodu
