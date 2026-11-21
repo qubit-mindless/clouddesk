@@ -140,6 +140,20 @@ def test_staff_reporting_own_ticket_can_ask(login_as, ai):
     assert res.status_code == 200 and res.json()["canAsk"] is True
 
 
+@pytest.mark.parametrize(
+    ("raw", "shown"),
+    [
+        ("1. **Zrestartuj komputer** - czasem pomaga.", "1. Zrestartuj komputer - czasem pomaga."),
+        ("## Kroki\n1. __Sprawdź__ kabel", "Kroki\n1. Sprawdź kabel"),
+        ("Wynik 2 * 3 = 6, plik *.log", "Wynik 2 * 3 = 6, plik *.log"),
+    ],
+)
+def test_answer_is_saved_as_plain_text(login_as, ai, ticket_of_anna, monkeypatch, raw, shown):
+    monkeypatch.setattr(ai, "complete", lambda messages: raw)
+    items = login_as("anna.k").post(url(ticket_of_anna), json={}).json()["items"]
+    assert items[-1]["content"] == shown
+
+
 def test_prompt_keeps_rules_first_and_ticket_as_data(login_as, ai, ticket_of_anna):
     anna = login_as("anna.k")
     anna.post(url(ticket_of_anna), json={})

@@ -57,9 +57,10 @@ export function AssistantPanel({ ticketId, reporter }: { ticketId: number; repor
   const noQuota = conversation !== undefined && conversation.remaining <= 0
 
   // Starsze rozmowy mogą mieć pytania technika (przed zmianą pisać mógł każdy) – podpisujemy je jego loginem.
+  // Wiadomości bez autora (dane demo sprzed zapisywania autora) traktujemy jak wiadomości zgłaszającego.
   const authorLabel = (message: AssistantMessage) => {
     if (message.role === 'assistant') return 'Asystent AI'
-    if (message.author !== reporter) return message.author ?? 'Użytkownik'
+    if (message.author !== null && message.author !== reporter) return message.author
     return staffView ? `Zgłaszający (${reporter})` : 'Ty'
   }
 

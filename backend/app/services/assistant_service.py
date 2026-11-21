@@ -1,3 +1,4 @@
+import re
 import secrets
 import threading
 from collections.abc import Iterator
@@ -36,6 +37,8 @@ informacje, które mu się przydadzą (co już sprawdzono, komunikaty błędów,
 
 Zasady:
 - Odpowiadaj po polsku, rzeczowo, najwyżej ok. 200 słów. Podawaj konkretne kroki do sprawdzenia, po kolei.
+- Pisz zwykłym tekstem, bez Markdown (bez **, #, ``` i tabel) – aplikacja go nie formatuje.
+  Kroki numeruj „1.”, „2.” w osobnych liniach.
 - Jeśli problem wymaga uprawnień administratora, dostępu do serwerów albo dotyczy wielu osób,
   napisz wprost, że zajmie się tym technik, i co warto mu przekazać.
 - Nigdy nie proś o hasła, kody MFA ani inne dane logowania i nie podawaj ich.
@@ -139,7 +142,7 @@ class AssistantService:
         # Kończymy transakcję odczytu przed wywołaniem AI (do 30 s): połączenie wraca do puli,
         # więc wolna usługa AI nie zablokuje bazy dla reszty API.
         self.db.rollback()
-        answer = self.client.complete(prompt)
+        answer = plain_text(self.client.complete(prompt))
 
         # Zapis w nowej transakcji z blokadą zgłoszenia: status i limit sprawdzane jeszcze raz (technik mógł
         # w tym czasie rozwiązać zgłoszenie, inna replika – dopisać odpowiedź), a usunięte w międzyczasie
@@ -173,6 +176,15 @@ class AssistantService:
         )
         self.db.commit()
         return self._conversation(ticket)
+
+
+_MD_EMPHASIS = re.compile(r"(\*\*|__)(.+?)\1", re.DOTALL)
+_MD_HEADING = re.compile(r"^#{1,6}\s+", re.MULTILINE)
+
+
+def plain_text(answer: str) -> str:
+    """Panel pokazuje zwykły tekst – zdejmujemy pogrubienia i nagłówki Markdown, gdyby model je dodał."""
+    return _MD_HEADING.sub("", _MD_EMPHASIS.sub(r"\2", answer)).strip()
 
 
 def build_prompt(ticket: Ticket, history: list[AiMessage], question: str) -> list[Message]:
