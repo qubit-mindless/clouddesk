@@ -26,6 +26,7 @@ SUGGEST_PROMPT = "Podpowiedz, co mogę sprawdzić samodzielnie, zanim technik za
 # Ile ostatnich wiadomości rozmowy idzie do modelu jako kontekst (koszt i długość promptu).
 HISTORY_FOR_MODEL = 10
 CLOSED_STATUSES = (TicketStatus.RESOLVED, TicketStatus.CLOSED)
+CLOSED_MESSAGE = "Zgłoszenie jest rozwiązane – rozmowa z asystentem AI jest zamknięta."
 MAX_DESCRIPTION_IN_PROMPT = 3000
 
 SYSTEM_PROMPT = """Jesteś asystentem pierwszej linii wsparcia IT w systemie zgłoszeń CloudDesk.
@@ -110,10 +111,10 @@ class AssistantService:
         reason = self._read_only_reason(ticket)
         if reason == "not_reporter":
             raise ForbiddenError(
-                "Z asystentem AI rozmawia osoba zgłaszająca – technik widzi tę rozmowę do odczytu."
+                "Do asystenta AI pisze tylko osoba zgłaszająca – pozostali widzą rozmowę do odczytu."
             )
         if reason == "resolved":
-            raise AssistantClosedError("Zgłoszenie jest rozwiązane – rozmowa z asystentem AI jest zamknięta.")
+            raise AssistantClosedError(CLOSED_MESSAGE)
         if not self.client.enabled:
             raise AssistantUnavailableError("Asystent AI nie jest skonfigurowany na tym serwerze.")
         if self.messages.count_answers(ticket_id) >= self.limit:
@@ -140,10 +141,15 @@ class AssistantService:
         self.db.rollback()
         answer = self.client.complete(prompt)
 
-        # Zapis w nowej transakcji z blokadą zgłoszenia: limit liczony jeszcze raz (inna replika mogła
-        # w tym czasie dopisać odpowiedź), a usunięte w międzyczasie zgłoszenie daje 404 zamiast błędu FK.
-        if self.ticket_rows.lock(ticket_id) is None:
+        # Zapis w nowej transakcji z blokadą zgłoszenia: status i limit sprawdzane jeszcze raz (technik mógł
+        # w tym czasie rozwiązać zgłoszenie, inna replika – dopisać odpowiedź), a usunięte w międzyczasie
+        # zgłoszenie daje 404 zamiast błędu FK.
+        locked = self.ticket_rows.lock(ticket_id)
+        if locked is None:
             raise NotFoundError(f"Nie znaleziono zgłoszenia #{ticket_id}.")
+        if locked.status in CLOSED_STATUSES:
+            self.db.rollback()
+            raise AssistantClosedError(CLOSED_MESSAGE)
         if self.messages.count_answers(ticket_id) >= self.limit:
             self.db.rollback()
             raise LimitExceededError("Wyczerpano limit pytań do asystenta dla tego zgłoszenia.")

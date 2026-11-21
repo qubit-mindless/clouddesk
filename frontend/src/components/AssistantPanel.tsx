@@ -11,7 +11,7 @@ const MAX_LENGTH = 1000
 
 // Z asystentem rozmawia osoba zgłaszająca (pierwsza linia pomocy, zanim albo gdy technik zajmuje się zgłoszeniem).
 // Technik i administrator widzą tę rozmowę tylko do odczytu – wiedzą, co zgłaszający już sprawdził.
-export function AssistantPanel({ ticketId }: { ticketId: number }) {
+export function AssistantPanel({ ticketId, reporter }: { ticketId: number; reporter: string }) {
   const { data: loaded, error: loadError, loading, reload } = useRequest(String(ticketId), (signal) => getAssistant(ticketId, signal))
   const [updated, setUpdated] = useState<{ ticketId: number; value: AssistantConversation }>()
   const [text, setText] = useState('')
@@ -56,9 +56,11 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
   const tooLong = text.trim().length > MAX_LENGTH
   const noQuota = conversation !== undefined && conversation.remaining <= 0
 
+  // Starsze rozmowy mogą mieć pytania technika (przed zmianą pisać mógł każdy) – podpisujemy je jego loginem.
   const authorLabel = (message: AssistantMessage) => {
     if (message.role === 'assistant') return 'Asystent AI'
-    return staffView ? `Zgłaszający (${message.author ?? '?'})` : 'Ty'
+    if (message.author !== reporter) return message.author ?? 'Użytkownik'
+    return staffView ? `Zgłaszający (${reporter})` : 'Ty'
   }
 
   return (
@@ -91,20 +93,20 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
         </p>
       )}
 
-      {conversation && (conversation.enabled || staffView) && (
+      {conversation && (
         <>
-          {conversation.items.length > 0 && (
-            <div className="assistant-messages" aria-live="polite">
-              {conversation.items.map((message) => (
-                <div key={message.id} className={`assistant-message assistant-${message.role}`} data-testid="assistant-message" data-role={message.role}>
-                  <div className="assistant-meta">
-                    {authorLabel(message)} · {formatDateTime(message.createdAt)}
-                  </div>
-                  <p>{message.content}</p>
+          {/* Region aria-live zawsze w drzewie (czytnik ekranu ogłosi pierwszą odpowiedź); historia widoczna
+              także wtedy, gdy asystent jest wyłączony. */}
+          <div className="assistant-messages" aria-live="polite">
+            {conversation.items.map((message) => (
+              <div key={message.id} className={`assistant-message assistant-${message.role}`} data-testid="assistant-message" data-role={message.role}>
+                <div className="assistant-meta">
+                  {authorLabel(message)} · {formatDateTime(message.createdAt)}
                 </div>
-              ))}
-            </div>
-          )}
+                <p>{message.content}</p>
+              </div>
+            ))}
+          </div>
           {conversation.canAsk && conversation.enabled && (
             <>
               {conversation.items.length === 0 && (

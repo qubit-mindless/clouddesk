@@ -161,7 +161,7 @@ export function fakeApi(): Plugin {
           const items = conversations.get(ticketId) ?? []
           const answers = () => items.filter((m) => m.role === 'assistant').length
           // Jak backend: pyta tylko zgłaszający, do rozwiązania zgłoszenia; technik widzi rozmowę do odczytu.
-          const readOnlyReason = owner.reporter !== actor.login ? 'not_reporter' : ['RESOLVED', 'CLOSED'].includes(owner.status) ? 'resolved' : null
+          const readOnlyReason = owner.reporter !== actor.login ? 'not_reporter' : CLOSED.includes(owner.status) ? 'resolved' : null
           const conversation = () => ({
             items,
             enabled: true,
@@ -180,7 +180,7 @@ export function fakeApi(): Plugin {
             return send(res, 422, { detail: [{ loc: ['body', 'message'], msg: 'Wiadomość musi mieć 1–1000 znaków', type: 'value_error' }] })
           }
           if (readOnlyReason === 'not_reporter') {
-            return send(res, 403, { detail: 'Z asystentem AI rozmawia osoba zgłaszająca – technik widzi tę rozmowę do odczytu.' })
+            return send(res, 403, { detail: 'Do asystenta AI pisze tylko osoba zgłaszająca – pozostali widzą rozmowę do odczytu.' })
           }
           if (readOnlyReason === 'resolved') {
             return send(res, 409, { detail: 'Zgłoszenie jest rozwiązane – rozmowa z asystentem AI jest zamknięta.' })

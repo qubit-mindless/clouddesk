@@ -116,6 +116,22 @@ def test_conversation_is_closed_after_the_ticket_is_resolved(login_as, ai, ticke
     assert len(ai.prompts) == 1
 
 
+def test_ticket_resolved_during_ai_call_saves_nothing(login_as, ai, ticket_of_anna, db):
+    """Technik rozwiązał zgłoszenie, gdy asystent odpowiadał – odpowiedź nie trafia do zamkniętej rozmowy."""
+    from app.models import Ticket, TicketStatus
+
+    def technician_resolves():
+        with db() as session:
+            session.get(Ticket, ticket_of_anna).status = TicketStatus.RESOLVED
+            session.commit()
+
+    ai.during_call = technician_resolves
+    anna = login_as("anna.k")
+    res = anna.post(url(ticket_of_anna), json={"message": "Nie działa"})
+    assert res.status_code == 409 and "rozwiązane" in res.json()["detail"]
+    assert anna.get(url(ticket_of_anna)).json()["items"] == []
+
+
 def test_staff_reporting_own_ticket_can_ask(login_as, ai):
     """Technik, który sam zgłosił problem, jest jego zgłaszającym – może pytać asystenta."""
     tech = login_as("tech.jan")
