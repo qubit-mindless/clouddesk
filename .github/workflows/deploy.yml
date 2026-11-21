@@ -276,8 +276,6 @@ jobs:
         working-directory: tests
     env:
       LIVE_APP_URL: ${{ needs.deploy-web.outputs.url }}
-      TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -296,8 +294,13 @@ jobs:
       - name: Przeglądarka Playwright (Chromium)
         run: npx playwright install --with-deps chromium
 
+      # Sekrety konta testowego tylko w krokach z testami – nie widzą ich `npm ci` (skrypty instalacyjne paczek)
+      # ani instalacja przeglądarki.
       - name: Testy API (Jest + Supertest)
         id: api
+        env:
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
         run: npx jest --ci
 
       # E2E uruchamiamy także po nieudanych testach API – wtedy raport pokazuje pełny obraz, a nie tylko pierwszy błąd.
@@ -307,9 +310,12 @@ jobs:
       - name: Testy E2E (Playwright)
         id: e2e
         if: ${{ !cancelled() && steps.api.outcome != 'skipped' }}
+        env:
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
         run: npx playwright test --trace off
 
-      # Raport HTML zawsze (także przy sukcesie – dowód przebiegu); zrzuty, wideo i trace tylko przy błędach.
+      # Raport HTML zawsze (także przy sukcesie – dowód przebiegu); zrzuty i wideo tylko przy błędach.
       - name: Raport Playwright (artefakt)
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
