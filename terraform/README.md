@@ -13,6 +13,7 @@ Region: **polandcentral** (polityka subskrypcji dopuszcza też swedencentral, ge
 | `database.tf` | PostgreSQL 16 Flexible (B1ms, tylko prywatny dostęp w `snet-db`), prywatna strefa DNS, Key Vault z hasłem administratora |
 | `app.tf` | środowisko Container Apps (tylko wewnętrzny LB, profil Consumption) w `snet-app`, prywatna strefa DNS, Log Analytics, backend z tożsamością czytającą `DATABASE_URL` z Key Vault |
 | `migrations.tf` | zadanie Container Apps `caj-clouddesk-migrate` uruchamiające migracje Alembic (ręcznie, po wdrożeniu nowego obrazu) |
+| `dashboard.tf` | dashboard `dash-clouddesk-monitoring` w portalu Azure: żądania backendu wg kodu (2xx/4xx/5xx), czas odpowiedzi API, CPU i RAM backendu, `vm-web` i bazy, połączenia i dysk bazy, repliki i restarty (adres: output `dashboard_url`) |
 | `backup.tf` | codzienna kopia bazy (`pg_dump`, zadanie `caj-clouddesk-backup`, 02:00 UTC) do udziału Azure Files w osobnej grupie `rg-clouddesk-backup` z blokadą usunięcia |
 | `monitoring.tf` | logi i metryki PostgreSQL do Log Analytics `log-clouddesk` (diagnostic setting), logowanie zapytań wolniejszych niż 500 ms bez wartości parametrów; zapytania KQL w [`docs/monitoring/`](../docs/monitoring/README.md) |
 | `versions.tf` | provider `azurerm`, stan zdalny w Azure Storage |
