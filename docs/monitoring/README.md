@@ -23,10 +23,12 @@ az monitor log-analytics query -w "$W" --analytics-query "<zapytanie>" -o table
 ## Zapytania
 
 ### 1. Logi backendu z ostatniej godziny
+Bez sond zdrowia Container Apps (`/health/live`, `/health` – co kilka sekund).
 ```kusto
 ContainerAppConsoleLogs_CL
 | where TimeGenerated > ago(1h)
 | where ContainerAppName_s == "ca-clouddesk-backend"
+| where not(Log_s has_any ("GET /health/live ", "GET /health "))
 | project TimeGenerated, RevisionName_s, Stream_s, Log_s
 | order by TimeGenerated desc
 ```
@@ -86,11 +88,13 @@ AzureDiagnostics
 ```
 
 ### 7. PostgreSQL: połączenia i wolne zapytania
+Bez wewnętrznych połączeń Azure (użytkownik `azuresu` – monitoring i utrzymanie serwera), które stanowią większość wpisów.
 ```kusto
 AzureDiagnostics
 | where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.DBFORPOSTGRESQL" and Category == "PostgreSQLLogs"
 | where Message has_any ("connection authorized", "disconnection", "duration:")
+| where Message !has "user=azuresu"
 | extend Kind = case(Message has "duration:", "wolne zapytanie",
                      Message has "disconnection", "rozłączenie", "połączenie")
 | project TimeGenerated, Kind, Message
@@ -113,9 +117,11 @@ Pomaga przy diagnozie: co działo się w bazie, gdy backend zwrócił błąd.
 union
   (ContainerAppConsoleLogs_CL
    | where ContainerAppName_s == "ca-clouddesk-backend"
+   | where not(Log_s has_any ("GET /health/live ", "GET /health "))
    | project TimeGenerated, Source = "backend", Text = Log_s),
   (AzureDiagnostics
    | where ResourceProvider == "MICROSOFT.DBFORPOSTGRESQL" and Category == "PostgreSQLLogs"
+   | where Message !has "user=azuresu"
    | project TimeGenerated, Source = "postgres", Text = Message)
 | where TimeGenerated > ago(1h)
 | order by TimeGenerated desc
