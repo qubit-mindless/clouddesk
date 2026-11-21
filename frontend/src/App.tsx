@@ -4,6 +4,7 @@ import { RequireAuth } from './auth/RequireAuth'
 import { ToastProvider } from './components/Toast'
 import { UserMenu } from './components/UserMenu'
 import { APP_VERSION } from './config'
+import { useGlassPointer } from './hooks/useGlassPointer'
 import { LoginPage } from './pages/LoginPage'
 import { TicketDetailsPage } from './pages/TicketDetailsPage'
 import { TicketEditPage } from './pages/TicketEditPage'
@@ -11,9 +12,13 @@ import { TicketListPage } from './pages/TicketListPage'
 import { TicketNewPage } from './pages/TicketNewPage'
 
 export default function App() {
+  useGlassPointer()
+
   return (
     <ToastProvider>
       <AuthProvider>
+        {/* Płynne gradientowe tło pod szklanymi taflami – tylko dekoracja. */}
+        <div className="liquid" aria-hidden="true" />
         <main>
           <header className="app-header">
             <div>
