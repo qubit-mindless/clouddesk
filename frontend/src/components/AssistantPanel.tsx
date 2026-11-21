@@ -14,15 +14,17 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
   const [updated, setUpdated] = useState<{ ticketId: number; value: AssistantConversation }>()
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
-  const [error, setError] = useState('')
+  // Błąd zapamiętany razem ze zgłoszeniem – po przejściu do innego zgłoszenia nie jest już pokazywany.
+  const [failure, setFailure] = useState<{ ticketId: number; message: string }>()
   const [validation, setValidation] = useState('')
 
   const conversation = updated?.ticketId === ticketId ? updated.value : loaded
+  const error = failure?.ticketId === ticketId ? failure.message : ''
 
   const send = async (message?: string) => {
     if (sending) return
     setSending(true)
-    setError('')
+    setFailure(undefined)
     try {
       const value = await askAssistant(ticketId, message)
       setUpdated({ ticketId, value })
@@ -30,7 +32,7 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
     } catch (e) {
       // Wpisany tekst zostaje, żeby można było ponowić pytanie. Rozmowę i limit odświeżamy – ktoś inny
       // mógł w tym czasie dopisać pytanie albo wyczerpać limit (429).
-      setError(errorMessage(e))
+      setFailure({ ticketId, message: errorMessage(e) })
       setUpdated(undefined)
       reload()
     } finally {

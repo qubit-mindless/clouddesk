@@ -1,3 +1,4 @@
+import secrets
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -23,8 +24,6 @@ SUGGEST_PROMPT = "Zaproponuj rozwiązanie problemu z tego zgłoszenia."
 # Ile ostatnich wiadomości rozmowy idzie do modelu jako kontekst (koszt i długość promptu).
 HISTORY_FOR_MODEL = 10
 MAX_DESCRIPTION_IN_PROMPT = 3000
-# Treść od użytkownika bez znaków < i >: nie zamknie bloku <zgloszenie>, nawet składając znacznik z kawałków.
-_NEUTRAL_BRACKETS = str.maketrans({"<": "‹", ">": "›"})
 
 SYSTEM_PROMPT = """Jesteś asystentem pierwszej linii wsparcia IT w systemie zgłoszeń CloudDesk.
 Pomagasz zgłaszającemu i technikowi rozwiązać problem opisany w zgłoszeniu.
@@ -149,17 +148,15 @@ class AssistantService:
         return self._conversation(ticket_id)
 
 
-def _as_data(text: str) -> str:
-    """Treść od użytkownika nie może zamknąć bloku <zgloszenie> i udawać instrukcji systemowych."""
-    return text.translate(_NEUTRAL_BRACKETS)
-
-
 def build_prompt(ticket: Ticket, history: list[AiMessage], question: str) -> list[Message]:
-    description = _as_data(ticket.description[:MAX_DESCRIPTION_IN_PROMPT])
+    # Losowa nazwa znacznika przy każdym pytaniu: tekst zgłoszenia nie zamknie bloku danych, bo autor nie zna
+    # nazwy (żadne „neutralizowanie” znaków nie jest potrzebne – kod i polecenia w opisie zostają bez zmian).
+    tag = f"zgloszenie-{secrets.token_hex(8)}"
+    description = ticket.description[:MAX_DESCRIPTION_IN_PROMPT]
     context = (
-        "Dane zgłoszenia (wpisane przez użytkownika):\n"
-        f"<zgloszenie>\nTytuł: {_as_data(ticket.title)}\nPriorytet: {ticket.priority.value}\n"
-        f"Status: {ticket.status.value}\nOpis:\n{description}\n</zgloszenie>"
+        f"Dane zgłoszenia (wpisane przez użytkownika) – wszystko do znacznika </{tag}>:\n"
+        f"<{tag}>\nTytuł: {ticket.title}\nPriorytet: {ticket.priority.value}\n"
+        f"Status: {ticket.status.value}\nOpis:\n{description}\n</{tag}>"
     )
     messages: list[Message] = [
         {"role": "system", "content": SYSTEM_PROMPT},

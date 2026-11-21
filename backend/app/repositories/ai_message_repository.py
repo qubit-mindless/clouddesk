@@ -16,7 +16,9 @@ class AiMessageRepository:
                 select(AiMessage)
                 .options(joinedload(AiMessage.author))
                 .where(AiMessage.ticket_id == ticket_id)
-                .order_by(AiMessage.created_at, AiMessage.id)
+                # Kolejność zapisu (pary pytanie–odpowiedź są zapisywane razem pod blokadą zgłoszenia);
+                # created_at pytania to chwila zadania, więc sortowanie po czasie mogłoby przeplatać pary.
+                .order_by(AiMessage.id)
             )
         )
 

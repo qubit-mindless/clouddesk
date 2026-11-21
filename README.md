@@ -207,7 +207,7 @@ Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Az
 | PATCH | `/api/tickets/{id}` | zmiana wybranych pól: `title`, `description`, `priority` (przelicza SLA), `status`, `assignee` (login technika lub `null`); każda zmiana trafia do historii z autorem. REPORTER: tylko treść i priorytet własnego zgłoszenia | 200, 401, 403, 404, 422 | token |
 | DELETE | `/api/tickets/{id}` | usunięcie zgłoszenia razem z historią, komentarzami i załącznikami | 204, 401, 403, 404 | token, TECHNICIAN/ADMIN |
 | GET | `/api/tickets/{id}/assistant` | rozmowa z asystentem AI przy zgłoszeniu: `items` (`role` user/assistant, `content`, `createdAt`), `enabled`, `remaining` (ile odpowiedzi zostało) | 200, 401, 404 | token |
-| POST | `/api/tickets/{id}/assistant` | pytanie do asystenta: `{"message": "…"}` (1–1000 znaków) albo `{}` = pierwsza propozycja rozwiązania; zwraca całą rozmowę; 409, gdy asystent właśnie odpowiada na inne pytanie w tym zgłoszeniu | 200, 401, 404, 409, 422, 429, 503 | token |
+| POST | `/api/tickets/{id}/assistant` | pytanie do asystenta: `{"message": "…"}` (1–1000 znaków) albo `{}` = pierwsza propozycja rozwiązania; zwraca całą rozmowę; 409, gdy ta sama replika backendu właśnie odpowiada na inne pytanie w tym zgłoszeniu (limit odpowiedzi i tak jest sprawdzany w bazie) | 200, 401, 404, 409, 422, 429, 503 | token |
 
 Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni.
 
