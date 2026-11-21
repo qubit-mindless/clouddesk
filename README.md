@@ -243,7 +243,7 @@ cd frontend && npm run lint && npm run build
 |---|---|---|---|---|
 | Jednostkowe i integracyjne backendu | `backend/tests/` | pytest + TestClient (SQLite w pamięci) | logika zgłoszeń, walidacja, historia, SLA (role i logowanie – #94, asystent AI – #97) | job **Backend** w `ci.yml`, każdy PR |
 | Migracje bazy | `backend/tests/test_migrations.py` | pytest + Alembic | `upgrade → downgrade → upgrade` i zgodność migracji z modelami na PostgreSQL 16 | job **Migracje** w `ci.yml` |
-| API na działającej aplikacji | `tests/*.test.js` | Jest + Supertest | statusy HTTP, nagłówki, kształt JSON przez Nginx; na razie test dymny `/api/health`, pełne testy: #98 | lokalnie; w pipeline po wdrożeniu od #100 (job `e2e-tests`) |
+| API na działającej aplikacji | `tests/*.test.js` | Jest + Supertest | statusy HTTP (200/201/204/401/404/422), nagłówki (JSON, nagłówki bezpieczeństwa Nginx), kształt JSON, logowanie i cykl życia zgłoszenia (`api.test.js`, #98) oraz test dymny `/api/health` | lokalnie; w pipeline po wdrożeniu od #100 (job `e2e-tests`) |
 | E2E w przeglądarce | `tests/*.spec.js` | Playwright (Chromium, headless) | ścieżka użytkownika w UI, selektory `data-testid`; na razie test dymny strony głównej, scenariusz: #99 | lokalnie; w pipeline po wdrożeniu od #100 |
 
 ### Uruchomienie lokalne
