@@ -202,7 +202,7 @@ Nie dodajemy własnych reguł wychodzących, więc działają domyślne reguły 
 | WEB `vm-web` | Internet | 80, 443 | aktualizacje systemu (apt), certbot i Let's Encrypt (wydanie i odnowienie certyfikatu) |
 | APP backend i zadania | `snet-db` | 5432 | PostgreSQL |
 | APP backend i zadania | Internet / usługi Azure | 443 | pobranie obrazu z GHCR, Key Vault (sekrety przez tożsamość zarządzaną), Entra ID, Azure OpenAI (asystent AI, #96) |
-| wszystkie | 168.63.129.16 | 53 | DNS platformy Azure (prywatne strefy bazy i Container Apps); ten adres jest zawsze dostępny, NSG go nie filtruje |
+| wszystkie | 168.63.129.16 | 53 | DNS platformy Azure (prywatne strefy bazy i Container Apps); dozwolony przez domyślne reguły wychodzące – nie blokujemy go, bo bez niego nie działa DNS ani sondy |
 | DATA | – | – | baza tylko odpowiada na połączenia z `snet-app`, sama ich nie nawiązuje |
 
 Znane ograniczenie: wyjście do Internetu nie jest zawężone do konkretnych adresów. Wymagałoby to Azure Firewall albo NAT z listą dozwolonych FQDN, a koszt nie mieści się w budżecie projektu. Container Apps potrzebuje też wyjścia do usług platformy.
@@ -211,7 +211,7 @@ Znane ograniczenie: wyjście do Internetu nie jest zawężone do konkretnych adr
 - **HTTPS:** Nginx na `vm-web` obsługuje TLS 1.2 i 1.3 z certyfikatem Let's Encrypt, który `certbot` odnawia automatycznie. Port 80 zwraca `301` na ten sam adres po HTTPS (z zachowaniem ścieżki i parametrów), a nagłówek HSTS każe przeglądarce zostać przy HTTPS. Frontend wywołuje API przez względną ścieżkę `/api`, więc wszystkie żądania idą tym samym, szyfrowanym połączeniem. Pipeline CD po każdym wdrożeniu sprawdza przekierowanie i ważność certyfikatu.
 - **Brak SSH:** port 22 nie jest otwarty w żadnej podsieci. Wdrożenia i administracja `vm-web` idą przez `az vm run-command` (Azure control plane), a GitHub Actions loguje się do Azure przez OIDC, bez haseł w repozytorium.
 - **Backend bez publicznego adresu:** środowisko Container Apps ma tylko wewnętrzny load balancer. Z Internetu backend jest osiągalny wyłącznie przez Nginx, i to tylko pod `/api/...`.
-- **Baza bez dostępu publicznego:** `publicNetworkAccess = Disabled`, adres tylko w `snet-db`, a nazwa rozwiązuje się wyłącznie w prywatnej strefie DNS VNet.
+- **Baza bez dostępu publicznego:** `public_network_access_enabled = false` w `terraform/database.tf` (w portalu „Dostęp publiczny: wyłączony”), adres tylko w `snet-db`, a nazwa rozwiązuje się wyłącznie w prywatnej strefie DNS VNet.
 - **Sekrety w Key Vault:** hasło bazy, `DATABASE_URL` i klucz podpisu tokenów JWT (#106) generuje Terraform i trzyma w Key Vault. Backend czyta je przez tożsamość zarządzaną (rola Key Vault Secrets User). W repozytorium nie ma haseł, kluczy ani adresów środowisk, a Gitleaks pilnuje tego w CI.
 - **Nagłówki HTTP:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security`, bez wersji Nginx (`server_tokens off`).
 
