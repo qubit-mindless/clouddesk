@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, health, tickets
+from app.api.routes import assistant, auth, health, tickets
 from app.core.config import get_settings
 from app.core.security import check_configuration
 
@@ -21,3 +21,4 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(tickets.router)
+app.include_router(assistant.router)

@@ -26,3 +26,17 @@ export interface TicketQuery {
   status?: TicketStatus
   priority?: TicketPriority
 }
+
+export interface AssistantMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+
+// Odpowiedź GET i POST /tickets/{id}/assistant: cała rozmowa, flaga konfiguracji i pozostały limit pytań.
+export interface AssistantConversation {
+  items: AssistantMessage[]
+  enabled: boolean
+  remaining: number
+}

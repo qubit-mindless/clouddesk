@@ -202,6 +202,8 @@ Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Az
 | POST | `/api/tickets` | nowe zgłoszenie: `title` (5–200 znaków), `description`, `priority` (P1–P4); zgłaszający = zalogowany, status `NEW` i termin SLA nadaje backend | 201, 401, 422 | token |
 | PATCH | `/api/tickets/{id}` | zmiana wybranych pól: `title`, `description`, `priority` (przelicza SLA), `status`, `assignee` (login technika lub `null`); każda zmiana trafia do historii z autorem. REPORTER: tylko treść i priorytet własnego zgłoszenia | 200, 401, 403, 404, 422 | token |
 | DELETE | `/api/tickets/{id}` | usunięcie zgłoszenia razem z historią, komentarzami i załącznikami | 204, 401, 403, 404 | token, TECHNICIAN/ADMIN |
+| GET | `/api/tickets/{id}/assistant` | rozmowa z asystentem AI przy zgłoszeniu: `items` (`role` user/assistant, `content`, `createdAt`), `enabled`, `remaining` (ile odpowiedzi zostało) | 200, 401, 404 | token |
+| POST | `/api/tickets/{id}/assistant` | pytanie do asystenta: `{"message": "…"}` (1–1000 znaków) albo `{}` = pierwsza propozycja rozwiązania; zwraca całą rozmowę | 200, 401, 404, 422, 429, 503 | token |
 
 Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni.
 
@@ -215,6 +217,7 @@ Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 �
 
 - **Hasła:** skrót argon2id; ta sama odpowiedź 401 dla nieznanego e-maila i złego hasła (także w czasie odpowiedzi).
 - **Tokeny:** JWT HS256 podpisany kluczem `JWT_SECRET`. W Azure klucz jest w Key Vault (`jwt-secret`), a bez niego backend nie wystartuje. Użytkownik jest odczytywany z bazy przy każdym żądaniu, więc usunięte konto traci dostęp od razu.
+- **Asystent AI:** Azure OpenAI (`gpt-4o-mini`), wywoływany z backendu przez REST z tożsamością zarządzaną (bez klucza). Limit 10 odpowiedzi na zgłoszenie, timeout 30 s, treść zgłoszenia przekazywana modelowi jako dane, nie polecenia. Awaria usługi → 503 z komunikatem, a pytanie nie zostaje zapisane. Treść rozmów nie trafia do logów.
 - **Konta demo** z seeda: `admin@`, `tech.jan@`, `tech.ola@`, `anna.k@`… `clouddesk.example`, wspólne hasło z `DEMO_PASSWORD`. W Azure hasło jest w Key Vault (`demo-password`); odczyt: `terraform output demo_password_hint`.
 
 ## Uruchomienie lokalne
