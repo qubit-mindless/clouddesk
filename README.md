@@ -171,7 +171,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 - **Frontend:** automatycznie po backendzie – job `deploy-web` w `.github/workflows/deploy.yml` buduje paczkę (`config/package-web.sh`, SHA commita w stopce strony), instaluje ją na VM przez `az vm run-command` (`config/deploy-web.sh`, bez otwierania SSH; na nowej VM pobiera też certyfikat TLS) i sprawdza z zewnątrz przekierowanie HTTP → HTTPS, certyfikat, stronę oraz `/api/health`. Ręcznie: [`config/README.md`](config/README.md).
 - **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
 
-**Koszt (cennik Azure, polandcentral):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).
+**Koszt (cennik Azure, polandcentral, ceny katalogowe bez darmowych limitów):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Faktycznie płacimy mniej, bo VM B1s i PostgreSQL B1ms mieszczą się w darmowych limitach subskrypcji studenckiej – rzeczywisty koszt: sekcja [Monitoring i FinOps](#monitoring-i-finops). Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).
 
 ## Struktura repozytorium
 ```
@@ -347,7 +347,8 @@ Wszystkie logi trafiają do jednego workspace **Log Analytics** `log-clouddesk` 
 | Backend (Container Apps) | `ContainerAppConsoleLogs_CL` | stdout/stderr FastAPI i uvicorna, w tym żądania HTTP i błędy |
 | Platforma Container Apps | `ContainerAppSystemLogs_CL` | starty rewizji, restarty, skalowanie, sondy zdrowia |
 | Zadania (migracje, kopie bazy) | `ContainerAppConsoleLogs_CL` | wynik `alembic upgrade` i `pg_dump` |
-| PostgreSQL | `AzureDiagnostics` / `PostgreSQLLogs` | logi serwera bazy: #90 |
+| PostgreSQL – logi | `AzureDiagnostics` (`Category == "PostgreSQLLogs"`) | błędy, połączenia, zapytania wolniejsze niż 500 ms (bez wartości parametrów) – diagnostic setting w [`terraform/monitoring.tf`](terraform/monitoring.tf) |
+| PostgreSQL – metryki | `AzureMetrics` | CPU, pamięć, połączenia, dysk (co minutę) |
 
 Przykład: błędy backendu z ostatniej doby.
 
@@ -359,7 +360,9 @@ ContainerAppConsoleLogs_CL
 | order by TimeGenerated desc
 ```
 
-Treść rozmów z asystentem AI, hasła i tokeny nie trafiają do logów. Logujemy tylko kody błędów.
+Więcej gotowych zapytań (kody 2xx/4xx/5xx, zmiany zgłoszeń, logi i metryki bazy, backend i baza na jednej osi czasu, koszt logów): [`docs/monitoring/README.md`](docs/monitoring/README.md).
+
+**Co jest w logach:** metoda, ścieżka i kod odpowiedzi każdego żądania, błędy i tracebacki backendu, połączenia i błędy bazy. **Czego nie ma:** treści rozmów z asystentem AI, haseł, tokenów i `DATABASE_URL`, treści zgłoszeń ani wartości parametrów zapytań SQL. Wyjątek: przy naruszeniu ograniczenia w bazie (np. zajęty e-mail) Postgres dopisuje wartość w linii `DETAIL` błędu – widzi ją tylko zespół.
 
 ### Dashboard
 Dashboard w Azure (Terraform) pokazuje: liczbę żądań z podziałem na 2xx/4xx/5xx, czas odpowiedzi API, CPU i pamięć backendu oraz CPU `vm-web`. Szczegóły w #91.
