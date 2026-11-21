@@ -26,3 +26,21 @@ export interface TicketQuery {
   status?: TicketStatus
   priority?: TicketPriority
 }
+
+export type UserRole = 'REPORTER' | 'TECHNICIAN' | 'ADMIN'
+
+export interface User {
+  id: number
+  email: string
+  login: string
+  fullName: string
+  role: UserRole
+}
+
+// Odpowiedź POST /auth/login (kontrakt z #106).
+export interface LoginResponse {
+  accessToken: string
+  tokenType: 'bearer'
+  expiresIn: number
+  user: User
+}

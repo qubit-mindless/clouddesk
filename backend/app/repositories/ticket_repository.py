@@ -16,6 +16,7 @@ class TicketRepository:
         status: TicketStatus | None,
         priority: TicketPriority | None,
         assignee_id: int | None,
+        reporter_id: int | None = None,
         q: str | None,
         offset: int,
         limit: int,
@@ -25,6 +26,8 @@ class TicketRepository:
             filters.append(Ticket.status == status)
         if priority:
             filters.append(Ticket.priority == priority)
+        if reporter_id is not None:
+            filters.append(Ticket.reporter_id == reporter_id)
         if assignee_id is not None:
             filters.append(Ticket.assignee_id == assignee_id)
         if q:

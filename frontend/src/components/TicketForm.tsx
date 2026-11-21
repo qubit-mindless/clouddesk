@@ -19,6 +19,8 @@ export interface TicketFormValues {
 interface Props {
   // Bez `ticket` formularz tworzy nowe zgłoszenie, z nim edytuje istniejące.
   ticket?: Ticket
+  // Status i przypisanie zmienia tylko technik lub administrator.
+  canManage?: boolean
   submitLabel: string
   onSubmit: (data: TicketUpdate) => Promise<void>
   onCancel: () => void
@@ -61,7 +63,7 @@ function toPayload(values: TicketFormValues, ticket?: Ticket): TicketUpdate {
   ) as TicketUpdate
 }
 
-export function TicketForm({ ticket, submitLabel, onSubmit, onCancel }: Props) {
+export function TicketForm({ ticket, canManage = false, submitLabel, onSubmit, onCancel }: Props) {
   const [values, setValues] = useState(() => toValues(ticket))
   const [errors, setErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState('')
@@ -131,7 +133,7 @@ export function TicketForm({ ticket, submitLabel, onSubmit, onCancel }: Props) {
       </select>
       {fieldError('priority')}
 
-      {ticket && (
+      {ticket && canManage && (
         <>
           <label htmlFor="ticket-status">Status</label>
           <select

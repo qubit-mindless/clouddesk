@@ -50,6 +50,24 @@ def test_health_commit_from_env(monkeypatch):
     assert client.get("/health").json()["commit"] == "3f2a9c1d"
 
 
+def test_liveness_ignores_database(monkeypatch):
+    # Baza naprawdę niedostępna: każda próba połączenia przez silnik albo sesję kończy się błędem.
+    def fail(*args, **kwargs):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(session.engine, "connect", fail)
+    monkeypatch.setattr(session, "SessionLocal", fail)
+    assert client.get("/health").status_code == 503
+    res = client.get("/health/live")
+    assert res.status_code == 200
+    assert res.json() == {"status": "UP"}
+
+
+def test_liveness_not_exposed_under_api():
+    # Nginx przekazuje do backendu tylko /api/... – sonda liveness ma zostać wewnętrzna.
+    assert client.get("/api/health/live").status_code == 404
+
+
 @pytest.mark.parametrize("db_up", [True, False])
 def test_api_health_matches_health(monkeypatch, db_up):
     def ping():
