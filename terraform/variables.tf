@@ -133,3 +133,42 @@ variable "backup_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "openai_location" {
+  # swedencentral, nie polandcentral: subskrypcja pozwala na jedno konto Azure OpenAI na region
+  # (OpenAI.S0.AccountCount = 1), a w polandcentral zajmuje go inny projekt na tej subskrypcji
+  # (apply kończył się InsufficientQuota). W swedencentral jest limit gpt-4o-mini DataZoneStandard (1000).
+  # Backend zostaje w polandcentral – zapytanie do modelu przechodzi w obrębie UE.
+  description = "Region konta Azure OpenAI (strefa danych EU). Sprawdzenie limitu kont: az cognitiveservices usage list -l <region>."
+  type        = string
+  default     = "swedencentral"
+
+  # DataZoneStandard trzyma dane w strefie regionu konta – region spoza UE złamałby zasadę „dane w UE”.
+  validation {
+    condition     = contains(["polandcentral", "swedencentral", "germanywestcentral"], var.openai_location)
+    error_message = "Asystent AI tylko w regionie UE: polandcentral, swedencentral albo germanywestcentral."
+  }
+}
+
+variable "openai_model" {
+  description = "Model asystenta AI i jego wersja (nazwa wdrożenia = nazwa modelu, backend: AZURE_OPENAI_DEPLOYMENT). Wersja 2024-07-18 jest wycofywana 14.04.2027."
+  type = object({
+    name    = string
+    version = string
+  })
+  default = {
+    name    = "gpt-4o-mini"
+    version = "2024-07-18"
+  }
+}
+
+variable "openai_capacity" {
+  description = "Pojemność wdrożenia w tysiącach tokenów na minutę (DataZoneStandard). 10 = ok. 10 odpowiedzi asystenta na minutę – wystarczy na demo, a ogranicza koszt przy nadużyciu."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.openai_capacity >= 1 && var.openai_capacity <= 50
+    error_message = "Pojemność 1–50 (tys. tokenów/min) – więcej nie jest potrzebne w projekcie."
+  }
+}

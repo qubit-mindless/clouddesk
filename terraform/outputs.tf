@@ -62,3 +62,8 @@ output "dashboard_url" {
   description = "Dashboard monitoringu w portalu Azure"
   value       = "https://portal.azure.com/#dashboard/arm${azurerm_portal_dashboard.monitoring.id}"
 }
+
+output "openai_endpoint" {
+  description = "Punkt końcowy Azure OpenAI (AZURE_OPENAI_ENDPOINT backendu). Dostęp tylko przez Entra ID – bez klucza."
+  value       = azurerm_cognitive_account.openai.endpoint
+}
