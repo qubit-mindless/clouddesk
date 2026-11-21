@@ -24,14 +24,20 @@ Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnyc
 |---|---|---|---|---|
 | nsg-web | 100 | Allow | Internet | 443 |
 | nsg-web | 110 | Allow | Internet | 80 (przekierowanie na HTTPS) |
+| nsg-web | 200 | **Deny** | Internet | 22, 3389 (SSH, RDP) |
 | nsg-app | 100 | Allow | snet-web 10.0.1.0/24 | 80, 443 oraz 31080, 31443 (ingress Container Apps za wewnętrznym LB → kontener :8000) |
 | nsg-app | 110 | Allow | snet-app (ruch wewnątrz środowiska) | * |
 | nsg-app | 120 | Allow | AzureLoadBalancer | * |
+| nsg-app | 200 | **Deny** | Internet | 22, 3389, 80, 443, 31080, 31443, 8000 (`backend_port`), 8080 |
 | nsg-db | 100 | Allow | snet-app 10.0.2.0/24 | 5432 |
 | nsg-db | 200 | **Deny** | Internet | 3306, 5432 |
 | wszystkie | 4000 | **Deny** | VirtualNetwork | * |
 
-Reguła `DenyVnetInBound` (4000) wyłącza domyślne `AllowVnetInBound` Azure, więc ruch płynie wyłącznie kaskadowo: web → app → db. SSH (22) nie jest otwarty w żadnej podsieci. `DenyDbPortsFromInternet` (200) zapisuje wprost, że baza nie przyjmuje ruchu z Internetu – ten sam ruch blokuje też domyślne `DenyAllInBound` (65500), a serwer PostgreSQL nie ma publicznego adresu (`public_network_access_enabled = false`).
+Reguła `DenyVnetInBound` (4000) wyłącza domyślne `AllowVnetInBound` Azure, więc ruch płynie wyłącznie kaskadowo: web → app → db.
+
+Pasma priorytetów: 100–199 Allow, 200–299 jawne Deny z Internetu, 4000 `DenyVnetInBound`. Reguły 200 zapisują wprost to, co blokuje też domyślne `DenyAllInBound` (65500), ale czego nie widać w kodzie:
+- `DenyMgmtFromInternet` (nsg-web) i `DenyMgmtAndAppFromInternet` (nsg-app): SSH i RDP nie mają żadnej reguły Allow; VM administrujemy przez `az vm run-command`;
+- `DenyDbPortsFromInternet` (nsg-db): baza nie przyjmuje ruchu z Internetu, a serwer PostgreSQL nie ma publicznego adresu (`public_network_access_enabled = false`).
 
 ## Pierwsze uruchomienie (PM/DevOps)
 ```bash

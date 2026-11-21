@@ -4,6 +4,8 @@
 #
 # Domyślna reguła Azure AllowVnetInBound wpuszcza ruch z całej sieci VNet, dlatego każda NSG
 # kończy się jawną regułą DenyVnetInBound – inaczej np. snet-web mógłby łączyć się bezpośrednio z bazą.
+#
+# Priorytety: 100–199 Allow, 200–299 jawne Deny z Internetu (porty zarządcze, aplikacji i bazy), 4000 DenyVnetInBound.
 
 resource "azurerm_virtual_network" "main" {
   name                = "vnet-${var.prefix}"
@@ -50,6 +52,22 @@ resource "azurerm_network_security_group" "web" {
     source_port_range          = "*"
     destination_address_prefix = var.subnet_cidrs.web
     destination_port_range     = "80"
+  }
+
+  # Porty zarządcze zamknięte jawnie. Domyślna reguła Azure DenyAllInBound też by je zablokowała, ale jawną
+  # regułę widać w portalu i w planie, a przypadkowe Allow z numerem priorytetu powyżej 200 jej nie ominie.
+  # Nowe Allow na 22/3389 w paśmie 100–199 wygrałyby z tą regułą – takich nie dodajemy.
+  # VM obsługujemy przez `az vm run-command` (Azure control plane), więc SSH/RDP nie są potrzebne.
+  security_rule {
+    name                       = "DenyMgmtFromInternet"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_address_prefix      = "Internet"
+    source_port_range          = "*"
+    destination_address_prefix = "*"
+    destination_port_ranges    = ["22", "3389"]
   }
 
   security_rule {
@@ -131,6 +149,22 @@ resource "azurerm_network_security_group" "app" {
     source_port_range          = "*"
     destination_address_prefix = "*"
     destination_port_range     = "*"
+  }
+
+  # Backend nie ma publicznego IP, ale z Internetu blokujemy jawnie – na wypadek publicznego adresu albo
+  # zewnętrznego LB dodanego kiedyś przez pomyłkę: porty zarządcze (22, 3389), porty ingress Container Apps
+  # (80/443 na LB, 31080/31443 na proxy środowiska) i port kontenera (var.backend_port, 8080 jako alternatywny).
+  # Ruch z snet-web i AzureLoadBalancer przechodzi wcześniej przez reguły Allow 100–120, więc to go nie dotyczy.
+  security_rule {
+    name                       = "DenyMgmtAndAppFromInternet"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_address_prefix      = "Internet"
+    source_port_range          = "*"
+    destination_address_prefix = "*"
+    destination_port_ranges    = distinct(["22", "3389", "80", "443", "31080", "31443", tostring(var.backend_port), "8080"])
   }
 
   security_rule {
