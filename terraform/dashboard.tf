@@ -16,6 +16,21 @@ locals {
   # Kody agregacji w portalu Azure i ich nazwy w legendzie.
   agg       = { sum = 1, max = 3, avg = 4 }
   agg_label = { sum = "suma", max = "maksimum", avg = "średnio" }
+  # Polskie nazwy serii w legendzie (nazwy metryk Azure są po angielsku).
+  metric_label = {
+    "Requests"                    = "Żądania"
+    "ResponseTime"                = "Czas odpowiedzi"
+    "CpuPercentage"               = "CPU"
+    "MemoryPercentage"            = "RAM"
+    "Percentage CPU"              = "CPU"
+    "Available Memory Percentage" = "Wolny RAM"
+    "cpu_percent"                 = "CPU"
+    "memory_percent"              = "RAM"
+    "active_connections"          = "Połączenia"
+    "storage_percent"             = "Zajęty dysk"
+    "Replicas"                    = "Repliki"
+    "RestartCount"                = "Restarty"
+  }
 
   # Każdy kafelek: jedna metryka jednego zasobu, po jednej serii na statystykę z listy stats.
   # Siatka: 2 kafelki 6×4 w rzędzie; nagłówek zajmuje rzędy 0–1.
@@ -85,7 +100,7 @@ locals {
 
   dashboard_header = <<-EOT
     ## CloudDesk – monitoring produkcji
-    Metryki platformy Azure Monitor: backend `${local.backend.name}` (Container Apps), `${local.web_vm.name}` (Nginx) i baza `${local.db.name}`. Domyślny zakres: ostatnie 24 h.
+    Metryki platformy Azure Monitor: backend `${local.backend.name}` (Container Apps), `${local.web_vm.name}` (Nginx) i baza `${local.db.name}`. Domyślny zakres: ostatnie 24 h. Puste wykresy backendu = brak ruchu (backend skaluje się do zera).
     Stan aplikacji i połączenia z bazą: `GET /api/health` (opis w tabeli API w README). Logi: Log Analytics `${azurerm_log_analytics_workspace.main.name}`.
   EOT
 
@@ -126,7 +141,7 @@ locals {
                         name                = c.metric
                         namespace           = c.ns
                         aggregationType     = local.agg[st]
-                        metricVisualization = { displayName = "${c.metric} (${local.agg_label[st]})" }
+                        metricVisualization = { displayName = "${local.metric_label[c.metric]} (${local.agg_label[st]})" }
                       }
                     ]
                     visualization = {
