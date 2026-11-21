@@ -135,9 +135,13 @@ variable "backup_retention_days" {
 }
 
 variable "openai_location" {
-  description = "Region konta Azure OpenAI. polandcentral ma limit dla gpt-4o-mini (DataZoneStandard) i trzyma dane w strefie EU."
+  # swedencentral, nie polandcentral: subskrypcja pozwala na jedno konto Azure OpenAI na region
+  # (OpenAI.S0.AccountCount = 1), a w polandcentral zajmuje go inny projekt na tej subskrypcji
+  # (apply kończył się InsufficientQuota). W swedencentral jest limit gpt-4o-mini DataZoneStandard (1000).
+  # Backend zostaje w polandcentral – zapytanie do modelu przechodzi w obrębie UE.
+  description = "Region konta Azure OpenAI (strefa danych EU). Sprawdzenie limitu kont: az cognitiveservices usage list -l <region>."
   type        = string
-  default     = "polandcentral"
+  default     = "swedencentral"
 
   # DataZoneStandard trzyma dane w strefie regionu konta – region spoza UE złamałby zasadę „dane w UE”.
   validation {
