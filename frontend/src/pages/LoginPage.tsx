@@ -1,0 +1,135 @@
+import { useRef, useState, type FormEvent } from 'react'
+import { Navigate, useLocation, useNavigate } from 'react-router'
+import { ApiError, errorMessage, type FieldErrors } from '../api/client'
+import type { ReturnTo } from '../auth/RequireAuth'
+import { Loading } from '../components/Loading'
+import { useAuth } from '../hooks/useAuth'
+
+// Te same limity co LoginRequest w backendzie (#106); backend i tak sprawdza je ponownie.
+const EMAIL_MAX = 255
+const PASSWORD_MAX = 128
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function validate(email: string, password: string): FieldErrors {
+  const errors: FieldErrors = {}
+  if (!email) errors.email = 'Podaj adres e-mail.'
+  else if (email.length > EMAIL_MAX || !EMAIL_PATTERN.test(email)) errors.email = 'Podaj poprawny adres e-mail.'
+  if (!password) errors.password = 'Podaj hasło.'
+  else if (password.length > PASSWORD_MAX) errors.password = `Hasło może mieć najwyżej ${PASSWORD_MAX} znaków.`
+  return errors
+}
+
+// Dokąd wrócić po zalogowaniu: tylko ścieżki wewnątrz aplikacji (bez otwartego przekierowania).
+function returnTo(state: unknown): ReturnTo {
+  const from = (state as { from?: Partial<ReturnTo> } | null)?.from
+  const path = from?.path
+  const safe = typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') && !path.startsWith('/login')
+  return safe ? { path, state: from?.state } : { path: '/tickets', state: undefined }
+}
+
+export function LoginPage() {
+  const { status, endReason, login } = useAuth()
+  const navigate = useNavigate()
+  const { state } = useLocation()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const [formError, setFormError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  // Blokada synchroniczna: dwa szybkie Entery przed ponownym renderem nie wyślą logowania dwa razy.
+  const inFlight = useRef(false)
+
+  const target = returnTo(state)
+  if (status === 'authenticated' && !submitting) return <Navigate to={target.path} state={target.state} replace />
+  // Sprawdzanie zapisanej sesji: bez tego formularz mignąłby przed przekierowaniem zalogowanego użytkownika.
+  if (status === 'checking') return <Loading label="Sprawdzanie sesji…" />
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (inFlight.current) return
+    const trimmedEmail = email.trim()
+    const found = validate(trimmedEmail, password)
+    setErrors(found)
+    setFormError('')
+    if (Object.keys(found).length > 0) return
+
+    inFlight.current = true
+    setSubmitting(true)
+    try {
+      await login(trimmedEmail, password)
+      navigate(target.path, { state: target.state, replace: true })
+    } catch (error) {
+      const fieldErrors = error instanceof ApiError ? error.fieldErrors : {}
+      setErrors(fieldErrors)
+      // 401 przychodzi z jednym komunikatem dla złego hasła i nieznanego e-maila – pokazujemy go nad przyciskiem.
+      if (Object.keys(fieldErrors).length === 0) setFormError(errorMessage(error))
+      setPassword('')
+      inFlight.current = false
+      setSubmitting(false)
+    }
+  }
+
+  const fieldProps = (field: 'email' | 'password') => ({
+    id: `login-${field}`,
+    'data-testid': `login-${field}`,
+    'aria-invalid': Boolean(errors[field]),
+    'aria-describedby': errors[field] ? `login-${field}-error` : undefined,
+  })
+  const fieldError = (field: 'email' | 'password') =>
+    errors[field] && (
+      <span className="field-error" id={`login-${field}-error`} data-testid={`login-${field}-error`}>
+        {errors[field]}
+      </span>
+    )
+
+  return (
+    <section className="details login">
+      <h2>Logowanie</h2>
+      {endReason === 'expired' && (
+        <p className="form-error" role="status" data-testid="login-expired">
+          Sesja wygasła. Zaloguj się ponownie.
+        </p>
+      )}
+      <form className="ticket-form" onSubmit={handleSubmit} noValidate data-testid="login-form">
+        <label htmlFor="login-email">E-mail</label>
+        <input
+          {...fieldProps('email')}
+          type="email"
+          autoComplete="username"
+          autoFocus
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value)
+            setErrors((v) => ({ ...v, email: undefined }))
+          }}
+        />
+        {fieldError('email')}
+
+        <label htmlFor="login-password">Hasło</label>
+        <input
+          {...fieldProps('password')}
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value)
+            setErrors((v) => ({ ...v, password: undefined }))
+          }}
+        />
+        {fieldError('password')}
+
+        {formError && (
+          <p className="form-error" role="alert" data-testid="login-error">
+            {formError}
+          </p>
+        )}
+
+        <div className="form-actions">
+          <button type="submit" className="primary" disabled={submitting} data-testid="login-submit">
+            {submitting ? 'Logowanie…' : 'Zaloguj się'}
+          </button>
+        </div>
+      </form>
+    </section>
+  )
+}
