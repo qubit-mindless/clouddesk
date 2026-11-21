@@ -21,6 +21,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 - [Struktura repozytorium](#struktura-repozytorium)
 - [API](#api)
 - [Uruchomienie lokalne](#uruchomienie-lokalne)
+- [Testy](#testy)
 - [CI i bezpieczeństwo kodu](#ci-i-bezpieczeństwo-kodu)
 - [Monitoring i FinOps](#monitoring-i-finops)
 - [Sposób pracy](#sposób-pracy)
@@ -251,6 +252,43 @@ cd frontend && npm run lint && npm run build
 ```
 
 **Konfiguracja:** wyłącznie przez zmienne środowiskowe. Wzory są w plikach `.env.example`. Pliki `.env` nigdy nie trafiają do repozytorium.
+
+## Testy
+
+| Poziom | Gdzie | Narzędzie | Co sprawdza | Kiedy w CI/CD |
+|---|---|---|---|---|
+| Jednostkowe i integracyjne backendu | `backend/tests/` | pytest + TestClient (SQLite w pamięci) | logika zgłoszeń, walidacja, historia, SLA (role i logowanie – #94, asystent AI – #97) | job **Backend** w `ci.yml`, każdy PR |
+| Migracje bazy | `backend/tests/test_migrations.py` | pytest + Alembic | `upgrade → downgrade → upgrade` i zgodność migracji z modelami na PostgreSQL 16 | job **Migracje** w `ci.yml` |
+| API na działającej aplikacji | `tests/*.test.js` | Jest + Supertest | statusy HTTP, nagłówki, kształt JSON przez Nginx; na razie test dymny `/api/health`, pełne testy: #98 | lokalnie; w pipeline po wdrożeniu od #100 (job `e2e-tests`) |
+| E2E w przeglądarce | `tests/*.spec.js` | Playwright (Chromium, headless) | ścieżka użytkownika w UI, selektory `data-testid`; na razie test dymny strony głównej, scenariusz: #99 | lokalnie; w pipeline po wdrożeniu od #100 |
+
+### Uruchomienie lokalne
+Backend (z katalogu `backend/`, w aktywnym `.venv`):
+
+```bash
+ruff check . && ruff format --check .
+pytest                                   # test migracji na PostgreSQL: ustaw TEST_DATABASE_URL (backend/.env.example)
+```
+
+Testy na działającej aplikacji (z katalogu `tests/`, zmienne: [`tests/.env.example`](tests/.env.example)): lokalnie uruchom backend i frontend **bez** `VITE_FAKE_API` (sekcja [Uruchomienie lokalne](#uruchomienie-lokalne)) – Vite przekazuje wtedy `/api` do backendu tak jak Nginx w chmurze. Testy z logowaniem wymagają #94.
+
+```bash
+npm ci
+npx playwright install chromium          # jednorazowo, przeglądarka dla E2E
+export LIVE_APP_URL=http://localhost:5173
+export TEST_USER_EMAIL=tech.jan@clouddesk.example
+export TEST_USER_PASSWORD='...'          # DEMO_PASSWORD z backend/.env
+npm run test:api                         # Jest + Supertest
+npm run test:e2e                         # Playwright
+npx playwright show-report               # raport HTML z ostatniego przebiegu E2E
+```
+
+Te same testy można puścić na produkcję: `LIVE_APP_URL=https://clouddesk-qubit.polandcentral.cloudapp.azure.com` (do wdrożenia HTTPS – #93 – `http://`). **Zasada:** każdy test, który tworzy zgłoszenie, usuwa je na końcu – nie zaśmiecamy produkcji.
+
+### Jak czytać wyniki
+- **pytest / Jest:** w konsoli lista testów z ✓/✗; przy błędzie – oczekiwana i otrzymana wartość. W GitHub Actions: zakładka *Actions* → przebieg → job.
+- **Playwright:** raport HTML (`tests/playwright-report/`); przy nieudanym teście zrzut ekranu, nagranie wideo i ślad (*trace*) kroków. W pipeline (od #100) raport będzie artefaktem przebiegu (sekcja *Artifacts* na dole strony przebiegu).
+- Pierwsze żądanie po przerwie może trwać do ~20 s (backend skaluje się do zera) – dlatego limit czasu testów to 30 s.
 
 ## CI i bezpieczeństwo kodu
 Każdy PR do `main` i każdy push na `main` uruchamia workflow **CI** (`.github/workflows/ci.yml`). Najpierw skan sekretów; dopiero gdy przejdzie, ruszają pozostałe joby (`needs: secret-scan`).
