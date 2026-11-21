@@ -1,5 +1,5 @@
 /* CloudDesk – „liquid glass”.
-   Pod spodem płynie gradientowe tło (.liquid), nad nim pływają szklane tafle. Tafle łapią światło kursora:
+   Pod spodem płynie animowane tło (.liquid), nad nim pływają szklane tafle. Tafle łapią światło kursora:
    useGlassPointer ustawia --mx/--my na tafli pod wskaźnikiem, a tło tafli rysuje w tym miejscu odblask.
    Ciemny motyw jest podstawowy (szkło potrzebuje głębokiego tła), jasny – według ustawień systemu.
    Przy „mniej przezroczystości” i „mniej ruchu” tafle są pełne, a tło stoi. */
@@ -18,6 +18,7 @@
   --mist: #e8ecff;       /* tekst */
 
   --bg: var(--abyss);
+  --bg-dim: rgb(10 14 42 / 0.5);   /* przyciemnienie tła pod taflami */
   --text: var(--mist);
   --text-muted: #a3abd6;
   --link: #8fdcff;
@@ -71,6 +72,7 @@
     color-scheme: light;
     --abyss: #eef0ff;
     --mist: #141a3c;
+    --bg-dim: rgb(238 240 255 / 0.45);
     --text-muted: #555d86;
     --link: #3a44c9;
 
@@ -105,7 +107,12 @@
   }
 }
 
-/* ---------------------------------------------------------------- tło: ciecz */
+/* ---------------------------------------------------------------- tło: ciecz
+   Animowana pętla płynnego szkła (WebP z wygenerowanego GIF-a: 640×360, ostatnie klatki przenikają w pierwsze,
+   20 kl./s; ciemna ~320 kB, jasna ~200 kB – pobierana jest tylko ta dla bieżącego motywu).
+   Stoi (pierwsza klatka) przy „mniej ruchu”, „mniej przezroczystości” i po wyłączeniu w stopce:
+   html[data-background='paused'] (WCAG 2.2.2) – atrybut ustawia już skrypt w index.html, przed pierwszym malowaniem.
+   Przy „mniej ruchu” przełącznik jest ukryty (tło i tak stoi). Źródło ma 640×360 – na dużych ekranach jest miękkie. */
 /* Tło ma tylko :root – tło body zasłoniłoby warstwę .liquid (z-index: -1). */
 body { margin: 0; min-height: 100vh; background: transparent; }
 
@@ -113,43 +120,28 @@ body { margin: 0; min-height: 100vh; background: transparent; }
   position: fixed;
   inset: 0;
   z-index: -1;
-  overflow: hidden;
-  background:
-    radial-gradient(60vmax 45vmax at 85% 110%, rgb(255 95 162 / 0.28), transparent 60%),
-    var(--abyss);
+  background: url('./assets/background/dark.webp') center / cover no-repeat, var(--abyss);
 }
-.liquid::before,
+/* Przyciemnienie środka, gdzie są tafle z tekstem – wstęgi zostają na brzegach. */
 .liquid::after {
   content: '';
   position: absolute;
-  width: 75vmax;
-  height: 75vmax;
-  border-radius: 46% 54% 58% 42% / 52% 44% 56% 48%;
-  opacity: 0.75;
-  will-change: transform;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 60% at 50% 45%, var(--bg-dim), transparent 75%);
 }
-.liquid::before {
-  top: -30vmax;
-  left: -20vmax;
-  background: radial-gradient(circle at 40% 40%, var(--plasma), transparent 62%);
-  animation: drift-a 38s ease-in-out infinite alternate;
-}
-.liquid::after {
-  right: -25vmax;
-  top: 5vmax;
-  background: radial-gradient(circle at 55% 45%, var(--tidal), transparent 60%);
-  opacity: 0.55;
-  animation: drift-b 46s ease-in-out infinite alternate;
-}
-@keyframes drift-a {
-  to { transform: translate(18vmax, 22vmax) rotate(40deg) scale(1.12); }
-}
-@keyframes drift-b {
-  to { transform: translate(-20vmax, 18vmax) rotate(-35deg) scale(0.9); }
+html[data-background='paused'] .liquid { background-image: url('./assets/background/dark-still.webp'); }
+@media (prefers-reduced-motion: reduce) {
+  .liquid { background-image: url('./assets/background/dark-still.webp'); }
 }
 @media (prefers-color-scheme: light) {
-  .liquid::before { opacity: 0.35; }
-  .liquid::after { opacity: 0.3; }
+  .liquid { background-image: url('./assets/background/light.webp'); }
+  html[data-background='paused'] .liquid { background-image: url('./assets/background/light-still.webp'); }
+}
+@media (prefers-color-scheme: light) and (prefers-reduced-transparency: reduce) {
+  .liquid { background-image: url('./assets/background/light-still.webp'); }
+}
+@media (prefers-color-scheme: light) and (prefers-reduced-motion: reduce) {
+  .liquid { background-image: url('./assets/background/light-still.webp'); }
 }
 
 /* ---------------------------------------------------------------- szkło
@@ -179,14 +171,11 @@ body { margin: 0; min-height: 100vh; background: transparent; }
 }
 @media (prefers-reduced-transparency: reduce) {
   :root { --glass-fill: var(--glass-fill-strong); --glass-glint: transparent; }
+  .liquid { background-image: url('./assets/background/dark-still.webp'); }
   .app-header, .details, .assistant, .table-wrap, .filters, .empty, .toast {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  .liquid::before, .liquid::after { display: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .liquid::before, .liquid::after { animation: none; }
 }
 
 /* ---------------------------------------------------------------- układ */
@@ -229,7 +218,10 @@ code { font-family: inherit; font-variant-numeric: tabular-nums; }
   .app-header { position: static; border-radius: var(--radius-pane); padding: 14px 16px; }
 }
 
-.app-footer { margin-top: 40px; color: var(--text-muted); font-size: 0.8rem; }
+.app-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin-top: 40px; color: var(--text-muted); font-size: 0.8rem; }
+.background-toggle span { opacity: 0.75; }
+.background-toggle { padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) { .background-toggle { display: none; } }
 
 /* ---------------------------------------------------------------- lista */
 .page-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }

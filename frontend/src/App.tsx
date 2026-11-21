@@ -4,6 +4,7 @@ import { RequireAuth } from './auth/RequireAuth'
 import { ToastProvider } from './components/Toast'
 import { UserMenu } from './components/UserMenu'
 import { APP_VERSION } from './config'
+import { useBackgroundAnimation } from './hooks/useBackgroundAnimation'
 import { useGlassPointer } from './hooks/useGlassPointer'
 import { LoginPage } from './pages/LoginPage'
 import { TicketDetailsPage } from './pages/TicketDetailsPage'
@@ -13,11 +14,12 @@ import { TicketNewPage } from './pages/TicketNewPage'
 
 export default function App() {
   useGlassPointer()
+  const [backgroundAnimation, toggleBackgroundAnimation] = useBackgroundAnimation()
 
   return (
     <ToastProvider>
       <AuthProvider>
-        {/* Płynne gradientowe tło pod szklanymi taflami – tylko dekoracja. */}
+        {/* Animowane tło pod szklanymi taflami – tylko dekoracja. */}
         <div className="liquid" aria-hidden="true" />
         <main>
           <header className="app-header">
@@ -47,10 +49,21 @@ export default function App() {
             </Route>
           </Routes>
           <footer className="app-footer">
-            CloudDesk · wersja{' '}
-            <code data-testid="app-version" title={APP_VERSION}>
-              {APP_VERSION.slice(0, 7)}
-            </code>
+            <span>
+              CloudDesk · wersja{' '}
+              <code data-testid="app-version" title={APP_VERSION}>
+                {APP_VERSION.slice(0, 7)}
+              </code>
+            </span>
+            <button
+              type="button"
+              className="background-toggle"
+              aria-pressed={backgroundAnimation}
+              onClick={toggleBackgroundAnimation}
+              data-testid="background-toggle"
+            >
+              Animacja tła <span aria-hidden="true">{backgroundAnimation ? 'wł.' : 'wył.'}</span>
+            </button>
           </footer>
         </main>
       </AuthProvider>
