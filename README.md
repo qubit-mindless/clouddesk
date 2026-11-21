@@ -18,6 +18,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 - [Stos technologiczny](#stos-technologiczny)
 - [Architektura](#architektura)
 - [Wdrożenie w Azure](#wdrożenie-w-azure)
+- [Bezpieczeństwo](#bezpieczeństwo)
 - [Struktura repozytorium](#struktura-repozytorium)
 - [API](#api)
 - [Uruchomienie lokalne](#uruchomienie-lokalne)
@@ -172,6 +173,50 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 - **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
 
 **Koszt (cennik Azure, polandcentral, ceny katalogowe bez darmowych limitów):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Faktycznie płacimy mniej, bo VM B1s i PostgreSQL B1ms mieszczą się w darmowych limitach subskrypcji studenckiej – rzeczywisty koszt: sekcja [Monitoring i FinOps](#monitoring-i-finops). Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).
+
+## Bezpieczeństwo
+Ruch płynie wyłącznie kaskadowo: **Internet → WEB → APP → DATA**. Każda warstwa ma własną podsieć i własną NSG, a każda NSG kończy się regułą `DenyVnetInBound`. Ta reguła wyłącza domyślne `AllowVnetInBound` Azure, więc np. `vm-web` nie połączy się z bazą z pominięciem backendu. Reguły opisuje [`terraform/network.tf`](terraform/network.tf), a tabela poniżej jest ich odzwierciedleniem.
+
+**Przyjęte pasma priorytetów:** 100–199 to reguły Allow, 200–299 to jawne Deny z Internetu, a 4000 to `DenyVnetInBound`. Reguły Azure o priorytetach 65000+ są domyślne.
+
+### Reguły przychodzące (Inbound)
+| Warstwa / NSG | Priorytet | Reguła | Źródło | Porty | Akcja | Po co |
+|---|---|---|---|---|---|---|
+| WEB `nsg-web` | 100 | `AllowHttpsFromInternet` | Internet | 443 | ✅ Allow | strona i API przez Nginx po HTTPS |
+| WEB `nsg-web` | 110 | `AllowHttpFromInternet` | Internet | 80 | ✅ Allow | tylko przekierowanie 301 na HTTPS i wyzwania ACME Let's Encrypt |
+| WEB `nsg-web` | 200 | `DenyMgmtFromInternet` | Internet | 22, 3389 | ⛔ Deny | SSH/RDP zamknięte; maszynę obsługujemy przez `az vm run-command` |
+| WEB `nsg-web` | 4000 | `DenyVnetInBound` | VirtualNetwork | * | ⛔ Deny | brak ruchu z innych podsieci do warstwy WEB |
+| APP `nsg-app` | 100 | `AllowIngressFromWeb` | `snet-web` 10.0.1.0/24 | 80, 443, 31080, 31443 | ✅ Allow | Nginx → wewnętrzny load balancer Container Apps (80/443) → proxy środowiska (31080/31443) → kontener :8000 |
+| APP `nsg-app` | 110 | `AllowIntraSubnet` | `snet-app` 10.0.2.0/24 | * | ✅ Allow | ruch wewnątrz środowiska Container Apps (proxy, repliki, zadania migracji i kopii) |
+| APP `nsg-app` | 120 | `AllowAzureLoadBalancer` | AzureLoadBalancer | * | ✅ Allow | sondy zdrowia load balancera Azure |
+| APP `nsg-app` | 200 | `DenyMgmtAndAppFromInternet` | Internet | 22, 3389, 80, 443, 31080, 31443, 8000, 8080 | ⛔ Deny | porty zarządcze, ingressu i kontenera zamknięte, gdyby kiedyś pojawił się publiczny adres |
+| APP `nsg-app` | 4000 | `DenyVnetInBound` | VirtualNetwork | * | ⛔ Deny | np. `snet-db` nie łączy się z backendem |
+| DATA `nsg-db` | 100 | `AllowPostgresFromApp` | `snet-app` 10.0.2.0/24 | 5432 | ✅ Allow | jedyna droga do bazy: backend i zadania Container Apps |
+| DATA `nsg-db` | 200 | `DenyDbPortsFromInternet` | Internet | 3306, 5432 | ⛔ Deny | porty baz danych zamknięte dla Internetu |
+| DATA `nsg-db` | 4000 | `DenyVnetInBound` | VirtualNetwork | * | ⛔ Deny | `snet-web` nie łączy się z bazą bezpośrednio |
+| wszystkie | 65001 / 65500 | `AllowAzureLoadBalancerInBound`, `DenyAllInBound` | – | * | domyślne Azure | wszystko, czego nie dopuszczono wyżej, jest odrzucane |
+
+### Reguły wychodzące (Outbound)
+Nie dodajemy własnych reguł wychodzących, więc działają domyślne reguły Azure w każdej NSG: `AllowVnetOutBound` (65000), `AllowInternetOutBound` (65001) i `DenyAllOutBound` (65500). Ruch wychodzący, którego warstwy faktycznie potrzebują:
+
+| Warstwa | Cel | Porty | Po co |
+|---|---|---|---|
+| WEB `vm-web` | `snet-app` (wewnętrzny LB Container Apps) | 80, 443 | proxy `/api` do backendu |
+| WEB `vm-web` | Internet | 80, 443 | aktualizacje systemu (apt), certbot i Let's Encrypt (wydanie i odnowienie certyfikatu) |
+| APP backend i zadania | `snet-db` | 5432 | PostgreSQL |
+| APP backend i zadania | Internet / usługi Azure | 443 | pobranie obrazu z GHCR, Key Vault (sekrety przez tożsamość zarządzaną), Entra ID, Azure OpenAI (asystent AI, #96) |
+| wszystkie | 168.63.129.16 | 53 | DNS platformy Azure (prywatne strefy bazy i Container Apps); dozwolony przez domyślne reguły wychodzące – nie blokujemy go, bo bez niego nie działa DNS ani sondy |
+| DATA | – | – | baza tylko odpowiada na połączenia z `snet-app`, sama ich nie nawiązuje |
+
+Znane ograniczenie: wyjście do Internetu nie jest zawężone do konkretnych adresów. Wymagałoby to Azure Firewall albo NAT z listą dozwolonych FQDN, a koszt nie mieści się w budżecie projektu. Container Apps potrzebuje też wyjścia do usług platformy.
+
+### Pozostałe zabezpieczenia
+- **HTTPS:** Nginx na `vm-web` obsługuje TLS 1.2 i 1.3 z certyfikatem Let's Encrypt, który `certbot` odnawia automatycznie. Port 80 zwraca `301` na ten sam adres po HTTPS (z zachowaniem ścieżki i parametrów), a nagłówek HSTS każe przeglądarce zostać przy HTTPS. Frontend wywołuje API przez względną ścieżkę `/api`, więc wszystkie żądania idą tym samym, szyfrowanym połączeniem. Pipeline CD po każdym wdrożeniu sprawdza przekierowanie i ważność certyfikatu.
+- **Brak SSH:** port 22 nie jest otwarty w żadnej podsieci. Wdrożenia i administracja `vm-web` idą przez `az vm run-command` (Azure control plane), a GitHub Actions loguje się do Azure przez OIDC, bez haseł w repozytorium.
+- **Backend bez publicznego adresu:** środowisko Container Apps ma tylko wewnętrzny load balancer. Z Internetu backend jest osiągalny wyłącznie przez Nginx, i to tylko pod `/api/...`.
+- **Baza bez dostępu publicznego:** `public_network_access_enabled = false` w `terraform/database.tf` (w portalu „Dostęp publiczny: wyłączony”), adres tylko w `snet-db`, a nazwa rozwiązuje się wyłącznie w prywatnej strefie DNS VNet.
+- **Sekrety w Key Vault:** hasło bazy, `DATABASE_URL` i klucz podpisu tokenów JWT (#106) generuje Terraform i trzyma w Key Vault. Backend czyta je przez tożsamość zarządzaną (rola Key Vault Secrets User). W repozytorium nie ma haseł, kluczy ani adresów środowisk, a Gitleaks pilnuje tego w CI.
+- **Nagłówki HTTP:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security`, bez wersji Nginx (`server_tokens off`).
 
 ## Struktura repozytorium
 ```
