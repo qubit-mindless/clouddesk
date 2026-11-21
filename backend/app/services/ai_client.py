@@ -71,7 +71,8 @@ class AzureOpenAIClient:
     enabled = True
 
     def __init__(self, settings: Settings, http: httpx.Client | None = None) -> None:
-        assert settings.azure_openai_endpoint
+        if not settings.azure_openai_endpoint:
+            raise ValueError("AzureOpenAIClient wymaga AZURE_OPENAI_ENDPOINT.")
         self.settings = settings
         self.http = http or httpx.Client(timeout=settings.ai_timeout_seconds)
         self.url = (
@@ -87,7 +88,8 @@ class AzureOpenAIClient:
     def _auth_headers(self) -> dict[str, str]:
         if self.settings.azure_openai_api_key:
             return {"api-key": self.settings.azure_openai_api_key}
-        assert self.token is not None
+        if self.token is None:
+            raise AssistantUnavailableError("Brak tożsamości zarządzanej do logowania w Azure OpenAI.")
         return {"Authorization": f"Bearer {self.token.get()}"}
 
     def complete(self, messages: list[Message]) -> str:

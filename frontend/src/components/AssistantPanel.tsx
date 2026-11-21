@@ -56,6 +56,12 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
       <h3 id="assistant-heading">Asystent AI</h3>
       {loading && <Loading label="Ładowanie asystenta…" />}
       {loadError !== undefined && <ErrorState error={loadError} onRetry={reload} />}
+      {/* Poza blokiem rozmowy: po błędzie rozmowa się przeładowuje, a komunikat ma zostać widoczny. */}
+      {error && (
+        <p className="form-error" role="alert" data-testid="assistant-error">
+          {error}
+        </p>
+      )}
       {conversation && !conversation.enabled && (
         <p className="assistant-info" data-testid="assistant-disabled">
           Asystent AI nie jest skonfigurowany na tym serwerze.
@@ -90,11 +96,6 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
           <p className="assistant-remaining" data-testid="assistant-remaining">
             Pozostało pytań: {conversation.remaining}
           </p>
-          {error && (
-            <p className="form-error" role="alert" data-testid="assistant-error">
-              {error}
-            </p>
-          )}
           {!noQuota && (
             <form className="assistant-form" onSubmit={handleSubmit} noValidate>
               <label htmlFor="assistant-input">Zadaj pytanie asystentowi</label>

@@ -25,3 +25,7 @@ class AssistantUnavailableError(Exception):
 
 class AssistantRefusedError(Exception):
     """Filtr treści usługi AI odrzucił wiadomość – router zamienia na 422 z komunikatem."""
+
+
+class AssistantBusyError(Exception):
+    """Asystent już odpowiada na pytanie w tym zgłoszeniu – router zamienia na 409."""
