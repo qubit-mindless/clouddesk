@@ -27,6 +27,7 @@ Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnyc
 | nsg-app | 110 | Allow | snet-app (ruch wewnątrz środowiska) | * |
 | nsg-app | 120 | Allow | AzureLoadBalancer | * |
 | nsg-db | 100 | Allow | snet-app 10.0.2.0/24 | 5432 |
+| nsg-db | 200 | **Deny** | Internet | 3306, 5432 (jawna blokada portów baz danych – baza i tak nie ma publicznego adresu) |
 | wszystkie | 4000 | **Deny** | VirtualNetwork | * |
 
 Reguła `DenyVnetInBound` (4000) wyłącza domyślne `AllowVnetInBound` Azure, więc ruch płynie wyłącznie kaskadowo: web → app → db. SSH (22) nie jest otwarty w żadnej podsieci.

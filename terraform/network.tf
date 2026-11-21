@@ -188,6 +188,20 @@ resource "azurerm_network_security_group" "db" {
     destination_port_range     = "5432"
   }
 
+  # Baza nie ma publicznego adresu, więc z Internetu i tak nic tu nie dotrze. Reguła jest jawną drugą linią
+  # obrony: gdyby ktoś włączył dostęp publiczny albo dodał publiczny IP, porty baz danych dalej są zamknięte.
+  security_rule {
+    name                       = "DenyDbPortsFromInternet"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_address_prefix      = "Internet"
+    source_port_range          = "*"
+    destination_address_prefix = "*"
+    destination_port_ranges    = ["3306", "5432"]
+  }
+
   security_rule {
     name                       = "DenyVnetInBound"
     priority                   = 4000
