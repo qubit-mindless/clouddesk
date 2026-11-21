@@ -7,14 +7,23 @@
 
 const request = require("supertest");
 
-const BASE_URL = (process.env.LIVE_APP_URL || "http://localhost:8000").replace(/\/+$/, "");
-const EMAIL = process.env.TEST_USER_EMAIL || "";
+const BASE_URL = (process.env.LIVE_APP_URL || "http://localhost:8000").trim().replace(/\/+$/, "");
+const EMAIL = (process.env.TEST_USER_EMAIL || "").trim();
 const PASSWORD = process.env.TEST_USER_PASSWORD || "";
 const AUTH_ENABLED = Boolean(EMAIL && PASSWORD);
 
-const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(BASE_URL);
-const headersSetting = (process.env.CHECK_SECURITY_HEADERS || "auto").toLowerCase();
-const CHECK_HEADERS = headersSetting === "auto" ? !isLocal : headersSetting === "true";
+// Nagłówki bezpieczeństwa dodaje Nginx – przy backendzie uruchomionym lokalnie ich nie ma.
+const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]", "0.0.0.0", "host.docker.internal"];
+const isLocal = LOCAL_HOSTS.includes(new URL(BASE_URL).hostname);
+
+function checkHeadersSetting() {
+  const value = (process.env.CHECK_SECURITY_HEADERS || "auto").trim().toLowerCase();
+  if (value === "auto") return !isLocal;
+  if (["true", "1", "yes"].includes(value)) return true;
+  if (["false", "0", "no"].includes(value)) return false;
+  throw new Error(`CHECK_SECURITY_HEADERS: nieznana wartość "${value}" (auto/true/false)`);
+}
+const CHECK_HEADERS = checkHeadersSetting();
 
 // Backend w Container Apps skaluje się do zera – pierwsze żądanie czeka na zimny start.
 jest.setTimeout(60_000);
@@ -76,32 +85,54 @@ async function createTicket(overrides = {}) {
   return res;
 }
 
-beforeAll(async () => {
-  // Rozgrzewka: czekamy, aż backend odpowie (zimny start po skalowaniu do zera).
-  let lastError;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    try {
-      const res = await api.get("/api/health").timeout({ response: 20_000 });
-      if (res.status === 200) break;
-      lastError = new Error(`/api/health → ${res.status}`);
-    } catch (err) {
-      lastError = err;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5_000));
-    if (attempt === 5) throw new Error(`Aplikacja pod ${BASE_URL} nie odpowiada: ${lastError}`);
-  }
+const WARMUP_ATTEMPTS = 6;
+const WARMUP_RESPONSE_MS = 20_000;
+const WARMUP_PAUSE_MS = 5_000;
 
+async function waitForApp() {
+  let lastProblem;
+  for (let attempt = 1; attempt <= WARMUP_ATTEMPTS; attempt += 1) {
+    try {
+      const res = await api.get("/api/health").timeout({ response: WARMUP_RESPONSE_MS });
+      // Sam status 200 nie wystarczy: Nginx bez proxy /api odda index.html frontendu, też z 200.
+      if (res.status === 200 && JSON_TYPE.test(res.headers["content-type"] || "") && res.body.status === "UP") {
+        return;
+      }
+      lastProblem = `/api/health → ${res.status} ${res.headers["content-type"] || ""}`;
+    } catch (err) {
+      lastProblem = err.message;
+    }
+    if (attempt < WARMUP_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, WARMUP_PAUSE_MS));
+  }
+  throw new Error(`Aplikacja pod ${BASE_URL} nie odpowiada poprawnie: ${lastProblem}`);
+}
+
+// Rozgrzewka (zimny start po skalowaniu do zera) może trwać dłużej niż limit pojedynczego testu.
+const WARMUP_TIMEOUT_MS = WARMUP_ATTEMPTS * (WARMUP_RESPONSE_MS + WARMUP_PAUSE_MS) + 30_000;
+
+beforeAll(async () => {
+  await waitForApp();
   if (AUTH_ENABLED) {
     const res = await api.post("/api/auth/login").send({ email: EMAIL, password: PASSWORD });
     if (res.status !== 200) throw new Error(`Logowanie konta testowego nie powiodło się: ${res.status}`);
     token = res.body.accessToken;
   }
-});
+}, WARMUP_TIMEOUT_MS);
 
 afterAll(async () => {
   // Sprzątanie także wtedy, gdy któryś test przerwał się przed własnym DELETE.
+  // Każde usunięcie osobno, żeby jeden błąd sieci nie zostawił reszty zgłoszeń.
+  const leftovers = [];
   for (const id of createdIds) {
-    await del(`/api/tickets/${id}`);
+    try {
+      const res = await del(`/api/tickets/${id}`);
+      if (![204, 404].includes(res.status)) leftovers.push(`#${id} (${res.status})`);
+    } catch (err) {
+      leftovers.push(`#${id} (${err.message})`);
+    }
+  }
+  if (leftovers.length) {
+    throw new Error(`Nie udało się usunąć zgłoszeń testowych: ${leftovers.join(", ")} – usuń je ręcznie.`);
   }
 });
 
@@ -140,8 +171,12 @@ describe("GET /api/health", () => {
     expect(res.status).toBe(401);
   });
 
-  test("złe hasło → 401, bez tokenu w odpowiedzi", async () => {
-    const res = await api.post("/api/auth/login").send({ email: EMAIL, password: `${PASSWORD}-zle` });
+  test("nieznane konto → 401, bez tokenu w odpowiedzi", async () => {
+    // Nieistniejący e-mail zamiast złego hasła do konta testowego – nie nabijamy mu nieudanych logowań.
+    // Backend zwraca ten sam 401 dla nieznanego e-maila i złego hasła.
+    const res = await api
+      .post("/api/auth/login")
+      .send({ email: `nie-istnieje-${Date.now()}@clouddesk.example`, password: "zle-haslo" });
     expect(res.status).toBe(401);
     expect(res.body.accessToken).toBeUndefined();
   });
@@ -217,18 +252,27 @@ describe("POST /api/tickets – walidacja", () => {
 });
 
 describe("cykl życia zgłoszenia: POST → GET → PATCH → DELETE", () => {
+  const title = `${MARKER} zażółć gęślą jaźń 🖨️`;
+  let created;
   let ticket;
 
-  test("POST → 201, status NEW i termin SLA nadany przez backend", async () => {
-    const res = await createTicket({ title: `${MARKER} zażółć gęślą jaźń 🖨️` });
-    expect(res.status).toBe(201);
-    expect(res.headers["content-type"]).toMatch(JSON_TYPE);
-    expectTicketShape(res.body);
-    expect(res.body.status).toBe("NEW");
-    expect(res.body.priority).toBe("P4");
-    expect(res.body.title).toBe(`${MARKER} zażółć gęślą jaźń 🖨️`); // Unicode zapisuje się bez zmian
-    expect(new Date(res.body.slaDueAt) > new Date(res.body.createdAt)).toBe(true);
-    ticket = res.body;
+  // Zgłoszenie powstaje raz dla całego bloku – przy błędzie POST pozostałe testy kończą się jednym
+  // czytelnym komunikatem zamiast „Cannot read properties of undefined”.
+  beforeAll(async () => {
+    created = await createTicket({ title });
+    if (created.status !== 201) {
+      throw new Error(`POST /api/tickets → ${created.status}: ${JSON.stringify(created.body)}`);
+    }
+    ticket = created.body;
+  });
+
+  test("POST → 201, status NEW i termin SLA nadany przez backend", () => {
+    expect(created.headers["content-type"]).toMatch(JSON_TYPE);
+    expectTicketShape(ticket);
+    expect(ticket.status).toBe("NEW");
+    expect(ticket.priority).toBe("P4");
+    expect(ticket.title).toBe(title); // Unicode zapisuje się bez zmian
+    expect(new Date(ticket.slaDueAt) > new Date(ticket.createdAt)).toBe(true);
   });
 
   test("GET /api/tickets/{id} → 200, te same dane", async () => {

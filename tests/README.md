@@ -12,8 +12,8 @@ npm ci
 # Lokalnie: backend na http://localhost:8000 (domyślnie)
 npm run test:api
 
-# W chmurze, przez Nginx (sprawdza też nagłówki bezpieczeństwa)
-LIVE_APP_URL=https://clouddesk-qubit.polandcentral.cloudapp.azure.com npm run test:api
+# W chmurze, przez Nginx (sprawdza też nagłówki bezpieczeństwa); po wdrożeniu HTTPS (#85) – https://
+LIVE_APP_URL=http://clouddesk-qubit.polandcentral.cloudapp.azure.com npm run test:api
 
 # Z logowaniem (po #14): konto, które może tworzyć i usuwać zgłoszenia
 TEST_USER_EMAIL=admin@clouddesk.example TEST_USER_PASSWORD=... npm run test:api
