@@ -196,13 +196,27 @@ Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Az
 |---|---|---|---|---|
 | GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`); z zewnątrz przez Nginx tylko `/api/health`; `/health` służy też monitoringowi | 200, 503 | – |
 | GET | `/health/live` | czy proces backendu odpowiada (bez sprawdzania bazy) – sonda startup, liveness i readiness Container Apps; tylko wewnątrz VNet | 200 | – |
-| GET | `/api/tickets` | lista zgłoszeń; filtry `status`, `priority`, `assignee` (login technika), `q` (tytuł); paginacja `page`, `size` (1–100) | 200, 422 | brak (logowanie w #14) |
-| GET | `/api/tickets/{id}` | szczegóły zgłoszenia | 200, 404 | brak |
-| POST | `/api/tickets` | nowe zgłoszenie: `title` (5–200 znaków), `description`, `priority` (P1–P4); status `NEW` i termin SLA nadaje backend | 201, 422 | brak |
-| PATCH | `/api/tickets/{id}` | zmiana wybranych pól: `title`, `description`, `priority` (przelicza SLA), `status`, `assignee` (login technika lub `null`); każda zmiana trafia do historii | 200, 404, 422 | brak |
-| DELETE | `/api/tickets/{id}` | usunięcie zgłoszenia razem z historią, komentarzami i załącznikami | 204, 404 | brak |
+| POST | `/api/auth/login` | logowanie: `email`, `password` → `accessToken` (JWT, ważny 60 min), `tokenType`, `expiresIn`, `user` (`id`, `email`, `login`, `fullName`, `role`) | 200, 401, 422 | – |
+| GET | `/api/auth/me` | zalogowany użytkownik | 200, 401 | token |
+| GET | `/api/tickets` | lista zgłoszeń; filtry `status`, `priority`, `assignee` (login technika), `q` (tytuł); paginacja `page`, `size` (1–100). REPORTER widzi tylko swoje | 200, 401, 422 | token |
+| GET | `/api/tickets/{id}` | szczegóły zgłoszenia (cudze dla REPORTER → 404) | 200, 401, 404 | token |
+| POST | `/api/tickets` | nowe zgłoszenie: `title` (5–200 znaków), `description`, `priority` (P1–P4); zgłaszający = zalogowany, status `NEW` i termin SLA nadaje backend | 201, 401, 422 | token |
+| PATCH | `/api/tickets/{id}` | zmiana wybranych pól: `title`, `description`, `priority` (przelicza SLA), `status`, `assignee` (login technika lub `null`); każda zmiana trafia do historii z autorem. REPORTER: tylko treść i priorytet własnego zgłoszenia | 200, 401, 403, 404, 422 | token |
+| DELETE | `/api/tickets/{id}` | usunięcie zgłoszenia razem z historią, komentarzami i załącznikami | 204, 401, 403, 404 | token, TECHNICIAN/ADMIN |
 
-Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni. Do czasu logowania zgłoszenia i zmiany zapisują się na konto demonstracyjne (`DEMO_USER_EMAIL`).
+Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni.
+
+**Logowanie i role.** Token przekazujemy w nagłówku `Authorization: Bearer <accessToken>`. Brak, wygasły albo podrobiony token → 401 (`WWW-Authenticate: Bearer`); rola bez uprawnień → 403.
+
+| Rola | Zgłoszenia | Zmiany | Usuwanie |
+|---|---|---|---|
+| REPORTER | tylko własne | treść i priorytet własnych | – |
+| TECHNICIAN | wszystkie | wszystkie pola, w tym status i przypisanie | ✓ |
+| ADMIN | wszystkie | wszystkie pola | ✓ |
+
+- **Hasła:** skrót argon2id; ta sama odpowiedź 401 dla nieznanego e-maila i złego hasła (także w czasie odpowiedzi).
+- **Tokeny:** JWT HS256 podpisany kluczem `JWT_SECRET`. W Azure klucz jest w Key Vault (`jwt-secret`), a bez niego backend nie wystartuje. Użytkownik jest odczytywany z bazy przy każdym żądaniu, więc usunięte konto traci dostęp od razu.
+- **Konta demo** z seeda: `admin@`, `tech.jan@`, `tech.ola@`, `anna.k@`… `clouddesk.example`, wspólne hasło z `DEMO_PASSWORD`. W Azure hasło jest w Key Vault (`demo-password`); odczyt: `terraform output demo_password_hint`.
 
 ## Uruchomienie lokalne
 Wymagania: Node.js 22.22+ (zalecany 24 LTS), Python 3.12+, Docker.

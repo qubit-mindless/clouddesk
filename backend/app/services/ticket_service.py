@@ -2,12 +2,11 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.models import Ticket, TicketHistory, TicketPriority, TicketStatus, User, UserRole
 from app.repositories.ticket_repository import TicketRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.ticket import TicketCreate, TicketOut, TicketPage, TicketQuery, TicketUpdate
-from app.services.errors import FieldValidationError, NotFoundError
+from app.services.errors import FieldValidationError, ForbiddenError, NotFoundError
 
 # Czas na rozwiązanie zgłoszenia liczony od jego utworzenia (ten sam w seedzie i w fake API frontendu).
 SLA_BY_PRIORITY: dict[TicketPriority, timedelta] = {
@@ -18,6 +17,10 @@ SLA_BY_PRIORITY: dict[TicketPriority, timedelta] = {
 }
 CLOSED_STATUSES = {TicketStatus.RESOLVED, TicketStatus.CLOSED}
 ASSIGNABLE_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
+# Obsługa zgłoszeń (wszystkie zgłoszenia, status, przypisanie, usuwanie) – technik i administrator.
+STAFF_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
+# Zgłaszający może poprawić treść i priorytet własnego zgłoszenia, ale nie prowadzi go dalej.
+REPORTER_EDITABLE = {"title", "description", "priority"}
 
 
 def login_of(user: User | None) -> str | None:
@@ -41,19 +44,20 @@ def to_dto(ticket: Ticket) -> TicketOut:
 
 
 class TicketService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, actor: User) -> None:
         self.db = db
+        self.actor = actor
         self.tickets = TicketRepository(db)
         self.users = UserRepository(db)
 
-    def _actor(self) -> User:
-        # Do czasu logowania (#14) zgłoszenia i zmiany zapisujemy na konto demonstracyjne.
-        email = get_settings().demo_user_email
-        return self.users.get_or_create(email, "Użytkownik demonstracyjny", UserRole.REPORTER)
+    @property
+    def _is_staff(self) -> bool:
+        return self.actor.role in STAFF_ROLES
 
     def _get(self, ticket_id: int) -> Ticket:
         ticket = self.tickets.get(ticket_id)
-        if ticket is None:
+        # Cudze zgłoszenie dla zgłaszającego wygląda jak nieistniejące – nie zdradzamy, że jest.
+        if ticket is None or (not self._is_staff and ticket.reporter_id != self.actor.id):
             raise NotFoundError(f"Nie znaleziono zgłoszenia #{ticket_id}.")
         return ticket
 
@@ -68,6 +72,7 @@ class TicketService:
             status=query.status,
             priority=query.priority,
             assignee_id=assignee_id,
+            reporter_id=None if self._is_staff else self.actor.id,
             q=query.q.strip() if query.q else None,
             offset=(query.page - 1) * query.size,
             limit=query.size,
@@ -84,7 +89,7 @@ class TicketService:
             description=data.description,
             priority=data.priority,
             status=TicketStatus.NEW,
-            reporter=self._actor(),
+            reporter=self.actor,
             created_at=now,
             updated_at=now,
             sla_due_at=now + SLA_BY_PRIORITY[data.priority],
@@ -96,11 +101,17 @@ class TicketService:
     def update(self, ticket_id: int, data: TicketUpdate) -> TicketOut:
         ticket = self._get(ticket_id)
         changes = data.model_dump(exclude_unset=True)
+        if not self._is_staff:
+            if not changes.keys() <= REPORTER_EDITABLE:
+                raise ForbiddenError("Status i przypisanie zgłoszenia zmienia technik.")
+            if ticket.status in CLOSED_STATUSES:
+                # Inaczej zmiana priorytetu przeliczyłaby SLA zgłoszenia, które już rozliczono.
+                raise ForbiddenError("Rozwiązanego lub zamkniętego zgłoszenia nie można już zmieniać.")
         for field in ("title", "description", "priority", "status"):
             if field in changes and changes[field] is None:
                 raise FieldValidationError(field, "Pole nie może być puste.")
 
-        actor = self._actor()
+        actor = self.actor
         history: list[TicketHistory] = []
 
         def record(field: str, old: object, new: object) -> None:
@@ -152,5 +163,8 @@ class TicketService:
         return to_dto(self._get(ticket.id))
 
     def delete(self, ticket_id: int) -> None:
-        self.tickets.delete(self._get(ticket_id))
+        ticket = self._get(ticket_id)
+        if not self._is_staff:
+            raise ForbiddenError("Zgłoszenie może usunąć tylko technik lub administrator.")
+        self.tickets.delete(ticket)
         self.db.commit()

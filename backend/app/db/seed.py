@@ -4,6 +4,7 @@ Uruchomienie z katalogu backend/ po `alembic upgrade head`:
     python -m app.db.seed
 
 Skrypt można puszczać wielokrotnie: użytkowników nie dubluje (po e-mailu),
+kontom demo ustawia hasło z DEMO_PASSWORD (jeśli podane – także po jego zmianie),
 a zgłoszenia (z historią, komentarzami, załącznikami i czatem AI) dodaje tylko
 wtedy, gdy tabela tickets jest pusta.
 """
@@ -13,6 +14,8 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
+from app.core.security import hash_password, verify_password
 from app.db.session import SessionLocal
 from app.models import (
     AiMessage,
@@ -27,12 +30,13 @@ from app.models import (
     UserRole,
 )
 
-# Login z frontendu = część e-maila przed "@".
+# Logowanie: pełny e-mail (np. admin@clouddesk.example) + wspólne hasło kont demo z DEMO_PASSWORD
+# (w Azure z Key Vault: sekret demo-password). Login w API = część e-maila przed "@".
 # Domena .example jest zarezerwowana – to nie są prawdziwe adresy.
 EMAIL_DOMAIN = "clouddesk.example"
 
-# Konta z seeda nie mają hasła: "!" nie jest poprawnym skrótem żadnego algorytmu,
-# więc logowanie na nie zawsze się nie powiedzie. Hasła ustawia moduł logowania.
+# Bez DEMO_PASSWORD konta z seeda nie mają hasła: "!" nie jest poprawnym skrótem żadnego algorytmu,
+# więc logowanie na nie zawsze się nie powiedzie.
 UNUSABLE_PASSWORD_HASH = "!"
 
 USERS = [
@@ -160,16 +164,36 @@ def _history(ticket: Ticket, admin: User) -> list[TicketHistory]:
 
 def seed(db: Session) -> dict[str, int]:
     """Zwraca liczbę dodanych rekordów w każdej tabeli."""
-    added = dict.fromkeys(["users", "tickets", "ticket_history", "comments", "attachments", "ai_messages"], 0)
-    existing = set(db.scalars(select(User.email)))
+    added = dict.fromkeys(
+        [
+            "users",
+            "accounts_activated",
+            "tickets",
+            "ticket_history",
+            "comments",
+            "attachments",
+            "ai_messages",
+        ],
+        0,
+    )
+    demo_password = get_settings().demo_password
+    password_hash = hash_password(demo_password) if demo_password else UNUSABLE_PASSWORD_HASH
+    existing = {u.email: u for u in db.scalars(select(User))}
     new_users = [
-        User(email=f"{login}@{EMAIL_DOMAIN}", password_hash=UNUSABLE_PASSWORD_HASH, full_name=name, role=role)
+        User(email=f"{login}@{EMAIL_DOMAIN}", password_hash=password_hash, full_name=name, role=role)
         for login, name, role in USERS
         if f"{login}@{EMAIL_DOMAIN}" not in existing
     ]
     db.add_all(new_users)
-    db.flush()
     added["users"] = len(new_users)
+    # Konta demo bez hasła albo z innym (np. po rotacji sekretu demo-password w Key Vault) dostają bieżące.
+    if demo_password:
+        for login, _, _ in USERS:
+            user = existing.get(f"{login}@{EMAIL_DOMAIN}")
+            if user is not None and not verify_password(user.password_hash, demo_password):
+                user.password_hash = password_hash
+                added["accounts_activated"] += 1
+    db.flush()
 
     if db.scalar(select(func.count()).select_from(Ticket)):
         db.commit()
