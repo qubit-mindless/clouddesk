@@ -16,7 +16,7 @@ Zasady:
 
 ## Wdrożenie frontendu w warstwie WEB
 
-Zmienne:
+Zmienne (wzór: [`web.env.example`](web.env.example)):
 
 | Zmienna | Gdzie | Opis |
 |---|---|---|
@@ -45,9 +45,9 @@ Kroki:
 ## HTTPS (certyfikat Let's Encrypt)
 
 - Certyfikat dla `WEB_DOMAIN` wystawia Let's Encrypt przez certbota na VM. Weryfikacja HTTP-01 idzie przez katalog `/var/www/letsencrypt`, który Nginx serwuje pod `/.well-known/acme-challenge/` na porcie 80.
-- **Nowa VM:** `deploy-web.sh` najpierw stawia stronę po HTTP (`nginx-http.conf`), instaluje certbota, pobiera certyfikat i przełącza się na `nginx.conf`. Gdy certbot zawiedzie (np. limit Let's Encrypt), strona działa dalej po HTTP, a skrypt kończy się błędem, więc job `deploy-web` jest czerwony.
+- **Nowa VM:** `deploy-web.sh` najpierw stawia stronę po HTTP (`nginx-http.conf`), instaluje certbota, pobiera certyfikat i przełącza się na `nginx.conf`. Gdy certbot zawiedzie (np. limit Let's Encrypt) albo konfiguracja HTTPS nie przejdzie `nginx -t`, nowa wersja strony działa dalej po HTTP, a skrypt kończy się błędem, więc job `deploy-web` jest czerwony.
 - **Odnawianie:** robi je timer `certbot.timer` z pakietu (dwa razy dziennie; odnawia na 30 dni przed wygaśnięciem). Po odnowieniu hook `systemctl reload nginx` wczytuje nowy certyfikat. Ręczny test: `sudo certbot renew --dry-run`.
-- **TLS:** tylko 1.2 i 1.3. HSTS na rok (bez subdomen, bo domena należy do Azure).
+- **TLS:** tylko 1.2 i 1.3. HSTS na razie na 1 dzień (bez subdomen, bo domena należy do Azure) – przy dłuższym przeglądarki nie wpuściłyby użytkowników na awaryjną wersję po HTTP. Gdy certyfikat sprawdzi się przy odnowieniu, można go wydłużyć.
 - Bez adresu e-mail w koncie ACME: nie przekazujemy prywatnych adresów zespołu zewnętrznej usłudze.
 
 HTTPS sprawdzone lokalnie w kontenerze Ubuntu 24.04 (Nginx 1.24, jak na VM; certbot i systemd jako atrapy): pierwsze wdrożenie (HTTP → certyfikat → HTTPS), nieudany certbot (strona zostaje po HTTP, kod błędu), przekierowanie 301 z zachowaniem ścieżki i parametrów, ścieżka ACME na porcie 80 bez przekierowania, HSTS i nagłówki także dla `/assets`, `/api` przez HTTPS, odrzucenie TLS 1.1, kolejne wdrożenie z `web.env` bez ponownego certbota, przywrócenie poprzedniej wersji po błędnym szablonie.

@@ -42,7 +42,7 @@ fi
 # Pełna nazwa DNS (co najmniej dwa człony), bez schematu i ścieżki – trafia do certyfikatu i przekierowania.
 label='[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
 if [[ ! "$WEB_DOMAIN" =~ ^$label(\.$label)+$ ]]; then
-  echo "Błędny WEB_DOMAIN: oczekiwana nazwa DNS VM, np. clouddesk-qubit.polandcentral.cloudapp.azure.com." >&2
+  echo "Błędny WEB_DOMAIN: oczekiwana nazwa DNS VM, np. <etykieta>.<region>.cloudapp.azure.com." >&2
   exit 1
 fi
 mkdir -p "$(dirname "$env_file")"
@@ -118,15 +118,22 @@ if ! has_cert; then
   fi
   # Bez adresu e-mail: nie przekazujemy prywatnych adresów zespołu zewnętrznej usłudze
   # (Let's Encrypt i tak nie wysyła już przypomnień o wygasaniu – odnawia timer certbota).
+  # --cert-name: certyfikat zawsze w live/$WEB_DOMAIN/ (bez przyrostków -0001), tam szuka go nginx.conf.
   # --deploy-hook zapisuje się w konfiguracji odnowień: po każdym nowym certyfikacie Nginx się przeładuje.
-  if ! certbot certonly --webroot -w "$acme_root" -d "$WEB_DOMAIN" \
+  if ! certbot certonly --webroot -w "$acme_root" -d "$WEB_DOMAIN" --cert-name "$WEB_DOMAIN" \
       --non-interactive --agree-tos --register-unsafely-without-email \
       --deploy-hook "systemctl reload nginx"; then
     echo "Nie udało się pobrać certyfikatu dla $WEB_DOMAIN – strona działa dalej po HTTP." >&2
     exit 1
   fi
   render "$src/nginx.conf" "$nginx_conf"
-  nginx -t || restore
+  if ! nginx -t; then
+    # Nowy frontend już działa po HTTP – zostawiamy go i wracamy tylko do konfiguracji bez TLS.
+    echo "Konfiguracja HTTPS jest błędna – strona zostaje po HTTP." >&2
+    render "$src/nginx-http.conf" "$nginx_conf"
+    nginx -t && systemctl reload nginx
+    exit 1
+  fi
   systemctl reload nginx
 fi
 

@@ -224,11 +224,14 @@ jobs:
           host="$(az network public-ip show -g "$RG" -n "$WEB_PIP" --query dnsSettings.fqdn -o tsv)"
           [[ -n "$host" ]] || { echo "Brak nazwy DNS dla $WEB_PIP." >&2; exit 1; }
           url="https://$host"
-          redirect="$(curl -sS -o /dev/null --max-time 15 -w '%{http_code} %{redirect_url}' "http://$host/tickets?page=2")"
+          redirect="$(curl -sS -o /dev/null --max-time 15 --retry 5 --retry-all-errors --retry-delay 5 \
+            -w '%{http_code} %{redirect_url}' "http://$host/tickets?page=2" || true)"
           echo "HTTP → $redirect"
           [[ "$redirect" == "301 $url/tickets?page=2" ]] || { echo "Port 80 nie przekierowuje na HTTPS: '$redirect'." >&2; exit 1; }
-          cert="$(openssl s_client -connect "$host:443" -servername "$host" </dev/null 2>/dev/null \
-            | openssl x509 -noout -issuer -enddate | paste -sd ';' -)"
+          # -verify_return_error: niezaufany albo niepasujący certyfikat przerywa połączenie, więc $cert jest pusty.
+          cert="$(timeout 20 openssl s_client -connect "$host:443" -servername "$host" -verify_hostname "$host" \
+            -verify_return_error </dev/null 2>/dev/null | openssl x509 -noout -issuer -enddate 2>/dev/null | paste -sd ';' - || true)"
+          [[ -n "$cert" ]] || { echo "Brak ważnego certyfikatu TLS dla $host." >&2; exit 1; }
           echo "Certyfikat: $cert"
           curl -fsS --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/index.html" "$url/"
           bundle="$(grep -o '/assets/index-[A-Za-z0-9_-]*\.js' "$RUNNER_TEMP/index.html" | head -n1)"
