@@ -17,7 +17,7 @@ Region: **polandcentral** (polityka subskrypcji dopuszcza też swedencentral, ge
 | `monitoring.tf` | logi i metryki PostgreSQL do Log Analytics `log-clouddesk` (diagnostic setting), logowanie zapytań wolniejszych niż 500 ms bez wartości parametrów; zapytania KQL w [`docs/monitoring/`](../docs/monitoring/README.md) |
 | `versions.tf` | provider `azurerm`, stan zdalny w Azure Storage |
 
-Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnych etapach: HTTPS, monitoring i usługi zarządzane (Azure OpenAI, Blob Storage, e-mail).
+Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnych etapach: HTTPS i usługi zarządzane (Azure OpenAI, Blob Storage, e-mail).
 
 ## Reguły sieciowe (NSG)
 | NSG | Priorytet | Reguła | Źródło | Port |

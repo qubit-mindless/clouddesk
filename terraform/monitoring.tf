@@ -31,4 +31,7 @@ resource "azurerm_postgresql_flexible_server_configuration" "log_parameter_max_l
   name      = "log_parameter_max_length"
   server_id = azurerm_postgresql_flexible_server.main.id
   value     = "0"
+
+  # Azure przyjmuje jedną zmianę konfiguracji serwera naraz – równoległe zmiany kończą się błędem 409.
+  depends_on = [azurerm_postgresql_flexible_server_configuration.log_min_duration_statement]
 }

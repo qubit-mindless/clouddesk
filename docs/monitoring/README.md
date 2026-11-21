@@ -16,7 +16,9 @@ W=$(az monitor log-analytics workspace show -g rg-clouddesk -n log-clouddesk --q
 az monitor log-analytics query -w "$W" --analytics-query "<zapytanie>" -o table
 ```
 
-**Co nie trafia do logów:** hasła i `DATABASE_URL` (backend ich nie wypisuje, a hasło bazy jest tylko w Key Vault), treść zgłoszeń. Wolne zapytania logujemy z samym SQL-em; wartości parametrów (`$1`, `$2`…) są wyłączone (`log_parameter_max_length = 0`).
+**Co nie trafia do logów:** hasła i `DATABASE_URL` (backend ich nie wypisuje, a hasło bazy jest tylko w Key Vault). Wolne zapytania logujemy z samym SQL-em; wartości parametrów (`$1`, `$2`…) są wyłączone (`log_parameter_max_length = 0`), więc treść zgłoszeń tam nie trafia.
+
+**Wyjątek:** przy naruszeniu ograniczenia Postgres dopisuje do błędu linię `DETAIL` z wartością, np. `Key (email)=(…) already exists` przy zajętym e-mailu. Takie wpisy widzi tylko zespół (te same role co do bazy), a workspace trzyma je 30 dni.
 
 ## Zapytania
 
@@ -34,8 +36,9 @@ Access log uvicorna ma postać `INFO:     100.100.0.20:54980 - "GET /api/tickets
 ```kusto
 ContainerAppConsoleLogs_CL
 | where TimeGenerated > ago(24h)
-| where ContainerAppName_s == "ca-clouddesk-backend" and Log_s has "HTTP/1.1\""
+| where ContainerAppName_s == "ca-clouddesk-backend"
 | parse Log_s with * '- "' Method ' ' Path ' HTTP/' * '" ' Status:int ' ' *
+| where isnotnull(Status)
 | extend Class = strcat(tostring(Status / 100), "xx")
 | summarize Requests = count() by bin(TimeGenerated, 15m), Class
 | render columnchart
