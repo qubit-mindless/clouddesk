@@ -262,6 +262,8 @@ jobs:
   e2e-tests:
     name: Testy API i E2E (na wdrożonej aplikacji)
     # Po deploy-web: aplikacja odpowiada już nowym commitem (sprawdzone wyżej). Testy idą z zewnątrz, jak użytkownik.
+    # Świadomie: czerwony wynik nie cofa wdrożenia (nowa wersja już działa) – sygnalizuje błąd do naprawy kolejnym
+    # commitem. Testy są w tym samym przebiegu, więc kolejny deploy czeka na ich koniec (concurrency, maks. 20 min).
     needs: deploy-web
     runs-on: ubuntu-latest
     # Środowisko „azure” tylko po sekrety konta testowego (TEST_USER_*). Bez id-token: job nie loguje się do Azure.
@@ -299,28 +301,35 @@ jobs:
         run: npx jest --ci
 
       # E2E uruchamiamy także po nieudanych testach API – wtedy raport pokazuje pełny obraz, a nie tylko pierwszy błąd.
+      # --trace off: repozytorium jest publiczne, a artefakty może pobrać każdy zalogowany użytkownik GitHuba. Trace
+      # zapisuje wpisane wartości (np. hasło w formularzu logowania) i treść żądań – GitHub maskuje sekrety tylko
+      # w logach, nie w artefaktach. Zrzuty i wideo zostają (pole hasła jest na nich zamaskowane).
       - name: Testy E2E (Playwright)
         id: e2e
         if: ${{ !cancelled() && steps.api.outcome != 'skipped' }}
-        run: npx playwright test
+        run: npx playwright test --trace off
 
       # Raport HTML zawsze (także przy sukcesie – dowód przebiegu); zrzuty, wideo i trace tylko przy błędach.
       - name: Raport Playwright (artefakt)
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-report-${{ env.SHA }}
+          # run_attempt: ponowne uruchomienie joba nie koliduje z artefaktem z poprzedniej próby.
+          name: playwright-report-${{ env.SHA }}-${{ github.run_attempt }}
           path: tests/playwright-report/
           retention-days: 14
           if-no-files-found: warn
 
-      - name: Zrzuty, wideo i trace z nieudanych testów (artefakt)
-        if: ${{ failure() && steps.e2e.outcome == 'failure' }}
+      # Zrzuty i wideo powstają tylko dla nieudanych prób – także wtedy, gdy test przeszedł dopiero przy powtórce
+      # (niestabilny test), dlatego warunkiem jest istnienie plików, a nie wynik kroku.
+      - name: Zrzuty i wideo z nieudanych testów (artefakt)
+        if: ${{ !cancelled() && steps.e2e.outcome != 'skipped' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-failures-${{ env.SHA }}
+          name: playwright-failures-${{ env.SHA }}-${{ github.run_attempt }}
           path: tests/test-results/
           retention-days: 14
+          if-no-files-found: ignore
 
       - name: Podsumowanie
         if: ${{ !cancelled() }}
@@ -329,5 +338,5 @@ jobs:
             echo "### Testy na \`$LIVE_APP_URL\`"
             echo "- API (Jest): **${{ steps.api.outcome }}**"
             echo "- E2E (Playwright): **${{ steps.e2e.outcome }}**"
-            echo "Raport HTML: artefakt \`playwright-report-$SHA\` (sekcja *Artifacts* na dole tej strony)."
+            echo "Raport HTML: artefakt \`playwright-report-$SHA-$GITHUB_RUN_ATTEMPT\` (sekcja *Artifacts* na dole tej strony)."
           } >> "$GITHUB_STEP_SUMMARY"
