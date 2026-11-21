@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import ConfigDict, StringConstraints
 
@@ -33,3 +33,7 @@ class AssistantConversation(CamelModel):
     items: list[AssistantMessageOut]
     enabled: bool
     remaining: int
+    # Pytać może tylko osoba zgłaszająca, dopóki zgłoszenie nie jest rozwiązane. Technik i administrator
+    # widzą rozmowę do odczytu (not_reporter); po rozwiązaniu zgłoszenia jest zamknięta (resolved).
+    can_ask: bool
+    read_only_reason: Literal["not_reporter", "resolved"] | None

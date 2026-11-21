@@ -1,3 +1,4 @@
+import re
 import secrets
 import threading
 from collections.abc import Iterator
@@ -7,29 +8,37 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models import AiMessage, AiMessageRole, Ticket, User
+from app.models import AiMessage, AiMessageRole, Ticket, TicketStatus, User
 from app.repositories.ai_message_repository import AiMessageRepository
 from app.repositories.ticket_repository import TicketRepository
 from app.schemas.assistant import AssistantConversation, AssistantMessageOut
 from app.services.ai_client import AiClient, Message
 from app.services.errors import (
     AssistantBusyError,
+    AssistantClosedError,
     AssistantUnavailableError,
+    ForbiddenError,
     LimitExceededError,
     NotFoundError,
 )
 from app.services.ticket_service import TicketService, login_of
 
-SUGGEST_PROMPT = "Zaproponuj rozwiązanie problemu z tego zgłoszenia."
+SUGGEST_PROMPT = "Podpowiedz, co mogę sprawdzić samodzielnie, zanim technik zajmie się zgłoszeniem."
 # Ile ostatnich wiadomości rozmowy idzie do modelu jako kontekst (koszt i długość promptu).
 HISTORY_FOR_MODEL = 10
+CLOSED_STATUSES = (TicketStatus.RESOLVED, TicketStatus.CLOSED)
+CLOSED_MESSAGE = "Zgłoszenie jest rozwiązane – rozmowa z asystentem AI jest zamknięta."
 MAX_DESCRIPTION_IN_PROMPT = 3000
 
 SYSTEM_PROMPT = """Jesteś asystentem pierwszej linii wsparcia IT w systemie zgłoszeń CloudDesk.
-Pomagasz zgłaszającemu i technikowi rozwiązać problem opisany w zgłoszeniu.
+Rozmawiasz z osobą, która zgłosiła problem: pomagasz jej sprawdzić proste rzeczy samodzielnie, zanim
+(albo równolegle z tym, jak) zajmie się nim technik. Technik przeczyta tę rozmowę, więc zbieraj przy okazji
+informacje, które mu się przydadzą (co już sprawdzono, komunikaty błędów, od kiedy problem występuje).
 
 Zasady:
 - Odpowiadaj po polsku, rzeczowo, najwyżej ok. 200 słów. Podawaj konkretne kroki do sprawdzenia, po kolei.
+- Pisz zwykłym tekstem, bez Markdown (bez **, #, ``` i tabel) – aplikacja go nie formatuje.
+  Kroki numeruj „1.”, „2.” w osobnych liniach.
 - Jeśli problem wymaga uprawnień administratora, dostępu do serwerów albo dotyczy wielu osób,
   napisz wprost, że zajmie się tym technik, i co warto mu przekazać.
 - Nigdy nie proś o hasła, kody MFA ani inne dane logowania i nie podawaj ich.
@@ -78,21 +87,37 @@ class AssistantService:
         self.messages = AiMessageRepository(db)
         self.limit = get_settings().ai_max_answers_per_ticket
 
-    def _conversation(self, ticket_id: int) -> AssistantConversation:
-        items = self.messages.list_for_ticket(ticket_id)
+    def _read_only_reason(self, ticket: Ticket) -> str | None:
+        if ticket.reporter_id != self.actor.id:
+            return "not_reporter"
+        if ticket.status in CLOSED_STATUSES:
+            return "resolved"
+        return None
+
+    def _conversation(self, ticket: Ticket) -> AssistantConversation:
+        items = self.messages.list_for_ticket(ticket.id)
         answers = sum(1 for m in items if m.role == AiMessageRole.ASSISTANT)
+        reason = self._read_only_reason(ticket)
         return AssistantConversation(
             items=[_message_dto(m) for m in items],
             enabled=self.client.enabled,
             remaining=max(self.limit - answers, 0),
+            can_ask=reason is None,
+            read_only_reason=reason,
         )
 
     def get(self, ticket_id: int) -> AssistantConversation:
-        self.tickets.visible(ticket_id)
-        return self._conversation(ticket_id)
+        return self._conversation(self.tickets.visible(ticket_id))
 
     def _check_can_ask(self, ticket_id: int) -> Ticket:
         ticket = self.tickets.visible(ticket_id)
+        reason = self._read_only_reason(ticket)
+        if reason == "not_reporter":
+            raise ForbiddenError(
+                "Do asystenta AI pisze tylko osoba zgłaszająca – pozostali widzą rozmowę do odczytu."
+            )
+        if reason == "resolved":
+            raise AssistantClosedError(CLOSED_MESSAGE)
         if not self.client.enabled:
             raise AssistantUnavailableError("Asystent AI nie jest skonfigurowany na tym serwerze.")
         if self.messages.count_answers(ticket_id) >= self.limit:
@@ -117,12 +142,17 @@ class AssistantService:
         # Kończymy transakcję odczytu przed wywołaniem AI (do 30 s): połączenie wraca do puli,
         # więc wolna usługa AI nie zablokuje bazy dla reszty API.
         self.db.rollback()
-        answer = self.client.complete(prompt)
+        answer = plain_text(self.client.complete(prompt))
 
-        # Zapis w nowej transakcji z blokadą zgłoszenia: limit liczony jeszcze raz (inna replika mogła
-        # w tym czasie dopisać odpowiedź), a usunięte w międzyczasie zgłoszenie daje 404 zamiast błędu FK.
-        if self.ticket_rows.lock(ticket_id) is None:
+        # Zapis w nowej transakcji z blokadą zgłoszenia: status i limit sprawdzane jeszcze raz (technik mógł
+        # w tym czasie rozwiązać zgłoszenie, inna replika – dopisać odpowiedź), a usunięte w międzyczasie
+        # zgłoszenie daje 404 zamiast błędu FK.
+        locked = self.ticket_rows.lock(ticket_id)
+        if locked is None:
             raise NotFoundError(f"Nie znaleziono zgłoszenia #{ticket_id}.")
+        if locked.status in CLOSED_STATUSES:
+            self.db.rollback()
+            raise AssistantClosedError(CLOSED_MESSAGE)
         if self.messages.count_answers(ticket_id) >= self.limit:
             self.db.rollback()
             raise LimitExceededError("Wyczerpano limit pytań do asystenta dla tego zgłoszenia.")
@@ -145,7 +175,16 @@ class AssistantService:
             )
         )
         self.db.commit()
-        return self._conversation(ticket_id)
+        return self._conversation(ticket)
+
+
+_MD_EMPHASIS = re.compile(r"(\*\*|__)(.+?)\1", re.DOTALL)
+_MD_HEADING = re.compile(r"^#{1,6}\s+", re.MULTILINE)
+
+
+def plain_text(answer: str) -> str:
+    """Panel pokazuje zwykły tekst – zdejmujemy pogrubienia i nagłówki Markdown, gdyby model je dodał."""
+    return _MD_HEADING.sub("", _MD_EMPHASIS.sub(r"\2", answer)).strip()
 
 
 def build_prompt(ticket: Ticket, history: list[AiMessage], question: str) -> list[Message]:

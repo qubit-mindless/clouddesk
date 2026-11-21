@@ -37,10 +37,13 @@ export interface AssistantMessage {
 }
 
 // Odpowiedź GET i POST /tickets/{id}/assistant: cała rozmowa, flaga konfiguracji i pozostały limit pytań.
+// Pytać może tylko zgłaszający, dopóki zgłoszenie nie jest rozwiązane; technik widzi rozmowę do odczytu.
 export interface AssistantConversation {
   items: AssistantMessage[]
   enabled: boolean
   remaining: number
+  canAsk: boolean
+  readOnlyReason: 'not_reporter' | 'resolved' | null
 }
 
 export type UserRole = 'REPORTER' | 'TECHNICIAN' | 'ADMIN'

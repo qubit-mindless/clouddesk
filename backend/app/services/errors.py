@@ -29,3 +29,7 @@ class AssistantRefusedError(Exception):
 
 class AssistantBusyError(Exception):
     """Asystent już odpowiada na pytanie w tym zgłoszeniu – router zamienia na 409."""
+
+
+class AssistantClosedError(Exception):
+    """Zgłoszenie rozwiązane lub zamknięte – rozmowa z asystentem jest zamknięta; router zamienia na 409."""

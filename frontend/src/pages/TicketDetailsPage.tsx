@@ -68,7 +68,7 @@ export function TicketDetailsPage() {
       )}
       {error !== undefined && !notFound && <ErrorState error={error} onRetry={reload} />}
       {ticket && <TicketDetails ticket={ticket} />}
-      {ticket && <AssistantPanel ticketId={ticket.id} />}
+      {ticket && <AssistantPanel ticketId={ticket.id} reporter={ticket.reporter} />}
     </>
   )
 }
