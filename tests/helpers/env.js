@@ -3,6 +3,10 @@
 //   TEST_USER_EMAIL     konto do testów (TECHNICIAN – może też usuwać to, co test utworzy)
 //   TEST_USER_PASSWORD  hasło tego konta (lokalnie: DEMO_PASSWORD z backend/.env; w CI: sekret środowiska)
 
+// W CI brak adresu to błąd konfiguracji – nie udajemy, że aplikacja jest na localhost.
+if (process.env.CI && !process.env.LIVE_APP_URL) {
+  throw new Error('Brak LIVE_APP_URL – w CI testy muszą znać adres wdrożonej aplikacji.')
+}
 const LIVE_APP_URL = (process.env.LIVE_APP_URL || 'http://localhost:5173').replace(/\/+$/, '')
 
 function testUser() {

@@ -7,6 +7,9 @@ async function authHeader() {
   if (res.status !== 200) {
     throw new Error(`Logowanie konta testowego nie powiodło się: HTTP ${res.status}`)
   }
+  if (typeof res.body.accessToken !== 'string' || !res.body.accessToken) {
+    throw new Error('Odpowiedź logowania nie zawiera pola accessToken (kontrakt API #94).')
+  }
   return { Authorization: `Bearer ${res.body.accessToken}` }
 }
 
