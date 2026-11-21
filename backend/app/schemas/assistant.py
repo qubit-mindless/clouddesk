@@ -23,6 +23,8 @@ class AssistantAsk(CamelModel):
 class AssistantMessageOut(CamelModel):
     id: int
     role: AiMessageRole
+    # Login autora pytania; None dla odpowiedzi asystenta.
+    author: str | None
     content: str
     created_at: datetime
 

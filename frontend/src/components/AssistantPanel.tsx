@@ -28,8 +28,11 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
       setUpdated({ ticketId, value })
       if (message !== undefined) setText('')
     } catch (e) {
-      // Wpisany tekst zostaje, żeby można było ponowić pytanie.
+      // Wpisany tekst zostaje, żeby można było ponowić pytanie. Rozmowę i limit odświeżamy – ktoś inny
+      // mógł w tym czasie dopisać pytanie albo wyczerpać limit (429).
       setError(errorMessage(e))
+      setUpdated(undefined)
+      reload()
     } finally {
       setSending(false)
     }
@@ -44,7 +47,8 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
     void send(message)
   }
 
-  const tooLong = text.length > MAX_LENGTH
+  // Jak backend: liczy się tekst bez białych znaków na początku i końcu.
+  const tooLong = text.trim().length > MAX_LENGTH
   const noQuota = conversation !== undefined && conversation.remaining <= 0
 
   return (
@@ -63,7 +67,7 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
             {conversation.items.map((message) => (
               <div key={message.id} className={`assistant-message assistant-${message.role}`} data-testid="assistant-message" data-role={message.role}>
                 <div className="assistant-meta">
-                  {message.role === 'user' ? 'Ty' : 'Asystent'} · {formatDateTime(message.createdAt)}
+                  {message.role === 'assistant' ? 'Asystent' : (message.author ?? 'Użytkownik')} · {formatDateTime(message.createdAt)}
                 </div>
                 <p>{message.content}</p>
               </div>
@@ -107,7 +111,7 @@ export function AssistantPanel({ ticketId }: { ticketId: number }) {
               />
               <div className="assistant-form-footer">
                 <span className={tooLong ? 'field-error' : 'assistant-counter'}>
-                  {text.length}/{MAX_LENGTH}
+                  {text.trim().length}/{MAX_LENGTH}
                 </span>
                 <button type="submit" className="primary" disabled={sending || tooLong} data-testid="assistant-send">
                   {sending ? 'Wysyłanie…' : 'Wyślij'}

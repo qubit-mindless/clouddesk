@@ -118,7 +118,7 @@ class AzureOpenAIClient:
                     "Asystent nie może odpowiedzieć na tę wiadomość. Sformułuj ją inaczej."
                 )
             content = (choice["message"]["content"] or "").strip()
-        except (KeyError, IndexError, TypeError, ValueError) as exc:
+        except (AttributeError, KeyError, IndexError, TypeError, ValueError) as exc:
             log.warning("Azure OpenAI: nieoczekiwany format odpowiedzi")
             raise AssistantUnavailableError("Asystent AI jest chwilowo niedostępny.") from exc
         if not content:
@@ -128,8 +128,9 @@ class AzureOpenAIClient:
 
 def _is_content_filter(res: httpx.Response) -> bool:
     try:
-        return res.json().get("error", {}).get("code") == "content_filter"
-    except ValueError:
+        error = res.json().get("error")
+        return isinstance(error, dict) and error.get("code") == "content_filter"
+    except (AttributeError, ValueError):
         return False
 
 

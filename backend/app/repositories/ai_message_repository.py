@@ -1,5 +1,5 @@
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import AiMessage, AiMessageRole
 
@@ -14,6 +14,7 @@ class AiMessageRepository:
         return list(
             self.db.scalars(
                 select(AiMessage)
+                .options(joinedload(AiMessage.author))
                 .where(AiMessage.ticket_id == ticket_id)
                 .order_by(AiMessage.created_at, AiMessage.id)
             )

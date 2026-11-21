@@ -30,6 +30,8 @@ export interface TicketQuery {
 export interface AssistantMessage {
   id: number
   role: 'user' | 'assistant'
+  // Login autora pytania; null dla odpowiedzi asystenta.
+  author: string | null
   content: string
   createdAt: string
 }
