@@ -17,7 +17,7 @@ image="$(az containerapp job show -g "$rg" -n "$job" --query 'properties.templat
 # nadpisanie polecenia idzie przez API. Lista containers zastępuje szablon, więc powtarzamy env z sekretem.
 body="$(cat <<JSON
 {"containers":[{"name":"migrate","image":"$image","command":["sh","-c","$cmd && alembic current"],
- "env":[{"name":"DATABASE_URL","secretRef":"database-url"}],"resources":{"cpu":0.25,"memory":"0.5Gi"}}]}
+ "env":[{"name":"DATABASE_URL","secretRef":"database-url"},{"name":"DEMO_PASSWORD","secretRef":"demo-password"}],"resources":{"cpu":0.25,"memory":"0.5Gi"}}]}
 JSON
 )"
 execution="$(az rest --method post --url "https://management.azure.com${job_id}/start?api-version=2024-03-01" \

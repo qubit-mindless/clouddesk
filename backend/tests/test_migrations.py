@@ -77,6 +77,7 @@ def test_migrations_on_empty_db(engine):
         added = seed(db)
         assert added == {
             "users": 11,
+            "accounts_activated": 0,
             "tickets": 8,
             "ticket_history": 9,
             "comments": 3,
@@ -84,3 +85,34 @@ def test_migrations_on_empty_db(engine):
             "ai_messages": 3,
         }
         assert not any(seed(db).values())
+
+
+def test_seed_sets_demo_password_once(monkeypatch, tmp_path):
+    """Bez DEMO_PASSWORD konta z seeda nie logują się; z nim – logują; zmiana hasła trafia do kont."""
+    import secrets
+
+    from app.core import config
+    from app.services.auth_service import AuthService
+
+    # Hasła losowane w teście – w repo nie ma stałych, które skaner sekretów wziąłby za prawdziwe.
+    first, second = secrets.token_urlsafe(12), secrets.token_urlsafe(12)
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'seed.db'}")
+    _alembic(engine, "upgrade", "head")
+    monkeypatch.setattr(config.get_settings(), "demo_password", None)
+    with Session(engine) as db:
+        seed(db)
+        assert AuthService(db).login("admin@clouddesk.example", first) is None
+
+        monkeypatch.setattr(config.get_settings(), "demo_password", first)
+        assert seed(db)["accounts_activated"] == 11
+        token = AuthService(db).login("admin@clouddesk.example", first)
+        assert token is not None and token.user.role == "ADMIN"
+
+        assert seed(db)["accounts_activated"] == 0  # to samo hasło – bez zmian
+
+        monkeypatch.setattr(config.get_settings(), "demo_password", second)
+        assert seed(db)["accounts_activated"] == 11
+        assert AuthService(db).login("admin@clouddesk.example", first) is None
+        assert AuthService(db).login("admin@clouddesk.example", second) is not None
+    engine.dispose()

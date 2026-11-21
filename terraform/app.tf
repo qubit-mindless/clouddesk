@@ -78,6 +78,39 @@ resource "azurerm_key_vault_secret" "database_url" {
   depends_on = [azurerm_role_assignment.kv_deployer]
 }
 
+# Klucz podpisu tokenów JWT (HMAC) – generowany raz, trzymany tylko w Key Vault i stanie Terraform.
+resource "random_password" "jwt_secret" {
+  length  = 64
+  special = false
+}
+
+resource "azurerm_key_vault_secret" "jwt_secret" {
+  name         = "jwt-secret"
+  value        = random_password.jwt_secret.result
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "Klucz HMAC do podpisu JWT backendu"
+
+  depends_on = [azurerm_role_assignment.kv_deployer]
+}
+
+# Wspólne hasło kont demo (ustawia je seed). Bez znaków specjalnych, bo jest wpisywane ręcznie w formularzu logowania.
+resource "random_password" "demo_password" {
+  length      = 20
+  special     = false
+  min_upper   = 2
+  min_lower   = 2
+  min_numeric = 2
+}
+
+resource "azurerm_key_vault_secret" "demo_password" {
+  name         = "demo-password"
+  value        = random_password.demo_password.result
+  key_vault_id = azurerm_key_vault.main.id
+  content_type = "Hasło kont demo (seed)"
+
+  depends_on = [azurerm_role_assignment.kv_deployer]
+}
+
 resource "azurerm_container_app" "backend" {
   name                         = "ca-${var.prefix}-backend"
   container_app_environment_id = azurerm_container_app_environment.main.id
@@ -94,6 +127,12 @@ resource "azurerm_container_app" "backend" {
   secret {
     name                = "database-url"
     key_vault_secret_id = azurerm_key_vault_secret.database_url.versionless_id
+    identity            = azurerm_user_assigned_identity.backend.id
+  }
+
+  secret {
+    name                = "jwt-secret"
+    key_vault_secret_id = azurerm_key_vault_secret.jwt_secret.versionless_id
     identity            = azurerm_user_assigned_identity.backend.id
   }
 
@@ -126,6 +165,10 @@ resource "azurerm_container_app" "backend" {
       env {
         name        = "DATABASE_URL"
         secret_name = "database-url"
+      }
+      env {
+        name        = "JWT_SECRET"
+        secret_name = "jwt-secret"
       }
       env {
         name  = "CORS_ORIGINS"

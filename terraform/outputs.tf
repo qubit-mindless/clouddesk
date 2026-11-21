@@ -52,3 +52,8 @@ output "backup_storage_account" {
   description = "Konto Storage z kopiami bazy (udział db-backups) – scripts/azure-db-backup.sh."
   value       = azurerm_storage_account.backup.name
 }
+
+output "demo_password_hint" {
+  description = "Jak odczytać hasło kont demo (samo hasło nie jest wyświetlane)"
+  value       = "az keyvault secret show --vault-name ${azurerm_key_vault.main.name} --name demo-password --query value -o tsv"
+}

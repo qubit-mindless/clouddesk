@@ -14,8 +14,13 @@ class Settings(BaseSettings):
     git_sha: str = "local"
     database_url: str
     cors_origins: str = "http://localhost:5173"
-    # Konto, na które zapisujemy zgłoszenia i zmiany, dopóki nie ma logowania (#14).
-    demo_user_email: str = "demo@clouddesk.example"
+    # Klucz HMAC do podpisywania tokenów JWT. W Azure z Key Vault (sekret jwt-secret);
+    # poza APP_ENV=local wymagany.
+    # Lokalnie może zostać pusty: wtedy klucz jest losowany przy starcie (tokeny tracą ważność po restarcie).
+    jwt_secret: str | None = None
+    jwt_ttl_minutes: int = 60
+    # Hasło kont demo ustawiane przez seed (python -m app.db.seed). Puste = konta bez możliwości logowania.
+    demo_password: str | None = None
 
     @property
     def cors_origin_list(self) -> list[str]:

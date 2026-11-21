@@ -29,6 +29,13 @@ resource "azurerm_container_app_job" "migrate" {
     identity            = azurerm_user_assigned_identity.backend.id
   }
 
+  # Hasło kont demo dla seeda (python -m app.db.seed, uruchamianego z --seed).
+  secret {
+    name                = "demo-password"
+    key_vault_secret_id = azurerm_key_vault_secret.demo_password.versionless_id
+    identity            = azurerm_user_assigned_identity.backend.id
+  }
+
   template {
     container {
       name    = "migrate"
@@ -40,6 +47,10 @@ resource "azurerm_container_app_job" "migrate" {
       env {
         name        = "DATABASE_URL"
         secret_name = "database-url"
+      }
+      env {
+        name        = "DEMO_PASSWORD"
+        secret_name = "demo-password"
       }
     }
   }
