@@ -90,3 +90,4 @@ Jeśli jesteś Claude'em pomagającym członkowi zespołu:
 4. Jeśli użytkownik ma PDF-y z zajęć, przeczytaj ten dla bieżącego etapu, zanim zaczniesz. **Nie kopiuj ich treści do repozytorium:** repo jest publiczne, a materiały dydaktyczne są własnością ich autora.
 5. Pracuj zgodnie z `CLAUDE.md` i sekcją 4: gałąź, PR i review innej osoby. Nigdy nie wysyłaj zmian bezpośrednio do main.
 6. Przy każdym zadaniu przypominaj o screenach do sprawozdania z bieżącego bloku.
+7. Przed każdym PR uruchom `/code-review` na swoim diffie i popraw to, co znajdzie. Jeśli zmiana dotyczy bezpieczeństwa, uruchom też `/security-review`: logowanie, sekrety, dane od użytkownika, NSG/Nginx/HTTPS, workflowy, Terraform, zależności. Szczegóły są w `CLAUDE.md` („Przegląd przed PR”).
