@@ -14,6 +14,7 @@ Region: **polandcentral** (polityka subskrypcji dopuszcza też swedencentral, ge
 | `app.tf` | środowisko Container Apps (tylko wewnętrzny LB, profil Consumption) w `snet-app`, prywatna strefa DNS, Log Analytics, backend z tożsamością czytającą `DATABASE_URL` z Key Vault |
 | `migrations.tf` | zadanie Container Apps `caj-clouddesk-migrate` uruchamiające migracje Alembic (ręcznie, po wdrożeniu nowego obrazu) |
 | `backup.tf` | codzienna kopia bazy (`pg_dump`, zadanie `caj-clouddesk-backup`, 02:00 UTC) do udziału Azure Files w osobnej grupie `rg-clouddesk-backup` z blokadą usunięcia |
+| `monitoring.tf` | logi i metryki PostgreSQL do Log Analytics `log-clouddesk` (diagnostic setting), logowanie zapytań wolniejszych niż 500 ms bez wartości parametrów; zapytania KQL w [`docs/monitoring/`](../docs/monitoring/README.md) |
 | `versions.tf` | provider `azurerm`, stan zdalny w Azure Storage |
 
 Infrastruktura obejmuje już wszystkie trzy warstwy (WEB, APP, DATA). W kolejnych etapach: HTTPS, monitoring i usługi zarządzane (Azure OpenAI, Blob Storage, e-mail).
