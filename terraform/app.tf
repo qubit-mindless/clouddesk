@@ -131,6 +131,43 @@ resource "azurerm_container_app" "backend" {
         name  = "CORS_ORIGINS"
         value = "http://${azurerm_public_ip.web.fqdn},https://${azurerm_public_ip.web.fqdn}"
       }
+
+      # Sondy zdrowia. Podział:
+      # - startup i liveness na /health/live (bez bazy): restart kontenera tylko wtedy, gdy nie odpowiada sam
+      #   proces. Awaria PostgreSQL nie powoduje pętli restartów, bo restart i tak by jej nie naprawił.
+      # - readiness na /health (z pingiem do bazy, 503 przy awarii): replika bez bazy wypada z ruchu
+      #   i wraca do niego sama, gdy baza znowu odpowiada.
+      # min_replicas = 0, więc każdy start to zimny start (~15 s) – startup daje na to do ~35 s,
+      # a liveness i readiness zaczynają działać dopiero po udanym startup.
+      startup_probe {
+        transport               = "HTTP"
+        port                    = var.backend_port
+        path                    = "/health/live"
+        initial_delay           = 3
+        interval_seconds        = 3
+        timeout                 = 2
+        failure_count_threshold = 10
+      }
+
+      liveness_probe {
+        transport               = "HTTP"
+        port                    = var.backend_port
+        path                    = "/health/live"
+        initial_delay           = 1
+        interval_seconds        = 30
+        timeout                 = 5
+        failure_count_threshold = 3
+      }
+
+      readiness_probe {
+        transport               = "HTTP"
+        port                    = var.backend_port
+        path                    = "/health"
+        interval_seconds        = 10
+        timeout                 = 5
+        failure_count_threshold = 3
+        success_count_threshold = 1
+      }
     }
   }
 

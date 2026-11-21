@@ -51,6 +51,23 @@ def test_health_commit_from_env(monkeypatch):
 
 
 @pytest.mark.parametrize("db_up", [True, False])
+def test_liveness_ignores_database(monkeypatch, db_up):
+    def ping():
+        if not db_up:
+            raise RuntimeError("db down")
+
+    monkeypatch.setattr(session, "ping_db", ping)
+    res = client.get("/health/live")
+    assert res.status_code == 200
+    assert res.json() == {"status": "UP"}
+
+
+def test_liveness_not_exposed_under_api():
+    # Nginx przekazuje do backendu tylko /api/... – sonda liveness ma zostać wewnętrzna.
+    assert client.get("/api/health/live").status_code == 404
+
+
+@pytest.mark.parametrize("db_up", [True, False])
 def test_api_health_matches_health(monkeypatch, db_up):
     def ping():
         if not db_up:
