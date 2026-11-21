@@ -1,0 +1,15 @@
+{
+  "name": "clouddesk-tests",
+  "private": true,
+  "description": "Testy na działającej aplikacji: kontrakt API (Jest + Supertest) i E2E.",
+  "scripts": {
+    "test:api": "jest --runInBand api.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "jest": "^30.0.0",
+    "supertest": "^7.1.0"
+  }
+}
