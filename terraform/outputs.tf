@@ -57,3 +57,8 @@ output "demo_password_hint" {
   description = "Jak odczytać hasło kont demo (samo hasło nie jest wyświetlane)"
   value       = "az keyvault secret show --vault-name ${azurerm_key_vault.main.name} --name demo-password --query value -o tsv"
 }
+
+output "dashboard_url" {
+  description = "Dashboard monitoringu w portalu Azure"
+  value       = "https://portal.azure.com/#dashboard/arm${azurerm_portal_dashboard.monitoring.id}"
+}
