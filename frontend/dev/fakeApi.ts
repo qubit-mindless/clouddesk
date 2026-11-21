@@ -49,6 +49,20 @@ const DELAY_MS = 400
 
 type FieldError = { loc: string[]; msg: string; type: string }
 
+interface AssistantMessage {
+  id: number
+  role: 'user' | 'assistant'
+  author: string | null
+  content: string
+  createdAt: string
+}
+
+const ASSISTANT_LIMIT = 10
+const SUGGEST_PROMPT = 'Zaproponuj rozwiązanie problemu z tego zgłoszenia.'
+const FAKE_ANSWER =
+  'To odpowiedź udawanego asystenta (VITE_FAKE_API).\n\n1. Uruchom ponownie urządzenie lub aplikację.\n' +
+  '2. Sprawdź połączenie z siecią firmową.\n3. Jeśli problem wraca, technik przejmie zgłoszenie.'
+
 function validate(body: Record<string, unknown>, partial: boolean): FieldError[] {
   const errors: FieldError[] = []
   const err = (field: string, msg: string) => errors.push({ loc: ['body', field], msg, type: 'value_error' })
@@ -89,6 +103,8 @@ export function fakeApi(): Plugin {
   const mocksUrl = new URL('../src/mocks/tickets.json', import.meta.url)
   const tickets: Ticket[] = JSON.parse(readFileSync(mocksUrl, 'utf8'))
   let nextId = Math.max(...tickets.map((t) => t.id)) + 1
+  const conversations = new Map<number, AssistantMessage[]>()
+  let nextMessageId = 1
   const sessions = new Map<string, User>()
 
   const send = (res: ServerResponse, status: number, body?: unknown) => {
@@ -134,6 +150,36 @@ export function fakeApi(): Plugin {
         const staff = actor.role !== 'REPORTER'
 
         if (url.pathname === '/auth/me' && req.method === 'GET') return send(res, 200, actor)
+
+        // Asystent AI: /tickets/{id}/assistant – ten sam kształt odpowiedzi co backend (#97).
+        const assistant = url.pathname.match(/^\/tickets\/(\d+)\/assistant\/?$/)
+        if (assistant) {
+          const ticketId = Number(assistant[1])
+          // Jak backend: zgłaszający widzi tylko swoje zgłoszenia, cudze wyglądają jak nieistniejące.
+          const owner = tickets.find((t) => t.id === ticketId)
+          if (!owner || (!staff && owner.reporter !== actor.login)) return send(res, 404, { detail: 'Ticket not found' })
+          const items = conversations.get(ticketId) ?? []
+          const answers = () => items.filter((m) => m.role === 'assistant').length
+          const conversation = () => ({ items, enabled: true, remaining: Math.max(ASSISTANT_LIMIT - answers(), 0) })
+          if (req.method === 'GET') return send(res, 200, conversation())
+          if (req.method !== 'POST') return send(res, 405, { detail: 'Method Not Allowed' })
+
+          const body = await readJson(req)
+          if (!body) return send(res, 400, { detail: 'Invalid JSON' })
+          // Jak backend: brak pola albo null = prośba o pierwszą propozycję rozwiązania.
+          const message = typeof body.message === 'string' ? body.message.trim() : undefined
+          if (body.message != null && (!message || message.length > 1000)) {
+            return send(res, 422, { detail: [{ loc: ['body', 'message'], msg: 'Wiadomość musi mieć 1–1000 znaków', type: 'value_error' }] })
+          }
+          if (answers() >= ASSISTANT_LIMIT) {
+            return send(res, 429, { detail: 'Wyczerpano limit pytań do asystenta dla tego zgłoszenia.' })
+          }
+          const createdAt = new Date().toISOString()
+          items.push({ id: nextMessageId++, role: 'user', author: actor.login, content: message ?? SUGGEST_PROMPT, createdAt })
+          items.push({ id: nextMessageId++, role: 'assistant', author: null, content: FAKE_ANSWER, createdAt })
+          conversations.set(ticketId, items)
+          return send(res, 200, conversation())
+        }
 
         const match = url.pathname.match(/^\/tickets(?:\/(\d+))?\/?$/)
         if (!match) return send(res, 404, { detail: 'Not Found' })

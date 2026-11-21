@@ -6,3 +6,4 @@ psycopg[binary]==3.2.*
 alembic==1.20.*
 pyjwt==2.15.*
 argon2-cffi==25.1.*
+httpx==0.28.*

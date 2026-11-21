@@ -139,6 +139,25 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 .toast-success { background: var(--green-bg); color: var(--green-fg); backdrop-filter: blur(8px); }
 .toast-error { background: var(--red-bg); color: var(--red-fg); backdrop-filter: blur(8px); }
 
+/* Panel asystenta AI */
+.assistant { margin-top: 16px; padding: 20px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.assistant h3 { margin-top: 0; }
+.assistant-info, .assistant-empty p { color: var(--text-muted); }
+.assistant-messages { display: flex; flex-direction: column; gap: 10px; }
+.assistant-message { max-width: 85%; padding: 10px 14px; border-radius: 8px; background: var(--surface-muted); }
+.assistant-message p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.assistant-user { align-self: flex-end; background: var(--blue-bg); color: var(--blue-fg); }
+.assistant-meta { margin-bottom: 4px; font-size: 0.8rem; color: var(--text-muted); }
+.assistant-user .assistant-meta { color: inherit; opacity: 0.8; }
+.assistant-remaining { margin: 12px 0 0; font-size: 0.85rem; color: var(--text-muted); }
+.assistant-form { display: grid; gap: 6px; margin-top: 12px; }
+.assistant-form label { font-size: 0.85rem; color: var(--text-muted); }
+.assistant-form textarea { padding: 8px; border: 1px solid var(--border-strong); border-radius: 6px; font: inherit; color: var(--text); background: var(--surface); resize: vertical; }
+.assistant-form [aria-invalid='true'] { border-color: var(--danger); }
+.assistant-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.assistant-form .primary { margin-left: 0; }
+.assistant-counter { font-size: 0.85rem; color: var(--text-muted); }
+
 /* Logowanie (#95) */
 .user-menu { display: flex; align-items: center; gap: 12px; }
 .user-role { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--blue-bg); color: var(--blue-fg); font-size: 0.8rem; font-weight: 600; }

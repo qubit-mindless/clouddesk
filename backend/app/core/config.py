@@ -19,6 +19,17 @@ class Settings(BaseSettings):
     # Lokalnie może zostać pusty: wtedy klucz jest losowany przy starcie (tokeny tracą ważność po restarcie).
     jwt_secret: str | None = None
     jwt_ttl_minutes: int = 60
+    # Asystent AI (Azure OpenAI). Bez endpointu jest wyłączony: GET zwraca enabled=false, POST → 503.
+    azure_openai_endpoint: str | None = None
+    azure_openai_deployment: str = "gpt-4o-mini"
+    azure_openai_api_version: str = "2024-10-21"
+    # Klucz tylko lokalnie/awaryjnie; w Azure tożsamość zarządzana (AZURE_CLIENT_ID = jej client ID).
+    azure_openai_api_key: str | None = None
+    azure_client_id: str | None = None
+    ai_timeout_seconds: float = 30.0
+    ai_max_output_tokens: int = 500
+    # Ile odpowiedzi asystenta może mieć jedno zgłoszenie – górna granica kosztu.
+    ai_max_answers_per_ticket: int = 10
     # Hasło kont demo ustawiane przez seed (python -m app.db.seed). Puste = konta bez możliwości logowania.
     demo_password: str | None = None
 

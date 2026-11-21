@@ -22,7 +22,9 @@ const STATUS_MESSAGE: Record<number, string> = {
   403: 'Nie masz uprawnień do tej operacji.',
   404: 'Nie znaleziono zasobu.',
   422: 'Popraw zaznaczone pola.',
+  429: 'Przekroczono limit. Spróbuj później.',
   500: 'Błąd serwera. Spróbuj ponownie za chwilę.',
+  503: 'Usługa jest chwilowo niedostępna. Spróbuj ponownie za chwilę.',
 }
 
 // FastAPI zwraca 422 jako { detail: [{ loc: ['body', 'title'], msg: '...' }] }, a inne błędy jako { detail: '...' }.

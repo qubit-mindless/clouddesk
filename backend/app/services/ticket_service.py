@@ -61,6 +61,10 @@ class TicketService:
             raise NotFoundError(f"Nie znaleziono zgłoszenia #{ticket_id}.")
         return ticket
 
+    def visible(self, ticket_id: int) -> Ticket:
+        """Zgłoszenie, jeśli użytkownik może je oglądać – ta sama reguła dla innych serwisów (asystent)."""
+        return self._get(ticket_id)
+
     def list(self, query: TicketQuery) -> TicketPage:
         assignee_id = None
         if query.assignee:
