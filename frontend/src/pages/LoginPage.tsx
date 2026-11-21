@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError, errorMessage, type FieldErrors } from '../api/client'
 import type { ReturnTo } from '../auth/RequireAuth'
+import { Loading } from '../components/Loading'
 import { useAuth } from '../hooks/useAuth'
 
 // Te same limity co LoginRequest w backendzie (#106); backend i tak sprawdza je ponownie.
@@ -35,18 +36,24 @@ export function LoginPage() {
   const [errors, setErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // Blokada synchroniczna: dwa szybkie Entery przed ponownym renderem nie wyślą logowania dwa razy.
+  const inFlight = useRef(false)
 
   const target = returnTo(state)
   if (status === 'authenticated' && !submitting) return <Navigate to={target.path} state={target.state} replace />
+  // Sprawdzanie zapisanej sesji: bez tego formularz mignąłby przed przekierowaniem zalogowanego użytkownika.
+  if (status === 'checking') return <Loading label="Sprawdzanie sesji…" />
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (inFlight.current) return
     const trimmedEmail = email.trim()
     const found = validate(trimmedEmail, password)
     setErrors(found)
     setFormError('')
     if (Object.keys(found).length > 0) return
 
+    inFlight.current = true
     setSubmitting(true)
     try {
       await login(trimmedEmail, password)
@@ -57,6 +64,7 @@ export function LoginPage() {
       // 401 przychodzi z jednym komunikatem dla złego hasła i nieznanego e-maila – pokazujemy go nad przyciskiem.
       if (Object.keys(fieldErrors).length === 0) setFormError(errorMessage(error))
       setPassword('')
+      inFlight.current = false
       setSubmitting(false)
     }
   }

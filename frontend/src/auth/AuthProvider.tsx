@@ -47,6 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const login = useCallback(async (email: string, password: string) => {
+    // Stary token (np. z sesji, której nie udało się sprawdzić) nie może iść z logowaniem: 401 za złe hasło
+    // wyglądałby wtedy jak wygaśnięcie sesji.
+    clearToken()
     const response = await loginRequest(email, password)
     setToken(response.accessToken)
     setUser(response.user)
