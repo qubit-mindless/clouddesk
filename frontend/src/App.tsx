@@ -4,7 +4,7 @@ import { RequireAuth } from './auth/RequireAuth'
 import { ToastProvider } from './components/Toast'
 import { UserMenu } from './components/UserMenu'
 import { APP_VERSION } from './config'
-import { useAnimacjaTla } from './hooks/useAnimacjaTla'
+import { useBackgroundAnimation } from './hooks/useBackgroundAnimation'
 import { useGlassPointer } from './hooks/useGlassPointer'
 import { LoginPage } from './pages/LoginPage'
 import { TicketDetailsPage } from './pages/TicketDetailsPage'
@@ -14,7 +14,7 @@ import { TicketNewPage } from './pages/TicketNewPage'
 
 export default function App() {
   useGlassPointer()
-  const [animacjaTla, przelaczAnimacjeTla] = useAnimacjaTla()
+  const [backgroundAnimation, toggleBackgroundAnimation] = useBackgroundAnimation()
 
   return (
     <ToastProvider>
@@ -55,8 +55,14 @@ export default function App() {
                 {APP_VERSION.slice(0, 7)}
               </code>
             </span>
-            <button type="button" className="tlo-przelacznik" onClick={przelaczAnimacjeTla} data-testid="background-toggle">
-              {animacjaTla ? 'Zatrzymaj animację tła' : 'Włącz animację tła'}
+            <button
+              type="button"
+              className="background-toggle"
+              aria-pressed={backgroundAnimation}
+              onClick={toggleBackgroundAnimation}
+              data-testid="background-toggle"
+            >
+              Animacja tła <span aria-hidden="true">{backgroundAnimation ? 'wł.' : 'wył.'}</span>
             </button>
           </footer>
         </main>

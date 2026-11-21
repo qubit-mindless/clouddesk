@@ -18,6 +18,7 @@
   --mist: #e8ecff;       /* tekst */
 
   --bg: var(--abyss);
+  --bg-dim: rgb(10 14 42 / 0.5);   /* przyciemnienie tła pod taflami */
   --text: var(--mist);
   --text-muted: #a3abd6;
   --link: #8fdcff;
@@ -71,6 +72,7 @@
     color-scheme: light;
     --abyss: #eef0ff;
     --mist: #141a3c;
+    --bg-dim: rgb(238 240 255 / 0.45);
     --text-muted: #555d86;
     --link: #3a44c9;
 
@@ -108,7 +110,9 @@
 /* ---------------------------------------------------------------- tło: ciecz
    Animowana pętla płynnego szkła (WebP z wygenerowanego GIF-a: 640×360, ostatnie klatki przenikają w pierwsze,
    20 kl./s; ciemna ~320 kB, jasna ~200 kB – pobierana jest tylko ta dla bieżącego motywu).
-   Stoi (pierwsza klatka) przy „mniej ruchu” i po wyłączeniu w stopce: html[data-tlo='stop'] (WCAG 2.2.2). */
+   Stoi (pierwsza klatka) przy „mniej ruchu”, „mniej przezroczystości” i po wyłączeniu w stopce:
+   html[data-background='paused'] (WCAG 2.2.2) – atrybut ustawia już skrypt w index.html, przed pierwszym malowaniem.
+   Przy „mniej ruchu” przełącznik jest ukryty (tło i tak stoi). Źródło ma 640×360 – na dużych ekranach jest miękkie. */
 /* Tło ma tylko :root – tło body zasłoniłoby warstwę .liquid (z-index: -1). */
 body { margin: 0; min-height: 100vh; background: transparent; }
 
@@ -116,26 +120,28 @@ body { margin: 0; min-height: 100vh; background: transparent; }
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: url('./assets/tlo/ciemne.webp') center / cover no-repeat, var(--abyss);
+  background: url('./assets/background/dark.webp') center / cover no-repeat, var(--abyss);
 }
 /* Przyciemnienie środka, gdzie są tafle z tekstem – wstęgi zostają na brzegach. */
 .liquid::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 70% 60% at 50% 45%, rgb(10 14 42 / 0.5), transparent 75%);
+  background: radial-gradient(ellipse 70% 60% at 50% 45%, var(--bg-dim), transparent 75%);
 }
-html[data-tlo='stop'] .liquid { background-image: url('./assets/tlo/ciemne-klatka.webp'); }
+html[data-background='paused'] .liquid { background-image: url('./assets/background/dark-still.webp'); }
 @media (prefers-reduced-motion: reduce) {
-  .liquid { background-image: url('./assets/tlo/ciemne-klatka.webp'); }
+  .liquid { background-image: url('./assets/background/dark-still.webp'); }
 }
 @media (prefers-color-scheme: light) {
-  .liquid { background-image: url('./assets/tlo/jasne.webp'); }
-  html[data-tlo='stop'] .liquid { background-image: url('./assets/tlo/jasne-klatka.webp'); }
-  .liquid::after { background: radial-gradient(ellipse 70% 60% at 50% 45%, rgb(238 240 255 / 0.45), transparent 75%); }
+  .liquid { background-image: url('./assets/background/light.webp'); }
+  html[data-background='paused'] .liquid { background-image: url('./assets/background/light-still.webp'); }
+}
+@media (prefers-color-scheme: light) and (prefers-reduced-transparency: reduce) {
+  .liquid { background-image: url('./assets/background/light-still.webp'); }
 }
 @media (prefers-color-scheme: light) and (prefers-reduced-motion: reduce) {
-  .liquid { background-image: url('./assets/tlo/jasne-klatka.webp'); }
+  .liquid { background-image: url('./assets/background/light-still.webp'); }
 }
 
 /* ---------------------------------------------------------------- szkło
@@ -165,6 +171,7 @@ html[data-tlo='stop'] .liquid { background-image: url('./assets/tlo/ciemne-klatk
 }
 @media (prefers-reduced-transparency: reduce) {
   :root { --glass-fill: var(--glass-fill-strong); --glass-glint: transparent; }
+  .liquid { background-image: url('./assets/background/dark-still.webp'); }
   .app-header, .details, .assistant, .table-wrap, .filters, .empty, .toast {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -212,8 +219,9 @@ code { font-family: inherit; font-variant-numeric: tabular-nums; }
 }
 
 .app-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin-top: 40px; color: var(--text-muted); font-size: 0.8rem; }
-.tlo-przelacznik { padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); }
-@media (prefers-reduced-motion: reduce) { .tlo-przelacznik { display: none; } }
+.background-toggle span { opacity: 0.75; }
+.background-toggle { padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) { .background-toggle { display: none; } }
 
 /* ---------------------------------------------------------------- lista */
 .page-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
