@@ -188,8 +188,10 @@ resource "azurerm_network_security_group" "db" {
     destination_port_range     = "5432"
   }
 
-  # Baza nie ma publicznego adresu, więc z Internetu i tak nic tu nie dotrze. Reguła jest jawną drugą linią
-  # obrony: gdyby ktoś włączył dostęp publiczny albo dodał publiczny IP, porty baz danych dalej są zamknięte.
+  # Jawny zapis zasady „Internet nie łączy się z bazą”. W praktyce ten ruch blokuje już domyślne DenyAllInBound
+  # (65500), a serwer i tak nie ma publicznego adresu – reguła pokazuje to wprost w NSG i chroni podsieć, gdyby
+  # ktoś zmienił reguły domyślne albo dodał tu zasób z publicznym IP. Porty: PostgreSQL 5432 i, na zapas,
+  # MySQL 3306. Uwaga: nie chroni serwera z dostępem publicznym – taki ruch nie przechodzi przez snet-db.
   security_rule {
     name                       = "DenyDbPortsFromInternet"
     priority                   = 200
