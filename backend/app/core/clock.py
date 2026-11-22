@@ -3,7 +3,7 @@
 from datetime import UTC, date, datetime, time
 from zoneinfo import ZoneInfo
 
-# Bazę stref daje pakiet tzdata z requirements.txt – obraz python:*-slim nie ma /usr/share/zoneinfo.
+# Bazę stref daje pakiet tzdata z requirements.txt (nie polegamy na /usr/share/zoneinfo w obrazie).
 WARSAW = ZoneInfo("Europe/Warsaw")
 
 
