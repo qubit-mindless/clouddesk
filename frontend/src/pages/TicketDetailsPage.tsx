@@ -7,6 +7,7 @@ import { canDeleteTicket, canEditTicket } from '../auth/permissions'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { TicketDetails } from '../components/TicketDetails'
+import { TicketTimeline } from '../components/TicketTimeline'
 import { useAuth } from '../hooks/useAuth'
 import { useRequest } from '../hooks/useRequest'
 import { useToast } from '../hooks/useToast'
@@ -68,6 +69,7 @@ export function TicketDetailsPage() {
       )}
       {error !== undefined && !notFound && <ErrorState error={error} onRetry={reload} />}
       {ticket && <TicketDetails ticket={ticket} />}
+      {ticket && <TicketTimeline ticket={ticket} />}
       {ticket && <AssistantPanel ticketId={ticket.id} reporter={ticket.reporter} />}
     </>
   )
