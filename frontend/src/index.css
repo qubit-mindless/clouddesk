@@ -108,11 +108,12 @@
 }
 
 /* ---------------------------------------------------------------- tło: ciecz
-   Animowana pętla płynnego szkła (WebP z wygenerowanego GIF-a: 640×360, ostatnie klatki przenikają w pierwsze,
-   20 kl./s; ciemna ~320 kB, jasna ~200 kB – pobierana jest tylko ta dla bieżącego motywu).
+   Animowana pętla płynnego szkła (WebP z wygenerowanego GIF-a 640×360: ostatnie klatki przenikają w pierwsze, 20 kl./s).
+   Klatki są wygładzone (bez ditheringu GIF-a) i powiększone do 960×540 filtrem Lanczosa, jakość 80 – inaczej na ekranach
+   Retina tło wychodzi w kwadratowych blokach. Ciemna ~520 kB, jasna ~325 kB; pobierana jest tylko ta dla bieżącego motywu.
    Stoi (pierwsza klatka) przy „mniej ruchu”, „mniej przezroczystości” i po wyłączeniu w stopce:
    html[data-background='paused'] (WCAG 2.2.2) – atrybut ustawia już skrypt w index.html, przed pierwszym malowaniem.
-   Przy „mniej ruchu” przełącznik jest ukryty (tło i tak stoi). Źródło ma 640×360 – na dużych ekranach jest miękkie. */
+   Przy „mniej ruchu” przełącznik jest ukryty (tło i tak stoi). Na dużych ekranach tło jest miękkie (źródło 640×360). */
 /* Tło ma tylko :root – tło body zasłoniłoby warstwę .liquid (z-index: -1). */
 body { margin: 0; min-height: 100vh; background: transparent; }
 
