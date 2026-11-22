@@ -16,7 +16,8 @@ export function TicketDetailsPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const { user } = useAuth()
-  const listSearch = (useLocation().state as { listSearch?: string } | null)?.listSearch ?? ''
+  const locationState = useLocation().state as { listSearch?: string; justCreated?: boolean } | null
+  const listSearch = locationState?.listSearch ?? ''
   const { data: ticket, error, loading, reload } = useRequest(id, (signal) => getTicket(Number(id), signal))
   const [deleting, setDeleting] = useState(false)
   const notFound = error instanceof ApiError && error.status === 404
@@ -68,7 +69,9 @@ export function TicketDetailsPage() {
       )}
       {error !== undefined && !notFound && <ErrorState error={error} onRetry={reload} />}
       {ticket && <TicketDetails ticket={ticket} />}
-      {ticket && <AssistantPanel ticketId={ticket.id} reporter={ticket.reporter} />}
+      {ticket && (
+        <AssistantPanel ticketId={ticket.id} reporter={ticket.reporter} autoSuggest={locationState?.justCreated === true} onResolved={reload} />
+      )}
     </>
   )
 }

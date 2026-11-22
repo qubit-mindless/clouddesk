@@ -1,0 +1,130 @@
+import { useState } from 'react'
+import { Link } from 'react-router'
+import { getMeSummary } from '../api/activity'
+import { getTickets } from '../api/tickets'
+import type { Ticket, TicketStatus } from '../api/types'
+import { ErrorState } from '../components/ErrorState'
+import { Loading } from '../components/Loading'
+import { StatusBadge } from '../components/StatusBadge'
+import { useAuth } from '../hooks/useAuth'
+import { useRequest } from '../hooks/useRequest'
+import { formatDateTime } from '../utils/sla'
+import { greeting } from '../utils/time'
+
+// Widok zgłaszającego: karty zamiast tabeli – na każdej etap, kto się zgłoszeniem zajmuje i do kiedy odpowie.
+const STEP: Record<TicketStatus, number> = { NEW: 1, ASSIGNED: 2, IN_PROGRESS: 3, RESOLVED: 4, CLOSED: 4 }
+const STEP_NAMES = ['Nowe', 'Przypisane', 'W toku', 'Rozwiązane']
+// Rozwiązanych pokazujemy kilka ostatnich – reszta po kliknięciu, żeby otwarte zostały na wierzchu.
+const CLOSED_VISIBLE = 3
+
+function isOpen(t: Ticket) {
+  return t.status !== 'RESOLVED' && t.status !== 'CLOSED'
+}
+
+function plural(n: number, one: string, few: string, many: string) {
+  if (n === 1) return one
+  const d = n % 10
+  const t = n % 100
+  return d >= 2 && d <= 4 && (t < 12 || t > 14) ? few : many
+}
+
+function who(t: Ticket): string {
+  if (!isOpen(t)) return t.resolvedAt ? `Rozwiązane ${formatDateTime(t.resolvedAt)}.` : 'Rozwiązane.'
+  if (!t.assignee) return `Czeka na technika. Termin odpowiedzi: ${formatDateTime(t.slaDueAt)}.`
+  return `Zajmuje się tym ${t.assignee}. Termin: ${formatDateTime(t.slaDueAt)}.`
+}
+
+export function MyTicketsPage() {
+  const { user } = useAuth()
+  const { data: tickets, error, loading, reload } = useRequest('mine', (signal) => getTickets({}, signal))
+  const { data: summary } = useRequest('me-summary', getMeSummary)
+  const [showAllClosed, setShowAllClosed] = useState(false)
+
+  const open = tickets?.filter(isOpen).sort((a, b) => a.slaDueAt.localeCompare(b.slaDueAt)) ?? []
+  const closed = tickets?.filter((t) => !isOpen(t)).sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? '')) ?? []
+  const firstName = user?.fullName.split(' ')[0] ?? ''
+  const nextDue = summary?.mine.nextDueAt
+
+  return (
+    <>
+      <div className="page-actions">
+        <div className="hello">
+          <h2>
+            {greeting()}, {firstName}
+          </h2>
+          {tickets && (
+            <p data-testid="my-summary">
+              {open.length === 0 ? (
+                'Nie masz otwartych zgłoszeń.'
+              ) : (
+                <>
+                  Masz <b>{open.length} {plural(open.length, 'otwarte zgłoszenie', 'otwarte zgłoszenia', 'otwartych zgłoszeń')}</b>.
+                  {nextDue && (
+                    <>
+                      {' '}
+                      Najbliższa odpowiedź: <b>{formatDateTime(nextDue)}</b>.
+                    </>
+                  )}
+                </>
+              )}
+            </p>
+          )}
+        </div>
+        <Link to="/tickets/new" className="button primary" data-testid="ticket-new">
+          + Zgłoś problem
+        </Link>
+      </div>
+
+      {loading && <Loading label="Ładowanie zgłoszeń…" />}
+      {error !== undefined && <ErrorState error={error} onRetry={reload} />}
+
+      {tickets && (
+        <div className="my-grid" data-testid="my-tickets">
+          {open.map((t) => (
+            <TicketCard key={t.id} ticket={t} />
+          ))}
+          <div className="my-cta">
+            <h3>Masz problem z komputerem?</h3>
+            <p>Opisz go – asystent AI od razu podpowie, co sprawdzić, a technik dostanie całą rozmowę.</p>
+            <Link to="/tickets/new" className="button">
+              Zgłoś problem →
+            </Link>
+          </div>
+        </div>
+      )}
+      {closed.length > 0 && (
+        <section className="my-closed" aria-labelledby="my-closed-heading">
+          <h3 id="my-closed-heading">Rozwiązane</h3>
+          <div className="my-grid">
+            {(showAllClosed ? closed : closed.slice(0, CLOSED_VISIBLE)).map((t) => (
+              <TicketCard key={t.id} ticket={t} />
+            ))}
+          </div>
+          {closed.length > CLOSED_VISIBLE && (
+            <button type="button" onClick={() => setShowAllClosed((v) => !v)} aria-expanded={showAllClosed} data-testid="my-closed-toggle">
+              {showAllClosed ? 'Pokaż mniej' : `Pokaż wszystkie rozwiązane (${closed.length})`}
+            </button>
+          )}
+        </section>
+      )}
+    </>
+  )
+}
+
+function TicketCard({ ticket: t }: { ticket: Ticket }) {
+  return (
+    <Link to={`/tickets/${t.id}`} className="my-card" data-testid="my-ticket">
+      <span className="my-card-top">
+        <span className="muted">#{t.id}</span>
+        <StatusBadge status={t.status} />
+      </span>
+      <strong className="my-card-title">{t.title}</strong>
+      <span className="steps" role="img" aria-label={`Etap ${STEP[t.status]} z 4: ${STEP_NAMES[STEP[t.status] - 1]}`}>
+        {STEP_NAMES.map((name, i) => (
+          <i key={name} className={i < STEP[t.status] ? 'on' : undefined} />
+        ))}
+      </span>
+      <span className="my-card-info">{who(t)}</span>
+    </Link>
+  )
+}

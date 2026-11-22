@@ -61,7 +61,8 @@ export interface AssistantSummary {
 }
 
 // GET /tickets/{id}/history (#139): jedna zmiana jednego pola, od najstarszej.
-export type HistoryField = 'status' | 'priority' | 'assignee' | 'title' | 'description'
+// `resolution` = SELF_AI, gdy zgłaszający sam zamknął zgłoszenie po pomocy asystenta (POST /tickets/{id}/resolve).
+export type HistoryField = 'status' | 'priority' | 'assignee' | 'title' | 'description' | 'resolution'
 
 export interface TicketHistoryEntry {
   id: number
@@ -145,4 +146,56 @@ export interface LoginResponse {
   tokenType: 'bearer'
   expiresIn: number
   user: User
+}
+
+// Pakiet z makiety – kontrakty w docs/api-kontrakty.md („Pakiet z makiety”).
+
+// GET /activity: ostatnie zdarzenia w widocznych zgłoszeniach (bez treści opisów i rozmów).
+export interface ActivityItem {
+  id: string
+  kind: 'change' | 'created' | 'ai'
+  ticketId: number
+  ticketTitle: string
+  actor: string | null
+  actorName: string
+  field: HistoryField | null
+  oldValue: string | null
+  newValue: string | null
+  at: string
+}
+
+export interface Activity {
+  items: ActivityItem[]
+}
+
+// GET /notifications: powiadomienia wyliczane z historii; „przeczytane” = starsze niż ostatnie POST /notifications/read.
+export type NotificationKind = 'assigned' | 'new_p1' | 'sla_breached' | 'status' | 'taken'
+
+export interface AppNotification {
+  id: string
+  kind: NotificationKind
+  ticketId: number
+  ticketTitle: string
+  actorName: string | null
+  value: string | null
+  at: string
+  unread: boolean
+}
+
+export interface Notifications {
+  unread: number
+  items: AppNotification[]
+}
+
+// GET /me/summary: powitanie, liczniki nad listą i karta „Asystent AI dziś” (team i aiToday tylko dla technika/admina).
+export interface MeSummary {
+  mine: { open: number; breached: number; atRisk: number; nextDueAt: string | null }
+  team: {
+    breached: number
+    atRisk: number
+    createdToday: number
+    resolvedToday: number
+    last7Days: { date: string; created: number; resolved: number }[]
+  } | null
+  aiToday: { conversations: number; resolvedByReporter: number; handedOver: number; answers: number } | null
 }

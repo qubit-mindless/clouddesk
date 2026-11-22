@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { askAssistant, getAssistant } from '../api/assistant'
 import { errorMessage } from '../api/client'
+import { resolveTicket } from '../api/tickets'
+import { useToast } from '../hooks/useToast'
 import type { AssistantConversation, AssistantMessage } from '../api/types'
 import { useRequest } from '../hooks/useRequest'
 import { formatDateTime } from '../utils/sla'
@@ -11,7 +13,16 @@ const MAX_LENGTH = 1000
 
 // Z asystentem rozmawia osoba zgłaszająca (pierwsza linia pomocy, zanim albo gdy technik zajmuje się zgłoszeniem).
 // Technik i administrator widzą tę rozmowę tylko do odczytu – wiedzą, co zgłaszający już sprawdził.
-export function AssistantPanel({ ticketId, reporter }: { ticketId: number; reporter: string }) {
+interface Props {
+  ticketId: number
+  reporter: string
+  // Tuż po utworzeniu zgłoszenia asystent od razu proponuje kroki – bez klikania „Podpowiedz”.
+  autoSuggest?: boolean
+  // Zgłaszający zamknął zgłoszenie przyciskiem „Pomogło” – strona odświeża zgłoszenie.
+  onResolved?: () => void
+}
+
+export function AssistantPanel({ ticketId, reporter, autoSuggest = false, onResolved }: Props) {
   const { data: loaded, error: loadError, loading, reload } = useRequest(String(ticketId), (signal) => getAssistant(ticketId, signal))
   const [updated, setUpdated] = useState<{ ticketId: number; value: AssistantConversation }>()
   const [text, setText] = useState('')
@@ -19,6 +30,11 @@ export function AssistantPanel({ ticketId, reporter }: { ticketId: number; repor
   // Błąd zapamiętany razem ze zgłoszeniem – po przejściu do innego zgłoszenia nie jest już pokazywany.
   const [failure, setFailure] = useState<{ ticketId: number; message: string }>()
   const [validation, setValidation] = useState('')
+  const toast = useToast()
+  const [resolving, setResolving] = useState(false)
+  // „Nie pomogło” chowa pytanie dla tego zgłoszenia; technik i tak dostaje zgłoszenie razem z rozmową.
+  const [handedOver, setHandedOver] = useState<number>()
+  const suggested = useRef<number>(undefined)
 
   const conversation = updated?.ticketId === ticketId ? updated.value : loaded
   const error = failure?.ticketId === ticketId ? failure.message : ''
@@ -42,6 +58,33 @@ export function AssistantPanel({ ticketId, reporter }: { ticketId: number; repor
       setSending(false)
     }
   }
+
+  const conversationReady = conversation !== undefined
+  useEffect(() => {
+    if (!autoSuggest || !conversation || suggested.current === ticketId) return
+    if (!conversation.canAsk || !conversation.enabled || conversation.items.length > 0) return
+    suggested.current = ticketId
+    void send()
+    // send zmienia się przy każdym renderze; wystarczy jedno wywołanie po wczytaniu rozmowy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSuggest, conversationReady, ticketId])
+
+  const resolve = async () => {
+    setResolving(true)
+    try {
+      await resolveTicket(ticketId)
+      toast('Zgłoszenie zamknięte – dziękujemy! Problem rozwiązany bez czekania na technika.')
+      setUpdated(undefined)
+      reload()
+      onResolved?.()
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    } finally {
+      setResolving(false)
+    }
+  }
+  const hasAnswer = conversation?.items.some((m) => m.role === 'assistant') ?? false
+  const askHelped = conversation?.canAsk && hasAnswer && !sending && handedOver !== ticketId
 
   const handleSubmit = (event: React.SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -125,6 +168,24 @@ export function AssistantPanel({ ticketId, reporter }: { ticketId: number; repor
                 <p className="loading" role="status" data-testid="assistant-loading">
                   <span className="spinner" aria-hidden="true" />
                   Asystent pisze odpowiedź…
+                </p>
+              )}
+              {askHelped && (
+                <div className="assistant-helped" data-testid="assistant-helped">
+                  <p>Czy to rozwiązało problem?</p>
+                  <div className="assistant-helped-actions">
+                    <button type="button" className="primary" onClick={() => void resolve()} disabled={resolving} data-testid="assistant-resolve">
+                      {resolving ? 'Zamykanie…' : '✓ Pomogło – zamknij zgłoszenie'}
+                    </button>
+                    <button type="button" onClick={() => setHandedOver(ticketId)} data-testid="assistant-handover">
+                      Nie pomogło – czekam na technika
+                    </button>
+                  </div>
+                </div>
+              )}
+              {handedOver === ticketId && (
+                <p className="assistant-info" role="status" data-testid="assistant-handed-over">
+                  Technik dostanie zgłoszenie razem z tą rozmową – nie musisz niczego powtarzać.
                 </p>
               )}
               <p className="assistant-remaining" data-testid="assistant-remaining">
