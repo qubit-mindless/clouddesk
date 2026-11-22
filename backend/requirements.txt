@@ -7,3 +7,5 @@ alembic==1.20.*
 pyjwt==2.15.*
 argon2-cffi==25.1.*
 httpx==0.28.*
+# Baza stref czasowych dla zoneinfo (Europe/Warsaw w licznikach „dziś”) – obraz slim jej nie ma.
+tzdata==2025.*
