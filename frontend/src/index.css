@@ -490,9 +490,10 @@ select option { color: #141a3c; background: #fff; }
 @media (prefers-reduced-motion: reduce) { .bell.ring svg { animation: none; } }
 .notifications {
   position: absolute; right: 0; top: calc(100% + 10px); z-index: 30; width: min(360px, calc(100vw - 32px)); padding: 8px;
-  border: 1px solid var(--glass-edge); border-radius: 18px; background: var(--glass-fill-strong);
+  /* Kryjące tło: lista leży w nagłówku z backdrop-filter, więc własne rozmycie nie obejmie strony pod spodem. */
+  border: 1px solid var(--glass-edge); border-radius: 18px;
+  background: linear-gradient(var(--glass-fill-strong), var(--glass-fill-strong)), var(--bg);
   box-shadow: 0 30px 70px -30px var(--glass-shadow);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
 }
 .notifications header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; }
 .notifications h3 { margin: 0; font-size: 1rem; }
