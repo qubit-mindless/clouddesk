@@ -238,7 +238,7 @@ clouddesk/
 ```
 
 ## API
-Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Azure API jest dostępne wyłącznie przez Nginx pod `/api` (backend nie ma publicznego adresu). JSON w camelCase; błędy walidacji w formacie FastAPI: `{"detail": [{"loc": ["body", "<pole>"], "msg": "…"}]}`.
+Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Azure API jest dostępne wyłącznie przez Nginx pod `/api` (backend nie ma publicznego adresu). Zgłoszenie (`Ticket`) ma obok loginów `reporter`/`assignee` także imiona i nazwiska do wyświetlenia: `reporterName`, `assigneeName` (`null`, gdy nieprzypisane). JSON w camelCase; błędy walidacji w formacie FastAPI: `{"detail": [{"loc": ["body", "<pole>"], "msg": "…"}]}`.
 
 | Metoda | Ścieżka | Opis | Odpowiedzi | Autoryzacja |
 |---|---|---|---|---|

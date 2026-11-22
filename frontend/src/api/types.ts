@@ -8,7 +8,10 @@ export interface Ticket {
   status: TicketStatus
   priority: TicketPriority
   reporter: string
+  // Imię i nazwisko do wyświetlenia; loginy zostają do filtrów i uprawnień.
+  reporterName: string
   assignee: string | null
+  assigneeName: string | null
   createdAt: string
   updatedAt: string
   slaDueAt: string

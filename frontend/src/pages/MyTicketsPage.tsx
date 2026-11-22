@@ -25,7 +25,7 @@ function isOpen(t: Ticket) {
 function who(t: Ticket): string {
   if (!isOpen(t)) return t.resolvedAt ? `Rozwiązane ${formatDateTime(t.resolvedAt)}.` : 'Rozwiązane.'
   if (!t.assignee) return `Czeka na technika. Termin odpowiedzi: ${formatDateTime(t.slaDueAt)}.`
-  return `Zajmuje się tym ${t.assignee}. Termin: ${formatDateTime(t.slaDueAt)}.`
+  return `Zajmuje się tym ${t.assigneeName ?? t.assignee}. Termin: ${formatDateTime(t.slaDueAt)}.`
 }
 
 export function MyTicketsPage() {
