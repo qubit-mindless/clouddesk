@@ -162,11 +162,6 @@ resource "azurerm_container_app" "backend" {
         name  = "APP_ENV"
         value = "azure"
       }
-      # Region na stronie /status (#140). Rewizję i replikę Container Apps ustawia sam (CONTAINER_APP_REVISION…).
-      env {
-        name  = "APP_REGION"
-        value = azurerm_resource_group.main.location
-      }
       env {
         name        = "DATABASE_URL"
         secret_name = "database-url"
@@ -192,6 +187,11 @@ resource "azurerm_container_app" "backend" {
       env {
         name  = "AZURE_CLIENT_ID"
         value = azurerm_user_assigned_identity.backend.client_id
+      }
+      # Na końcu listy – plan pokazuje wtedy tylko dodaną zmienną. Region na stronie /status (#140). Rewizję i replikę Container Apps ustawia sam (CONTAINER_APP_REVISION…).
+      env {
+        name  = "APP_REGION"
+        value = azurerm_resource_group.main.location
       }
 
       # Sondy zdrowia – wszystkie na /health/live (proces odpowiada, bez bazy):
