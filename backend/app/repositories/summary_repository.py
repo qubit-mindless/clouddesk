@@ -54,7 +54,12 @@ class SummaryRepository:
         with_answers = select(AiMessage.ticket_id).where(*self._answers(start, end))
         return (
             self.db.scalar(
-                select(func.count(distinct(TicketHistory.ticket_id))).where(
+                select(func.count(distinct(TicketHistory.ticket_id)))
+                .select_from(TicketHistory)
+                .join(TicketHistory.ticket)
+                .where(
+                    # Tylko wciąż zamknięte – otwarte ponownie przez technika wraca do „przekazanych”.
+                    Ticket.status.in_(CLOSED_STATUSES),
                     TicketHistory.field == "resolution",
                     TicketHistory.new_value == resolution,
                     TicketHistory.changed_at >= start,

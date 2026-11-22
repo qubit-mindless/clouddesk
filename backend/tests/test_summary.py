@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.core import clock
 from app.models import (
@@ -167,17 +167,26 @@ def test_ai_today(login_as, db, frozen):
     assert login_as("anna.k").get("/api/me/summary").json()["aiToday"] is None
 
 
-def test_resolve_endpoint_counts_as_resolved_by_reporter(login_as, db):
-    # Bez zamrożonego czasu: prawdziwy /resolve zapisuje wiersz resolution z bieżącą chwilą.
-    anna = login_as("anna.k")
-    tid = anna.post(
+def test_resolve_endpoint_counts_until_reopened(login_as, db, frozen):
+    # Zamrożony zegar: prawdziwy /resolve zapisuje wiersze historii z chwilą z clock.utc_now().
+    anna, tech = login_as("anna.k"), login_as("tech.jan")
+    res = anna.post(
         "/api/tickets", json={"title": "Nie działa VPN", "description": "Opis.", "priority": "P2"}
     )
-    tid = tid.json()["id"]
-    add_answer(db, tid, datetime.now(UTC))
+    tid = res.json()["id"]
+    with db() as session:
+        session.execute(update(Ticket).where(Ticket.id == tid).values(created_at=NOW - timedelta(hours=1)))
+        session.commit()
+    add_answer(db, tid, NOW - timedelta(minutes=30))
     assert anna.post(f"/api/tickets/{tid}/resolve", json={}).status_code == 200
 
-    body = login_as("tech.jan").get("/api/me/summary").json()
-    assert body["aiToday"]["resolvedByReporter"] == 1 and body["aiToday"]["handedOver"] == 0
+    body = tech.get("/api/me/summary").json()
+    assert body["aiToday"] == {"conversations": 1, "resolvedByReporter": 1, "handedOver": 0, "answers": 1}
     assert body["team"]["resolvedToday"] == 1 and body["team"]["createdToday"] == 1
-    assert body["team"]["last7Days"][-1]["date"] == clock.local_date(datetime.now(UTC)).isoformat()
+    assert body["team"]["last7Days"][-1] == {"date": "2026-11-22", "created": 1, "resolved": 1}
+
+    # Technik otwiera ponownie – zgłoszenie wraca do przekazanych technikowi.
+    assert tech.patch(f"/api/tickets/{tid}", json={"status": "IN_PROGRESS"}).status_code == 200
+    body = tech.get("/api/me/summary").json()
+    assert body["aiToday"] == {"conversations": 1, "resolvedByReporter": 0, "handedOver": 1, "answers": 1}
+    assert body["team"]["resolvedToday"] == 0
