@@ -1,11 +1,15 @@
 import { Link, useSearchParams } from 'react-router'
 import { PRIORITY_LABEL, STATUS_LABEL } from '../api/labels'
+import { getMeSummary } from '../api/activity'
 import { getTickets } from '../api/tickets'
 import type { TicketPriority, TicketStatus } from '../api/types'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
+import { ActivityFeed } from '../components/overview/ActivityFeed'
+import { AiTodayCard, Hello, SummaryStrip } from '../components/overview/SummaryStrip'
 import { TicketFilters, type TicketFilterValues } from '../components/TicketFilters'
 import { TicketList } from '../components/TicketList'
+import { useAuth } from '../hooks/useAuth'
 import { useRequest } from '../hooks/useRequest'
 
 // Nieznana wartość w adresie (np. ?status=FOO) jest pomijana, zamiast dawać pustą listę.
@@ -33,20 +37,34 @@ export function TicketListPage() {
     getTickets({ status: status || undefined, priority: priority || undefined }, signal),
   )
 
+  // Powitanie, liczniki i karta AI (pakiet z makiety) – jedno żądanie /me/summary.
+  const { user } = useAuth()
+  const { data: summary } = useRequest('me-summary', getMeSummary)
+
   const query = filters.query.trim().toLowerCase()
   const tickets = data?.filter((t) => !query || t.title.toLowerCase().includes(query))
 
   return (
     <>
       <div className="page-actions">
+        <Hello name={user?.fullName.split(' ')[0] ?? ''} summary={summary} />
         <Link to="/tickets/new" className="button primary" data-testid="ticket-new">
           + Nowe zgłoszenie
         </Link>
       </div>
-      <TicketFilters values={filters} onChange={handleChange} />
-      {loading && <Loading label="Ładowanie zgłoszeń…" />}
-      {error !== undefined && <ErrorState error={error} onRetry={reload} />}
-      {tickets && <TicketList tickets={tickets} />}
+      {summary && <SummaryStrip summary={summary} />}
+      <div className="list-layout">
+        <div className="list-main">
+          <TicketFilters values={filters} onChange={handleChange} />
+          {loading && <Loading label="Ładowanie zgłoszeń…" />}
+          {error !== undefined && <ErrorState error={error} onRetry={reload} />}
+          {tickets && <TicketList tickets={tickets} />}
+        </div>
+        <aside className="list-side" aria-label="Aktywność i asystent AI">
+          <ActivityFeed />
+          {summary && <AiTodayCard summary={summary} />}
+        </aside>
+      </div>
     </>
   )
 }

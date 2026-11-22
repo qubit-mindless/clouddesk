@@ -13,3 +13,11 @@ export function greeting(date: Date = new Date()): string {
   const hour = date.getHours()
   return hour >= 18 || hour < 5 ? 'Dobry wieczór' : 'Dzień dobry'
 }
+
+// Polska odmiana liczebnika: 1 zgłoszenie, 2–4 zgłoszenia, 5+ zgłoszeń (12–14 też „zgłoszeń”).
+export function plural(n: number, one: string, few: string, many: string): string {
+  if (n === 1) return one
+  const d = n % 10
+  const t = n % 100
+  return d >= 2 && d <= 4 && (t < 12 || t > 14) ? few : many
+}

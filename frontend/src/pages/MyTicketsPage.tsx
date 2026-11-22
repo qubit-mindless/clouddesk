@@ -9,7 +9,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { useAuth } from '../hooks/useAuth'
 import { useRequest } from '../hooks/useRequest'
 import { formatDateTime } from '../utils/sla'
-import { greeting } from '../utils/time'
+import { greeting, plural } from '../utils/time'
 
 // Widok zgłaszającego: karty zamiast tabeli – na każdej etap, kto się zgłoszeniem zajmuje i do kiedy odpowie.
 const STEP: Record<TicketStatus, number> = { NEW: 1, ASSIGNED: 2, IN_PROGRESS: 3, RESOLVED: 4, CLOSED: 4 }
@@ -21,12 +21,6 @@ function isOpen(t: Ticket) {
   return t.status !== 'RESOLVED' && t.status !== 'CLOSED'
 }
 
-function plural(n: number, one: string, few: string, many: string) {
-  if (n === 1) return one
-  const d = n % 10
-  const t = n % 100
-  return d >= 2 && d <= 4 && (t < 12 || t > 14) ? few : many
-}
 
 function who(t: Ticket): string {
   if (!isOpen(t)) return t.resolvedAt ? `Rozwiązane ${formatDateTime(t.resolvedAt)}.` : 'Rozwiązane.'
