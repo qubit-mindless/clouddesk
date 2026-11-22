@@ -176,6 +176,8 @@ jobs:
       - name: Build i paczka frontendu
         env:
           VITE_APP_VERSION: ${{ env.SHA }}
+          # Przyciski kont demo na ekranie logowania (wpisują e-mail; hasło i tak trzeba podać) – na prezentację.
+          VITE_DEMO_ACCOUNTS: 'true'
         run: config/package-web.sh "$RUNNER_TEMP/web.tgz"
 
       - name: Logowanie do Azure (OIDC)

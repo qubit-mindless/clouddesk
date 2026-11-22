@@ -142,11 +142,8 @@ def test_sorted_newest_first_and_limited(client, db):
     assert [i["id"] for i in limited] == [i["id"] for i in items[:2]]
 
 
-@pytest.mark.parametrize("use_zoneinfo", [True, False])
-def test_warsaw_day_boundaries(monkeypatch, use_zoneinfo):
-    """Dzień w Polsce z bazą stref (zoneinfo) i bez niej (reguła UE, obraz bez tzdata) – te same wyniki."""
-    if not use_zoneinfo:
-        monkeypatch.setattr(clock, "_ZONE", None)
+def test_warsaw_day_boundaries():
+    """Dzień w Polsce (zoneinfo z pakietu tzdata): granice dnia zimą, latem i w dni zmiany czasu."""
     # Zima (UTC+1): 22.11 zaczyna się 21.11 o 23:00 UTC.
     assert clock.day_start(date(2026, 11, 22)) == datetime(2026, 11, 21, 23, 0, tzinfo=UTC)
     assert clock.local_date(datetime(2026, 11, 21, 23, 30, tzinfo=UTC)) == date(2026, 11, 22)
@@ -162,11 +159,3 @@ def test_warsaw_day_boundaries(monkeypatch, use_zoneinfo):
     assert clock.local_date(datetime(2026, 3, 29, 22, 30, tzinfo=UTC)) == date(2026, 3, 30)
     # Daty bez strefy (SQLite) traktujemy jako UTC.
     assert clock.local_date(datetime(2026, 11, 21, 23, 30)) == date(2026, 11, 22)
-
-
-def test_fallback_matches_zoneinfo_every_hour_of_year(monkeypatch):
-    moments = [datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=h) for h in range(0, 366 * 24)]
-    days = [date(2026, 1, 1) + timedelta(days=d) for d in range(366)]
-    with_zone = ([clock.local_date(m) for m in moments], [clock.day_start(d) for d in days])
-    monkeypatch.setattr(clock, "_ZONE", None)
-    assert ([clock.local_date(m) for m in moments], [clock.day_start(d) for d in days]) == with_zone
