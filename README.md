@@ -45,7 +45,7 @@ CloudDesk to helpdesk IT oparty na cyklu życia incydentu ITIL.
 - wyszukiwanie, filtrowanie i paginacja listy zgłoszeń;
 - czat zgłaszającego z asystentem AI przy każdym zgłoszeniu; technik widzi tę rozmowę do odczytu, zanim przejmie zgłoszenie;
 - załączniki w Azure Blob Storage i powiadomienia e-mail;
-- dashboard SLA: liczba zgłoszeń, MTTR, naruszenia SLA.
+- pulpit SLA dla technika i administratora (`/dashboard`, 7/30/90 dni): zgłoszenia zagrożone i po terminie z odliczaniem, zgodność z SLA liczona z zakończonych, MTTR, trend utworzonych i rozwiązanych, otwarte według priorytetu, obciążenie techników, odpowiedzi asystenta AI.
 
 ## Zespół
 | Rola | Osoba | GitHub |

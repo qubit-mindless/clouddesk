@@ -49,6 +49,8 @@
   --sla-warning: #ffd27a;
   --sla-breached: #ff8b97;
   --sla-done: #7d86b5;
+  --chart-resolved: #4be3a6;
+  --chart-p2: #ffaa5a;
 
   /* Etykiety: tło / tekst */
   --red-bg: rgb(255 107 125 / 0.16);    --red-fg: #ffc2c9;
@@ -96,6 +98,8 @@
     --sla-warning: #9a5a00;
     --sla-breached: #c8284a;
     --sla-done: #8a90b3;
+    --chart-resolved: #0c8a5a;
+    --chart-p2: #c25e00;
 
     --red-bg: rgb(220 40 75 / 0.12);    --red-fg: #9c1736;
     --orange-bg: rgb(230 120 20 / 0.14); --orange-fg: #8a4300;
@@ -154,7 +158,8 @@ html[data-background='paused'] .liquid { background-image: url('./assets/backgro
 .table-wrap,
 .filters,
 .empty,
-.toast {
+.toast,
+.bento-tile {
   --mx: 50%;
   --my: -60%;
   border: 1px solid var(--glass-edge);
@@ -174,7 +179,7 @@ html[data-background='paused'] .liquid { background-image: url('./assets/backgro
 @media (prefers-reduced-transparency: reduce) {
   :root { --glass-fill: var(--glass-fill-strong); --glass-glint: transparent; }
   .liquid { background-image: url('./assets/background/dark-still.webp'); }
-  .app-header, .details, .assistant, .status-tile, .status-architecture, .table-wrap, .filters, .empty, .toast {
+  .app-header, .details, .assistant, .status-tile, .status-architecture, .table-wrap, .filters, .empty, .toast, .bento-tile {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -422,3 +427,98 @@ select option { color: #141a3c; background: #fff; }
 .user-role { margin-left: 8px; padding: 3px 10px; border-radius: 999px; background: var(--violet-bg); color: var(--violet-fg); font-size: 0.78rem; font-weight: 600; }
 .login { max-width: 420px; margin: 48px auto 0; }
 .login .ticket-form { margin-top: 8px; }
+
+/* ---------------------------------------------------------------- nawigacja */
+.app-nav { display: flex; gap: 4px; margin-left: auto; }
+.app-nav a { padding: 6px 14px; border-radius: 999px; color: var(--text-muted); font-weight: 550; text-decoration: none; }
+.app-nav a:hover { color: var(--text); background: var(--field); }
+.app-nav a.active { color: var(--text); background: var(--field-hover); box-shadow: inset 0 0 0 1px var(--field-edge); }
+@media (max-width: 640px) { .app-nav { order: 3; width: 100%; margin-left: 0; } }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.link-button { padding: 0; border: 0; background: none; color: var(--link); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.link-button:hover { background: none; border: 0; }
+
+/* ---------------------------------------------------------------- pulpit SLA (#138)
+   Układ „bento”: 4 kolumny, duży kafelek ryzyka zajmuje 2×2. Kolejność w DOM = kolejność wizualna,
+   na wąskim ekranie kafelki po prostu spadają jeden pod drugi. */
+.period { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--field-edge); border-radius: 999px; background: var(--field); }
+.period button { padding: 5px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--text-muted); font-size: 0.85rem; }
+.period button[aria-pressed='true'] { background: var(--field-hover); color: var(--text); box-shadow: inset 0 0 0 1px var(--glass-rim); }
+
+.bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.bento-tile { display: flex; flex-direction: column; min-width: 0; padding: 20px 22px; border-radius: var(--radius-pane); }
+.bento-tile h3 { margin: 0 0 10px; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0; }
+.tile-risk { grid-column: span 2; grid-row: span 2; }
+.tile-trend { grid-column: span 3; }
+.tile-priority, .tile-techs { grid-column: span 2; }
+.tile-value { margin: 0; font-size: 2.2rem; font-weight: 720; line-height: 1.1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.tile-hint { margin: 6px 0 0; font-size: 0.82rem; color: var(--text-muted); }
+.tile-small[title] { cursor: help; }
+.tile-breached .tile-value { color: var(--sla-breached); }
+.tile-ai .tile-value {
+  background: linear-gradient(100deg, var(--plasma), var(--tidal) 60%, var(--bloom));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.bento[aria-busy='true'] .bento-tile { opacity: 0.7; transition: opacity 0.2s; }
+.bento-footer { grid-column: 1 / -1; margin: 0; font-size: 0.8rem; color: var(--text-muted); text-align: right; }
+@media (max-width: 900px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tile-trend, .tile-priority, .tile-techs, .tile-ai { grid-column: span 2; }
+}
+/* Na telefonie małe kafelki po dwa w rzędzie, duże na całą szerokość. */
+@media (max-width: 560px) {
+  .bento { gap: 12px; }
+  .bento-tile { padding: 16px 18px; }
+  .tile-risk { grid-row: auto; }
+  .tile-small .tile-value { font-size: 1.8rem; }
+}
+
+/* Pierścień ryzyka: obrót o −90°, żeby odcinki startowały od góry. */
+.risk { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.risk-ring { width: 132px; height: 132px; flex: none; }
+.risk-ring circle { fill: none; stroke-width: 12; transform: rotate(-90deg); transform-origin: 60px 60px; }
+.ring-track { stroke: var(--row-line); }
+.ring-breached { stroke: var(--sla-breached); }
+.ring-warning { stroke: var(--sla-warning); }
+.ring-ok { stroke: var(--tidal); }
+.ring-value { fill: var(--text); font-size: 30px; font-weight: 720; text-anchor: middle; }
+.ring-caption { fill: var(--text-muted); font-size: 10px; text-anchor: middle; }
+.risk-legend { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.risk-legend li::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 3px; vertical-align: -1px; }
+.legend-breached::before { background: var(--sla-breached); }
+.legend-warning::before { background: var(--sla-warning); }
+.legend-ok::before { background: var(--tidal); }
+
+.at-risk { margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.at-risk li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--row-line); }
+.at-risk a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.at-risk .sla { font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Trend: SVG rozciągnięte na szerokość kafelka; grubość linii nie skaluje się razem z nim. */
+.trend { margin: 0; }
+.trend svg { display: block; width: 100%; height: 120px; }
+.trend polyline, .trend line { fill: none; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.trend-axis { stroke: var(--row-line); stroke-width: 1; }
+.trend-created { stroke: var(--tidal); stroke-width: 2.5; }
+.trend-resolved { stroke: var(--chart-resolved); stroke-width: 2.5; stroke-dasharray: 6 4; }
+.trend-range { display: flex; justify-content: space-between; margin-top: 4px; font-size: 0.75rem; color: var(--text-muted); }
+.trend-legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 10px; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.trend-legend span::before { content: ''; display: inline-block; width: 18px; margin-right: 8px; vertical-align: middle; border-top: 3px solid; }
+.trend-legend .legend-created::before { border-top-color: var(--tidal); }
+.trend-legend .legend-resolved::before { border-top-style: dashed; border-top-color: var(--chart-resolved); }
+
+/* Słupki poziome: etykieta i liczba w pierwszym wierszu, słupek pod spodem. */
+.bar-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.bar-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; font-size: 0.88rem; }
+.bar-label small { color: var(--text-muted); }
+.bar-value { font-variant-numeric: tabular-nums; }
+.bar-track { grid-column: 1 / -1; height: 8px; border-radius: 999px; background: var(--row-line); overflow: hidden; }
+.bar-fill { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: var(--primary); }
+.bar-fill.priority-p1 { background: var(--sla-breached); }
+.bar-fill.priority-p2 { background: var(--chart-p2); }
+.bar-fill.priority-p3 { background: var(--tidal); }
+.bar-fill.priority-p4 { background: var(--sla-done); }
