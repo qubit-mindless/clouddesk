@@ -108,41 +108,74 @@
 }
 
 /* ---------------------------------------------------------------- tło: ciecz
-   Animowana pętla płynnego szkła (WebP z wygenerowanego GIF-a 640×360: ostatnie klatki przenikają w pierwsze, 20 kl./s).
-   Klatki są wygładzone (bez ditheringu GIF-a) i powiększone do 960×540 filtrem Lanczosa, jakość 80 – inaczej na ekranach
-   Retina tło wychodzi w kwadratowych blokach. Ciemna ~520 kB, jasna ~325 kB; pobierana jest tylko ta dla bieżącego motywu.
-   Stoi (pierwsza klatka) przy „mniej ruchu”, „mniej przezroczystości” i po wyłączeniu w stopce:
-   html[data-background='paused'] (WCAG 2.2.2) – atrybut ustawia już skrypt w index.html, przed pierwszym malowaniem.
-   Przy „mniej ruchu” przełącznik jest ukryty (tło i tak stoi). Na dużych ekranach tło jest miękkie (źródło 640×360). */
+   Cztery duże, miękkie plamy w barwach marki dryfują powoli pod szklanymi taflami. Rysuje je sam CSS (radial-gradient),
+   więc tło jest ostre na każdym ekranie i nie pobiera żadnych obrazków. Animowany jest tylko `transform` – przesuwa
+   go karta graficzna, bez przerysowywania strony, więc ruch jest płynny (60 kl./s) i tani.
+   Plamy stoją przy „mniej ruchu” i po wyłączeniu w stopce: html[data-background='paused'] (WCAG 2.2.2) – atrybut ustawia
+   już skrypt w index.html, przed pierwszym malowaniem. Przy „mniej ruchu” przełącznik jest ukryty (tło i tak stoi). */
 /* Tło ma tylko :root – tło body zasłoniłoby warstwę .liquid (z-index: -1). */
 body { margin: 0; min-height: 100vh; background: transparent; }
 
 .liquid {
+  --blob-a: rgb(123 97 255 / 0.55);   /* fiolet */
+  --blob-b: rgb(25 200 255 / 0.32);   /* cyjan */
+  --blob-c: rgb(255 95 162 / 0.26);   /* róż */
+  --blob-d: rgb(70 90 255 / 0.45);    /* głęboki błękit */
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: url('./assets/background/dark.webp') center / cover no-repeat, var(--abyss);
+  overflow: hidden;
+  background: var(--abyss);
 }
-/* Przyciemnienie środka, gdzie są tafle z tekstem – wstęgi zostają na brzegach. */
+.blob {
+  position: absolute;
+  width: 72vmax;
+  height: 72vmax;
+  border-radius: 50%;
+  /* closest-side: gradient gaśnie dokładnie na brzegu koła – bez twardej krawędzi. */
+  background: radial-gradient(closest-side, var(--c), transparent);
+  mix-blend-mode: screen;
+  will-change: transform;
+  animation: var(--drift) var(--t) ease-in-out infinite alternate;
+}
+.blob-1 { --c: var(--blob-a); --drift: drift-1; --t: 47s; top: -28vmax; left: -22vmax; }
+.blob-2 { --c: var(--blob-b); --drift: drift-2; --t: 59s; bottom: -34vmax; right: -24vmax; }
+.blob-3 { --c: var(--blob-c); --drift: drift-3; --t: 53s; top: -30vmax; right: -30vmax; width: 60vmax; height: 60vmax; }
+.blob-4 { --c: var(--blob-d); --drift: drift-4; --t: 41s; bottom: -36vmax; left: -18vmax; width: 64vmax; height: 64vmax; }
+@keyframes drift-1 { to { transform: translate3d(18vmax, 14vmax, 0) scale(1.15); } }
+@keyframes drift-2 { to { transform: translate3d(-20vmax, -12vmax, 0) scale(0.9); } }
+@keyframes drift-3 { to { transform: translate3d(-14vmax, 22vmax, 0) scale(1.1); } }
+@keyframes drift-4 { to { transform: translate3d(22vmax, -16vmax, 0) scale(1.2); } }
+
+/* Delikatne ziarno (szum SVG, rysowany raz): zapobiega pasmom na dużych, gładkich gradientach. */
+.liquid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* Przyciemnienie środka, gdzie są tafle z tekstem – barwy zostają na brzegach. */
 .liquid::after {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 1;
   background: radial-gradient(ellipse 70% 60% at 50% 45%, var(--bg-dim), transparent 75%);
 }
-html[data-background='paused'] .liquid { background-image: url('./assets/background/dark-still.webp'); }
+html[data-background='paused'] .blob { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) {
-  .liquid { background-image: url('./assets/background/dark-still.webp'); }
+  .blob { animation: none; }
 }
 @media (prefers-color-scheme: light) {
-  .liquid { background-image: url('./assets/background/light.webp'); }
-  html[data-background='paused'] .liquid { background-image: url('./assets/background/light-still.webp'); }
-}
-@media (prefers-color-scheme: light) and (prefers-reduced-transparency: reduce) {
-  .liquid { background-image: url('./assets/background/light-still.webp'); }
-}
-@media (prefers-color-scheme: light) and (prefers-reduced-motion: reduce) {
-  .liquid { background-image: url('./assets/background/light-still.webp'); }
+  .liquid {
+    --blob-a: rgb(150 125 255 / 0.5);
+    --blob-b: rgb(70 205 255 / 0.4);
+    --blob-c: rgb(255 140 190 / 0.35);
+    --blob-d: rgb(120 150 255 / 0.4);
+  }
+  .blob { mix-blend-mode: multiply; }
 }
 
 /* ---------------------------------------------------------------- szkło
@@ -174,7 +207,6 @@ html[data-background='paused'] .liquid { background-image: url('./assets/backgro
 }
 @media (prefers-reduced-transparency: reduce) {
   :root { --glass-fill: var(--glass-fill-strong); --glass-glint: transparent; }
-  .liquid { background-image: url('./assets/background/dark-still.webp'); }
   .app-header, .details, .assistant, .status-tile, .status-architecture, .table-wrap, .filters, .empty, .toast {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
