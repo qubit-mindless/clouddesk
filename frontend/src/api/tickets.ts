@@ -1,5 +1,5 @@
 import { request } from './client'
-import type { Ticket, TicketCreate, TicketQuery, TicketUpdate } from './types'
+import type { Ticket, TicketCreate, TicketHistory, TicketQuery, TicketUpdate } from './types'
 
 // Lista może przyjść jako tablica albo strona { items, total, page, size } (paginacja z #13).
 type TicketListResponse = Ticket[] | { items: Ticket[] }
@@ -25,4 +25,9 @@ export function updateTicket(id: number, data: TicketUpdate): Promise<Ticket> {
 
 export function deleteTicket(id: number): Promise<void> {
   return request<void>(`/tickets/${id}`, { method: 'DELETE' })
+}
+
+// Oś historii zgłoszenia (#139): zmiany od najstarszej. Utworzenia tu nie ma – to createdAt i reporter zgłoszenia.
+export function getTicketHistory(id: number, signal?: AbortSignal): Promise<TicketHistory> {
+  return request<TicketHistory>(`/tickets/${id}/history`, { signal })
 }
