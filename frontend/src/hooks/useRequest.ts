@@ -42,6 +42,8 @@ export function useRequest<T>(
     const controller = new AbortController()
     run(controller.signal).then(
       (data) => {
+        // Odpowiedź, która doszła już po przerwaniu (np. szybkie 90 → 7 dni), nie może trafić do `last`.
+        if (controller.signal.aborted) return
         setState({ key, attempt, data })
         setLast({ key, data, at: Date.now() })
         setFailedKey(undefined)

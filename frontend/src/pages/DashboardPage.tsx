@@ -24,6 +24,7 @@ const PRIORITIES: TicketPriority[] = ['P1', 'P2', 'P3', 'P4']
 const REFRESH_MS = 30_000
 
 const number = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 1 })
+const asOf = new Intl.DateTimeFormat('pl-PL', { timeStyle: 'short' })
 
 function pickPeriod(value: string | null): number {
   const days = Number(value)
@@ -100,6 +101,8 @@ function Dashboard({ stats, refreshing, busy, updatedAt, failed, onReload }: Das
             <li className="legend-breached">Przekroczone: {sla.breachedOpen}</li>
             <li className="legend-warning">Zagrożone: {sla.atRisk}</li>
             <li className="legend-ok">W terminie: {Math.max(sla.open - sla.breachedOpen - sla.atRisk, 0)}</li>
+            {/* Liczniki są z odpowiedzi API, a odliczanie w wierszach tyka co 30 s – podajemy, z której chwili są liczby. */}
+            <li className="risk-asof">stan na {asOf.format(new Date(stats.generatedAt))}</li>
           </ul>
         </div>
         <AtRiskList tickets={stats.atRiskTop} />

@@ -35,5 +35,6 @@ export function formatRemaining(ms: number): string {
   const mins = minutes % 60
   if (days > 0) return `${sign}${days} d${hours ? ` ${hours} h` : ''}`
   if (hours > 0) return `${sign}${hours} h${mins ? ` ${mins} min` : ''}`
+  if (mins === 0) return `${sign}<1 min`
   return `${sign}${mins} min`
 }
