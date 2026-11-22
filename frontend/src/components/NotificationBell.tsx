@@ -32,12 +32,18 @@ export function NotificationBell() {
   const wrap = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
   const lastUnread = useRef(0)
+  const loaded = useRef(false)
+  // Numer ostatniego żądania: odpowiedź starsza niż „oznacz jako przeczytane” albo nowsze wczytanie jest pomijana.
+  const sequence = useRef(0)
 
   const load = useCallback(async (signal?: AbortSignal) => {
+    const seq = ++sequence.current
     try {
       const next = await getNotifications(signal)
-      // Dzwonek kołysze się tylko wtedy, gdy przybyło nieprzeczytanych (nie przy pierwszym wczytaniu).
-      if (next.unread > lastUnread.current && lastUnread.current > 0) setRing(true)
+      if (seq !== sequence.current) return
+      // Dzwonek kołysze się, gdy przybyło nieprzeczytanych – ale nie przy pierwszym wczytaniu strony.
+      if (loaded.current && next.unread > lastUnread.current) setRing(true)
+      loaded.current = true
       lastUnread.current = next.unread
       setData(next)
     } catch {
@@ -82,6 +88,7 @@ export function NotificationBell() {
   }
 
   const markRead = async () => {
+    sequence.current++
     try {
       await markNotificationsRead(data?.items[0]?.at)
       lastUnread.current = 0
@@ -101,7 +108,7 @@ export function NotificationBell() {
         onClick={toggle}
         onAnimationEnd={() => setRing(false)}
         aria-expanded={open}
-        aria-controls="notifications"
+        aria-controls={open ? 'notifications' : undefined}
         aria-label={unread ? `Powiadomienia, nieprzeczytane: ${unread}` : 'Powiadomienia'}
         data-testid="notifications-bell"
       >

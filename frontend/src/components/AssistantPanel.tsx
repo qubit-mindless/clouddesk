@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { askAssistant, getAssistant } from '../api/assistant'
 import { errorMessage } from '../api/client'
 import { resolveTicket } from '../api/tickets'
+import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
-import type { AssistantConversation, AssistantMessage } from '../api/types'
+import type { AssistantConversation, AssistantMessage, Ticket } from '../api/types'
 import { useRequest } from '../hooks/useRequest'
 import { formatDateTime } from '../utils/sla'
 import { ErrorState } from './ErrorState'
@@ -19,7 +20,7 @@ interface Props {
   // Tuż po utworzeniu zgłoszenia asystent od razu proponuje kroki – bez klikania „Podpowiedz”.
   autoSuggest?: boolean
   // Zgłaszający zamknął zgłoszenie przyciskiem „Pomogło” – strona odświeża zgłoszenie.
-  onResolved?: () => void
+  onResolved?: (ticket: Ticket) => void
 }
 
 export function AssistantPanel({ ticketId, reporter, autoSuggest = false, onResolved }: Props) {
@@ -31,6 +32,7 @@ export function AssistantPanel({ ticketId, reporter, autoSuggest = false, onReso
   const [failure, setFailure] = useState<{ ticketId: number; message: string }>()
   const [validation, setValidation] = useState('')
   const toast = useToast()
+  const { user } = useAuth()
   const [resolving, setResolving] = useState(false)
   // „Nie pomogło” chowa pytanie dla tego zgłoszenia; technik i tak dostaje zgłoszenie razem z rozmową.
   const [handedOver, setHandedOver] = useState<number>()
@@ -72,11 +74,11 @@ export function AssistantPanel({ ticketId, reporter, autoSuggest = false, onReso
   const resolve = async () => {
     setResolving(true)
     try {
-      await resolveTicket(ticketId)
+      const ticket = await resolveTicket(ticketId)
       toast('Zgłoszenie zamknięte – dziękujemy! Problem rozwiązany bez czekania na technika.')
       setUpdated(undefined)
       reload()
-      onResolved?.()
+      onResolved?.(ticket)
     } catch (e) {
       toast(errorMessage(e), 'error')
     } finally {
@@ -84,7 +86,8 @@ export function AssistantPanel({ ticketId, reporter, autoSuggest = false, onReso
     }
   }
   const hasAnswer = conversation?.items.some((m) => m.role === 'assistant') ?? false
-  const askHelped = conversation?.canAsk && hasAnswer && !sending && handedOver !== ticketId
+  // Zamknąć „po pomocy AI” może tylko zgłaszający (technik i admin zamykają przez status – backend daje im 403).
+  const askHelped = user?.role === 'REPORTER' && conversation?.canAsk && hasAnswer && !sending && handedOver !== ticketId
 
   const handleSubmit = (event: React.SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()

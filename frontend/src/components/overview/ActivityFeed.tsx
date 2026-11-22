@@ -47,14 +47,15 @@ export function ActivityFeed() {
     let controller = new AbortController()
     const load = () => {
       controller.abort()
-      controller = new AbortController()
-      getActivity(LIMIT, controller.signal).then(
+      const current = new AbortController()
+      controller = current
+      getActivity(LIMIT, current.signal).then(
         (data) => {
           setItems(data.items)
           setFailed(false)
         },
         () => {
-          if (!controller.signal.aborted) setFailed(true)
+          if (!current.signal.aborted) setFailed(true)
         },
       )
     }
