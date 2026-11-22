@@ -6,7 +6,7 @@ from app.models import Ticket, TicketHistory, TicketPriority, TicketStatus, User
 from app.repositories.ticket_repository import TicketRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.ticket import TicketCreate, TicketOut, TicketPage, TicketQuery, TicketUpdate
-from app.services.errors import FieldValidationError, ForbiddenError, NotFoundError
+from app.services.errors import ConflictError, FieldValidationError, ForbiddenError, NotFoundError
 
 # Czas na rozwiązanie zgłoszenia liczony od jego utworzenia (ten sam w seedzie i w fake API frontendu).
 SLA_BY_PRIORITY: dict[TicketPriority, timedelta] = {
@@ -21,6 +21,9 @@ ASSIGNABLE_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
 STAFF_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
 # Zgłaszający może poprawić treść i priorytet własnego zgłoszenia, ale nie prowadzi go dalej.
 REPORTER_EDITABLE = {"title", "description", "priority"}
+# Wiersz historii „sposób rozwiązania”: SELF_AI = zgłaszający zamknął zgłoszenie po pomocy asystenta AI.
+RESOLUTION_FIELD = "resolution"
+RESOLUTION_SELF_AI = "SELF_AI"
 
 
 def login_of(user: User | None) -> str | None:
@@ -163,6 +166,43 @@ class TicketService:
         if history:
             ticket.history.extend(history)
             ticket.updated_at = datetime.now(UTC)
+        self.db.commit()
+        return to_dto(self._get(ticket.id))
+
+    def resolve(self, ticket_id: int) -> TicketOut:
+        """„Pomogło – zamknij”: zgłaszający sam zamyka własne zgłoszenie po pomocy asystenta AI."""
+        # Blokada wiersza (PostgreSQL: FOR UPDATE) – dwa równoległe kliknięcia nie zapiszą historii dwa razy;
+        # zablokowany obiekt trafia do mapy tożsamości, więc _get poniżej zwraca ten sam, świeży stan.
+        self.tickets.lock(ticket_id)
+        ticket = self._get(ticket_id)
+        if self._is_staff:
+            raise ForbiddenError("Technik i administrator zmieniają status zgłoszenia przez edycję statusu.")
+        if ticket.status in CLOSED_STATUSES:
+            raise ConflictError("Zgłoszenie jest już rozwiązane lub zamknięte.")
+
+        now = datetime.now(UTC)
+        ticket.history.extend(
+            [
+                TicketHistory(
+                    author=self.actor,
+                    field="status",
+                    old_value=ticket.status.value,
+                    new_value=TicketStatus.RESOLVED.value,
+                    changed_at=now,
+                ),
+                # Osobny wiersz pozwala policzyć zgłoszenia rozwiązane bez technika (/api/me/summary).
+                TicketHistory(
+                    author=self.actor,
+                    field=RESOLUTION_FIELD,
+                    old_value=None,
+                    new_value=RESOLUTION_SELF_AI,
+                    changed_at=now,
+                ),
+            ]
+        )
+        ticket.status = TicketStatus.RESOLVED
+        ticket.resolved_at = now
+        ticket.updated_at = now
         self.db.commit()
         return to_dto(self._get(ticket.id))
 
