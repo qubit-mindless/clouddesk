@@ -23,6 +23,11 @@ export function updateTicket(id: number, data: TicketUpdate): Promise<Ticket> {
   return request<Ticket>(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 }
 
+// „Pomogło – zamknij”: zgłaszający sam zamyka własne zgłoszenie po pomocy asystenta AI (RESOLVED, resolution = SELF_AI).
+export function resolveTicket(id: number): Promise<Ticket> {
+  return request<Ticket>(`/tickets/${id}/resolve`, { method: 'POST', body: '{}' })
+}
+
 export function deleteTicket(id: number): Promise<void> {
   return request<void>(`/tickets/${id}`, { method: 'DELETE' })
 }

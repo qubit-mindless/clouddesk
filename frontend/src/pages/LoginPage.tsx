@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError, errorMessage, type FieldErrors } from '../api/client'
 import type { ReturnTo } from '../auth/RequireAuth'
 import { Loading } from '../components/Loading'
+import { DEMO_ACCOUNTS } from '../config'
 import { useAuth } from '../hooks/useAuth'
 
 // Te same limity co LoginRequest w backendzie (#106); backend i tak sprawdza je ponownie.
@@ -38,6 +39,7 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   // Blokada synchroniczna: dwa szybkie Entery przed ponownym renderem nie wyślą logowania dwa razy.
   const inFlight = useRef(false)
+  const passwordRef = useRef<HTMLInputElement>(null)
 
   const target = returnTo(state)
   if (status === 'authenticated' && !submitting) return <Navigate to={target.path} state={target.state} replace />
@@ -83,8 +85,11 @@ export function LoginPage() {
     )
 
   return (
-    <section className="details login">
-      <h2>Logowanie</h2>
+    <section className="login-card" aria-labelledby="login-heading">
+      <div className="login-brand">
+        <h2 id="login-heading">CloudDesk</h2>
+        <p>System zgłoszeń IT z SLA i asystentem AI</p>
+      </div>
       {endReason === 'expired' && (
         <p className="form-error" role="status" data-testid="login-expired">
           Sesja wygasła. Zaloguj się ponownie.
@@ -108,6 +113,7 @@ export function LoginPage() {
         <label htmlFor="login-password">Hasło</label>
         <input
           {...fieldProps('password')}
+          ref={passwordRef}
           type="password"
           autoComplete="current-password"
           value={password}
@@ -125,11 +131,32 @@ export function LoginPage() {
         )}
 
         <div className="form-actions">
-          <button type="submit" className="primary" disabled={submitting} data-testid="login-submit">
+          <button type="submit" className="primary login-submit" disabled={submitting} data-testid="login-submit">
             {submitting ? 'Logowanie…' : 'Zaloguj się'}
           </button>
         </div>
       </form>
+      {DEMO_ACCOUNTS.length > 0 && (
+        // Konta demo z seeda: przycisk tylko wpisuje e-mail – hasło trzeba podać (bez logowania „jednym kliknięciem”
+        // na publicznym adresie, gdzie każdy mógłby działać jako technik).
+        <div className="demo-accounts" data-testid="demo-accounts">
+          <p className="divider">Konta demo</p>
+          {DEMO_ACCOUNTS.map((account) => (
+            <button
+              key={account.email}
+              type="button"
+              className="demo-account"
+              onClick={() => {
+                setEmail(account.email)
+                setErrors({})
+                passwordRef.current?.focus()
+              }}
+            >
+              {account.name} <small>{account.role}</small>
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   )
 }

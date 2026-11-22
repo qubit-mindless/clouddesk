@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
 // Tafle szkła, które łapią światło kursora. Ta sama lista jest w index.css (sekcja „szkło”) – zmieniaj obie.
-const GLASS = '.app-header, .details, .assistant, .table-wrap, .filters, .empty, .toast'
+const GLASS = '.app-header, .details, .assistant, .login-card, .my-card, .kpi, .side-card, .table-wrap, .filters, .empty, .toast'
 
 /**
  * Odblask na szkle podąża za kursorem: na tafli pod wskaźnikiem ustawiamy --mx/--my (piksele względem tafli),

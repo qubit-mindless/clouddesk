@@ -7,6 +7,13 @@ import type { Ticket, TicketPriority, TicketStatus, TicketUpdate } from '../api/
 const TITLE_MIN = 5
 const TITLE_MAX = 200
 const DESCRIPTION_MAX = 5000
+// Opis priorytetu dla zgłaszającego i termin SLA z backendu (P1 4 h, P2 8 h, P3 2 dni, P4 5 dni).
+const PRIORITY_HINT: Record<TicketPriority, string> = {
+  P1: 'nic nie działa, stoi praca wielu osób · odpowiedź do 4 h',
+  P2: 'blokuje moją pracę · do 8 h',
+  P3: 'utrudnia, ale da się pracować · do 2 dni',
+  P4: 'drobiazg, prośba · do 5 dni',
+}
 
 export interface TicketFormValues {
   title: string
@@ -117,20 +124,29 @@ export function TicketForm({ ticket, canManage = false, submitLabel, onSubmit, o
       />
       {fieldError('title')}
 
-      <label htmlFor="ticket-priority">Priorytet *</label>
-      <select
-        {...fieldProps('priority')}
+      {/* Kafelki zamiast listy: przy każdym priorytecie widać, co znaczy i ile czasu ma technik (SLA). */}
+      <fieldset
+        className="priority-cards"
+        aria-invalid={Boolean(errors.priority)}
+        aria-describedby={errors.priority ? 'ticket-priority-error' : undefined}
         data-testid="ticket-form-priority"
-        value={values.priority}
-        onChange={(e) => set('priority', e.target.value as TicketFormValues['priority'])}
       >
-        <option value="">Wybierz…</option>
-        {Object.entries(PRIORITY_LABEL).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
+        <legend>Jak pilne? *</legend>
+        {(Object.keys(PRIORITY_HINT) as TicketPriority[]).map((value) => (
+          <label key={value} className="priority-card" data-priority={value}>
+            <input
+              type="radio"
+              name="ticket-priority"
+              value={value}
+              checked={values.priority === value}
+              onChange={() => set('priority', value)}
+              data-testid={`ticket-form-priority-${value}`}
+            />
+            <strong>{PRIORITY_LABEL[value]}</strong>
+            <small>{PRIORITY_HINT[value]}</small>
+          </label>
         ))}
-      </select>
+      </fieldset>
       {fieldError('priority')}
 
       {ticket && canManage && (
