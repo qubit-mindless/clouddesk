@@ -23,7 +23,12 @@ export default function App() {
     <ToastProvider>
       <AuthProvider>
         {/* Animowane tło pod szklanymi taflami – tylko dekoracja. */}
-        <div className="liquid" aria-hidden="true" />
+        <div className="liquid" aria-hidden="true">
+          <span className="blob blob-1" />
+          <span className="blob blob-2" />
+          <span className="blob blob-3" />
+          <span className="blob blob-4" />
+        </div>
         <main>
           <header className="app-header">
             <div>

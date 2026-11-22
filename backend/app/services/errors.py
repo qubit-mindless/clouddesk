@@ -6,6 +6,10 @@ class ForbiddenError(Exception):
     """Użytkownik jest zalogowany, ale jego rola nie pozwala na operację – router zamienia na 403."""
 
 
+class ConflictError(Exception):
+    """Operacja niemożliwa w obecnym stanie (np. zgłoszenie już rozwiązane) – router zamienia na 409."""
+
+
 class FieldValidationError(Exception):
     """Błąd danych wykryty w logice (np. nieznany technik) – router zamienia na 422 w formacie FastAPI."""
 
