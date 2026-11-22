@@ -85,10 +85,11 @@ def test_kinds_shape_and_no_content(login_as, db):
     assert len({i["id"] for i in items}) == len(items)
 
 
-def test_resolution_row_is_listed(login_as):
+def test_resolution_row_is_listed(login_as, db):
     anna = login_as("anna.k")
     tid = create(anna)
-    anna.post(f"/api/tickets/{tid}/resolve", json={})
+    add_answer(db, tid)
+    assert anna.post(f"/api/tickets/{tid}/resolve", json={}).status_code == 200
     changes = [i for i in anna.get("/api/activity").json()["items"] if i["kind"] == "change"]
     assert {(c["field"], c["newValue"]) for c in changes} == {
         ("status", "RESOLVED"),

@@ -2,7 +2,9 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core import clock
 from app.models import Ticket, TicketHistory, TicketPriority, TicketStatus, User, UserRole
+from app.repositories.ai_message_repository import AiMessageRepository
 from app.repositories.ticket_repository import TicketRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.ticket import TicketCreate, TicketOut, TicketPage, TicketQuery, TicketUpdate
@@ -24,6 +26,10 @@ REPORTER_EDITABLE = {"title", "description", "priority"}
 # Wiersz historii „sposób rozwiązania”: SELF_AI = zgłaszający zamknął zgłoszenie po pomocy asystenta AI.
 RESOLUTION_FIELD = "resolution"
 RESOLUTION_SELF_AI = "SELF_AI"
+NO_ASSISTANT_ANSWER = (
+    "Asystent AI nie odpowiadał jeszcze w tym zgłoszeniu – najpierw zapytaj asystenta. "
+    "Gdy asystent jest wyłączony, zgłoszenie zamyka technik."
+)
 
 
 def login_of(user: User | None) -> str | None:
@@ -52,6 +58,7 @@ class TicketService:
         self.actor = actor
         self.tickets = TicketRepository(db)
         self.users = UserRepository(db)
+        self.ai_messages = AiMessageRepository(db)
 
     @property
     def _is_staff(self) -> bool:
@@ -106,6 +113,8 @@ class TicketService:
         return to_dto(self._get(ticket.id))
 
     def update(self, ticket_id: int, data: TicketUpdate) -> TicketOut:
+        # Blokada wiersza do końca transakcji (jak w resolve): PATCH i /resolve nie nadpiszą się nawzajem.
+        self.tickets.lock(ticket_id)
         ticket = self._get(ticket_id)
         changes = data.model_dump(exclude_unset=True)
         if not self._is_staff:
@@ -119,6 +128,9 @@ class TicketService:
                 raise FieldValidationError(field, "Pole nie może być puste.")
 
         actor = self.actor
+        # Jawny czas zmiany zamiast func.now() w bazie: na PostgreSQL now() to start transakcji, więc zmiana
+        # zapisana równolegle z „oznacz powiadomienia jako przeczytane” mogłaby wyglądać na przeczytaną.
+        now = clock.utc_now()
         history: list[TicketHistory] = []
 
         def record(field: str, old: object, new: object) -> None:
@@ -129,6 +141,7 @@ class TicketService:
                         field=field,
                         old_value=None if old is None else str(old),
                         new_value=None if new is None else str(new),
+                        changed_at=now,
                     )
                 )
 
@@ -158,14 +171,14 @@ class TicketService:
             new_status = changes["status"]
             record("status", ticket.status.value, new_status.value)
             if new_status in CLOSED_STATUSES and ticket.resolved_at is None:
-                ticket.resolved_at = datetime.now(UTC)
+                ticket.resolved_at = now
             elif new_status not in CLOSED_STATUSES:
                 ticket.resolved_at = None
             ticket.status = new_status
 
         if history:
             ticket.history.extend(history)
-            ticket.updated_at = datetime.now(UTC)
+            ticket.updated_at = now
         self.db.commit()
         return to_dto(self._get(ticket.id))
 
@@ -179,8 +192,11 @@ class TicketService:
             raise ForbiddenError("Technik i administrator zmieniają status zgłoszenia przez edycję statusu.")
         if ticket.status in CLOSED_STATUSES:
             raise ConflictError("Zgłoszenie jest już rozwiązane lub zamknięte.")
+        if self.ai_messages.count_answers(ticket.id) == 0:
+            # „Pomogło” tylko po pomocy asystenta – inaczej SELF_AI zawyżałby „rozwiązane bez technika”.
+            raise ConflictError(NO_ASSISTANT_ANSWER)
 
-        now = datetime.now(UTC)
+        now = clock.utc_now()
         ticket.history.extend(
             [
                 TicketHistory(
