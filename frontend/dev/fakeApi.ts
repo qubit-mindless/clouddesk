@@ -199,7 +199,9 @@ export function fakeApi(): Plugin {
           // Jak backend: do czasu najnowszego pokazanego powiadomienia (przyszłość przycinamy do „teraz”).
           const body = (await readJson(req)) ?? {}
           const until = typeof body.until === 'string' ? Date.parse(body.until) : NaN
-          notificationsSeen.set(actor.login, Number.isNaN(until) ? Date.now() : Math.min(until, Date.now()))
+          const next = Number.isNaN(until) ? Date.now() : Math.min(until, Date.now())
+          // Znacznik się nie cofa – stara karta przeglądarki nie oznaczy przeczytanych z powrotem jako nowe.
+          notificationsSeen.set(actor.login, Math.max(next, notificationsSeen.get(actor.login) ?? 0))
           return send(res, 204)
         }
         if (url.pathname === '/me/summary' && req.method === 'GET') return send(res, 200, computeMeSummary(store, actor))
