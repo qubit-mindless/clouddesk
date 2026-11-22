@@ -1,19 +1,64 @@
 import type { Ticket } from '../api/types'
-import { formatDateTime, getSlaState } from '../utils/sla'
+import { formatDateTime, formatRemaining, getSlaState } from '../utils/sla'
 
-const SLA_HINT = {
-  done: '',
-  ok: '',
-  warning: 'blisko terminu',
-  breached: 'przekroczony',
+// Pigułka SLA z odliczaniem (#141): „2 h 14 min”, blisko terminu na bursztynowo, po terminie na czerwono z minusem.
+// Rozwiązane i zamknięte mają zamrożony wynik ✓/✗ (czy zdążyliśmy przed terminem). Stan jest też w tekście
+// (ukryty dopisek dla czytnika i ikona), nie tylko w kolorze; dokładna data terminu w `title`.
+// `now` przychodzi z jednego timera strony (useNow) – nie ma licznika na każdy wiersz.
+
+const PREFIX = {
+  ok: 'zostało',
+  warning: 'blisko terminu, zostało',
+  breached: 'po terminie',
 } as const
 
-export function SlaDue({ ticket }: { ticket: Ticket }) {
-  const state = getSlaState(ticket)
+const ICON = { ok: '◷', warning: '⚠', breached: '✗' } as const
+
+export function SlaDue({ ticket, now }: { ticket: Ticket; now: number }) {
+  const state = getSlaState(ticket, new Date(now))
+  const due = Date.parse(ticket.slaDueAt)
+  const title = `Termin SLA: ${formatDateTime(ticket.slaDueAt)}`
+
+  if (state === 'done') {
+    const onTime = ticket.resolvedAt === null || Date.parse(ticket.resolvedAt) <= due
+    return (
+      <span className={`sla-pill sla-done ${onTime ? 'sla-met' : 'sla-missed'}`} data-sla="done" title={title} data-testid="sla-pill">
+        <span aria-hidden="true">{onTime ? '✓' : '✗'}</span> {onTime ? 'w terminie' : 'po terminie'}
+      </span>
+    )
+  }
+
+  const remaining = due - now
   return (
-    <span className={`sla sla-${state}`} data-sla={state}>
-      {formatDateTime(ticket.slaDueAt)}
-      {SLA_HINT[state] && <small> ({SLA_HINT[state]})</small>}
+    <span className={`sla-pill sla-${state}`} data-sla={state} title={title} data-testid="sla-pill">
+      <span aria-hidden="true">{ICON[state]}</span> <span className="visually-hidden">{PREFIX[state]} </span>
+      {formatRemaining(remaining)}
     </span>
+  )
+}
+
+// Pasek w szczegółach: jaka część czasu SLA już upłynęła (dla zakończonych – do momentu rozwiązania).
+export function SlaProgress({ ticket, now }: { ticket: Ticket; now: number }) {
+  const state = getSlaState(ticket, new Date(now))
+  // Zakończone bez daty rozwiązania (stare dane): nie ma czym zamrozić paska, więc go nie pokazujemy.
+  if (state === 'done' && ticket.resolvedAt === null) return null
+  const created = Date.parse(ticket.createdAt)
+  const due = Date.parse(ticket.slaDueAt)
+  const end = ticket.resolvedAt ? Date.parse(ticket.resolvedAt) : now
+  const pct = due > created ? Math.max(0, Math.round(((end - created) / (due - created)) * 100)) : 100
+
+  return (
+    <div className="sla-progress" data-testid="sla-progress">
+      <span className="sla-progress-track" aria-hidden="true">
+        <span className={`sla-progress-fill sla-${state}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </span>
+      <small>
+        {pct > 100
+          ? ticket.resolvedAt
+            ? 'rozwiązane po upływie czasu SLA'
+            : 'czas SLA minął'
+          : `${ticket.resolvedAt ? 'wykorzystano' : 'upłynęło'} ${pct}% czasu SLA`}
+      </small>
+    </div>
   )
 }

@@ -273,9 +273,10 @@ tr:has(.sla-breached) td:first-child { box-shadow: inset 3px 0 0 var(--sla-breac
 .status-resolved { background: var(--green-bg); color: var(--green-fg); }
 .status-closed { background: var(--gray-bg); color: var(--gray-fg); }
 
-.sla-warning { color: var(--sla-warning); font-weight: 600; }
-.sla-breached { color: var(--sla-breached); font-weight: 600; }
-.sla-done { color: var(--sla-done); }
+/* Tekstowy wariant terminu (lista na pulpicie); pigułka i pasek mają własne reguły niżej. */
+.sla.sla-warning { color: var(--sla-warning); font-weight: 600; }
+.sla.sla-breached { color: var(--sla-breached); font-weight: 600; }
+.sla.sla-done { color: var(--sla-done); }
 
 /* ---------------------------------------------------------------- szczegóły zgłoszenia */
 .details { margin-top: 16px; padding: 24px 28px; border-radius: var(--radius-pane); }
@@ -463,7 +464,6 @@ select option { color: #141a3c; background: #fff; }
   background: linear-gradient(100deg, var(--plasma), var(--tidal) 60%, var(--bloom));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.bento[aria-busy='true'] .bento-tile { opacity: 0.7; transition: opacity 0.2s; }
 .bento-footer { grid-column: 1 / -1; margin: 0; font-size: 0.8rem; color: var(--text-muted); text-align: right; }
 @media (max-width: 900px) {
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -522,3 +522,41 @@ select option { color: #141a3c; background: #fff; }
 .bar-fill.priority-p2 { background: var(--chart-p2); }
 .bar-fill.priority-p3 { background: var(--tidal); }
 .bar-fill.priority-p4 { background: var(--sla-done); }
+
+/* ---------------------------------------------------------------- żywe SLA (#141) */
+.sla-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 10px; border: 1px solid var(--badge-edge); border-radius: 999px;
+  font-size: 0.82rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums;
+  background: var(--green-bg); color: var(--green-fg);
+}
+.sla-pill.sla-warning { background: var(--yellow-bg); color: var(--yellow-fg); }
+.sla-pill.sla-breached { background: var(--red-bg); color: var(--red-fg); }
+.sla-pill.sla-done { background: var(--gray-bg); color: var(--gray-fg); font-weight: 550; }
+.sla-pill.sla-missed { color: var(--red-fg); }
+
+.sla-cell { display: grid; gap: 6px; }
+.sla-date { margin-left: 6px; color: var(--text-muted); font-size: 0.88rem; }
+.sla-progress { display: grid; gap: 3px; max-width: 320px; }
+.sla-progress small { color: var(--text-muted); font-size: 0.78rem; }
+.sla-progress-track { height: 6px; border-radius: 999px; background: var(--row-line); overflow: hidden; }
+.sla-progress-fill { display: block; height: 100%; border-radius: inherit; background: var(--tidal); }
+.sla-progress-fill.sla-warning { background: var(--sla-warning); }
+.sla-progress-fill.sla-breached { background: var(--sla-breached); }
+.sla-progress-fill.sla-done { background: var(--sla-done); }
+
+/* Wskaźnik „na żywo”: kropka pulsuje, przy ograniczonym ruchu stoi. */
+.list-meta { display: flex; justify-content: flex-end; min-height: 1.4em; margin: -6px 0 8px; }
+.live-status { display: inline-flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--text-muted); }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--chart-resolved); box-shadow: 0 0 0 0 var(--chart-resolved); animation: live-pulse 2s ease-out infinite; }
+.live-failed .live-dot { background: var(--sla-warning); animation: none; }
+@keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgb(75 227 166 / 0.5); } 70%, 100% { box-shadow: 0 0 0 7px rgb(75 227 166 / 0); } }
+
+/* Wiersz zmieniony przy odświeżeniu w tle – krótki błysk tła (tylko opacity/kolor, bez przesuwania). */
+tr.row-flash td { animation: row-flash 2.4s ease-out; }
+@keyframes row-flash { 0%, 30% { background: var(--blue-bg); } 100% { background: transparent; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+  tr.row-flash td { animation: none; }
+}

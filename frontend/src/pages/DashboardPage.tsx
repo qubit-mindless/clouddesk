@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router'
 import { PRIORITY_LABEL } from '../api/labels'
 import { getStats } from '../api/stats'
@@ -7,6 +8,7 @@ import { BarList } from '../components/dashboard/BarList'
 import { RiskRing } from '../components/dashboard/RiskRing'
 import { TrendChart } from '../components/dashboard/TrendChart'
 import { ErrorState } from '../components/ErrorState'
+import { LiveStatus } from '../components/LiveStatus'
 import { Loading } from '../components/Loading'
 import { PriorityBadge } from '../components/PriorityBadge'
 import { useAuth } from '../hooks/useAuth'
@@ -18,9 +20,10 @@ import { formatDateTime, formatRemaining, getSlaState } from '../utils/sla'
 const PERIODS = [7, 30, 90] as const
 const DEFAULT_PERIOD = 30
 const PRIORITIES: TicketPriority[] = ['P1', 'P2', 'P3', 'P4']
+// Pulpit odświeża się sam (#141); przy ukrytej karcie stoi, żeby backend mógł zejść do zera.
+const REFRESH_MS = 30_000
 
 const number = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 1 })
-const time = new Intl.DateTimeFormat('pl-PL', { timeStyle: 'short' })
 
 function pickPeriod(value: string | null): number {
   const days = Number(value)
@@ -36,7 +39,17 @@ export function DashboardPage() {
 function DashboardContent() {
   const [params, setParams] = useSearchParams()
   const days = pickPeriod(params.get('days'))
-  const { data, error, loading, reload } = useRequest(String(days), (signal) => getStats(days, signal), { keepData: true })
+  const { data, error, loading, updatedAt, failed, reload } = useRequest(String(days), (signal) => getStats(days, signal), {
+    keepData: true,
+    intervalMs: REFRESH_MS,
+  })
+  // Kiedy użytkownik kliknął „Odśwież” – napis „Odświeżanie…” tylko dla takiego odświeżenia, nie dla odpytywania w tle.
+  const [manualAt, setManualAt] = useState<number>()
+  const manualReload = () => {
+    setManualAt(Date.now())
+    reload()
+  }
+  const busy = loading && manualAt !== undefined && (updatedAt ?? 0) < manualAt
 
   return (
     <>
@@ -57,13 +70,24 @@ function DashboardContent() {
         </div>
       </div>
       {loading && !data && <Loading label="Ładowanie pulpitu…" />}
-      {error !== undefined && <ErrorState error={error} onRetry={reload} />}
-      {data && <Dashboard stats={data} refreshing={loading} onReload={reload} />}
+      {error !== undefined && !data && <ErrorState error={error} onRetry={reload} />}
+      {data && (
+        <Dashboard stats={data} refreshing={loading} busy={busy} updatedAt={updatedAt} failed={failed} onReload={manualReload} />
+      )}
     </>
   )
 }
 
-function Dashboard({ stats, refreshing, onReload }: { stats: Stats; refreshing: boolean; onReload: () => void }) {
+interface DashboardProps {
+  stats: Stats
+  refreshing: boolean
+  busy: boolean
+  updatedAt?: number
+  failed: boolean
+  onReload: () => void
+}
+
+function Dashboard({ stats, refreshing, busy, updatedAt, failed, onReload }: DashboardProps) {
   const { sla, days } = stats
 
   return (
@@ -151,7 +175,7 @@ function Dashboard({ stats, refreshing, onReload }: { stats: Stats; refreshing: 
       </section>
 
       <p className="bento-footer">
-        {refreshing ? 'Odświeżanie…' : `Dane z ${time.format(new Date(stats.generatedAt))}`} ·{' '}
+        <LiveStatus updatedAt={updatedAt} failed={failed} busy={busy} /> ·{' '}
         <button type="button" className="link-button" onClick={onReload} data-testid="dashboard-reload">
           Odśwież
         </button>

@@ -1,11 +1,15 @@
 import { Link, useLocation, useNavigate } from 'react-router'
 import type { Ticket } from '../api/types'
+import { useNow } from '../hooks/useNow'
 import { PriorityBadge } from './PriorityBadge'
 import { SlaDue } from './SlaDue'
 import { StatusBadge } from './StatusBadge'
 
-export function TicketList({ tickets }: { tickets: Ticket[] }) {
+// `highlighted`: wiersze zmienione przy ostatnim odświeżeniu w tle – na chwilę się podświetlają (#141).
+export function TicketList({ tickets, highlighted }: { tickets: Ticket[]; highlighted?: Set<number> }) {
   const navigate = useNavigate()
+  // Jeden timer dla wszystkich pigułek SLA w tabeli.
+  const now = useNow(30_000)
   // Szczegóły dostają aktualne filtry, żeby przycisk powrotu wrócił do tego samego widoku.
   const { search } = useLocation()
   const state = { listSearch: search }
@@ -33,7 +37,7 @@ export function TicketList({ tickets }: { tickets: Ticket[] }) {
         </thead>
         <tbody>
           {tickets.map((t) => (
-            <tr key={t.id} data-testid={`ticket-row-${t.id}`} className="clickable" onClick={() => navigate(`/tickets/${t.id}`, { state })}>
+            <tr key={t.id} data-testid={`ticket-row-${t.id}`} className={`clickable ${highlighted?.has(t.id) ? 'row-flash' : ''}`} onClick={() => navigate(`/tickets/${t.id}`, { state })}>
               <td>{t.id}</td>
               <td>
                 {/* Link zostaje dla klawiatury i czytników ekranu, kliknięcie w wiersz to skrót dla myszy. */}
@@ -49,7 +53,7 @@ export function TicketList({ tickets }: { tickets: Ticket[] }) {
               </td>
               <td>{t.assignee ?? '—'}</td>
               <td>
-                <SlaDue ticket={t} />
+                <SlaDue ticket={t} now={now} />
               </td>
             </tr>
           ))}
