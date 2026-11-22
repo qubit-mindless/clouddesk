@@ -49,7 +49,8 @@ test('logowanie → nowe zgłoszenie → lista → szczegół → usunięcie', a
     await page.getByTestId('ticket-new').click()
     await expect(page.getByTestId('ticket-form')).toBeVisible()
     await page.getByLabel('Tytuł *').fill(TITLE)
-    await page.getByLabel('Priorytet *').selectOption('P2')
+    // Priorytet to kafelki (radio) z opisem i czasem SLA – pole radio jest wizualnie ukryte pod kafelkiem.
+    await page.getByTestId('ticket-form-priority-P2').check({ force: true })
     await page.getByLabel('Opis *').fill(DESCRIPTION)
     // Id bierzemy z odpowiedzi API od razu po zapisie – zanim padnie jakakolwiek asercja, żeby afterAll
     // mógł posprzątać także wtedy, gdy kolejne sprawdzenie się nie powiedzie.
