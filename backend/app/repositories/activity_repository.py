@@ -1,7 +1,24 @@
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session, contains_eager, joinedload, load_only
 
 from app.models import AiMessage, AiMessageRole, Ticket, TicketHistory
+
+
+def initial_priority() -> ColumnElement[str]:
+    """Wyrażenie SQL: priorytet nadany przy utworzeniu zgłoszenia.
+
+    Stara wartość pierwszej zmiany priorytetu z historii, a gdy zmian nie było – bieżący priorytet.
+    Ta sama reguła co `ActivityRepository.initial_priorities` (wersja zbiorcza dla listy zgłoszeń).
+    """
+    first_change = (
+        select(TicketHistory.old_value)
+        .where(TicketHistory.ticket_id == Ticket.id, TicketHistory.field == "priority")
+        .order_by(TicketHistory.changed_at, TicketHistory.id)
+        .limit(1)
+        .correlate(Ticket)
+        .scalar_subquery()
+    )
+    return func.coalesce(first_change, Ticket.priority)
 
 
 class ActivityRepository:

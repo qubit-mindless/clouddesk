@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Body, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser
@@ -28,8 +28,14 @@ def list_notifications(service: Service) -> NotificationList:
     return service.list()
 
 
-@router.post("/read", status_code=status.HTTP_204_NO_CONTENT)
-def mark_notifications_read(_: NotificationsReadRequest, service: Service) -> Response:
-    """Oznacza wszystkie dotychczasowe powiadomienia jako przeczytane."""
-    service.mark_read()
+@router.post(
+    "/read",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={422: {"description": "Nieznane pole albo `until` bez strefy czasowej"}},
+)
+def mark_notifications_read(
+    service: Service, data: Annotated[NotificationsReadRequest | None, Body()] = None
+) -> Response:
+    """Oznacza jako przeczytane powiadomienia do chwili `until` (domyślnie i najpóźniej – teraz)."""
+    service.mark_read(data.until if data else None)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

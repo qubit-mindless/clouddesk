@@ -4,6 +4,7 @@ from sqlalchemy import and_, false, or_, select
 from sqlalchemy.orm import Session, contains_eager, joinedload, load_only
 
 from app.models import Ticket, TicketHistory, TicketPriority, TicketStatus
+from app.repositories.activity_repository import initial_priority
 
 OPEN_STATUSES = (TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS)
 
@@ -17,9 +18,16 @@ class NotificationRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def changes_for(self, *, user_id: int, login: str, since: datetime, limit: int) -> list[TicketHistory]:
+    def changes_for(
+        self, *, user_id: int, login: str, include_assigned: bool, since: datetime, limit: int
+    ) -> list[TicketHistory]:
         """Cudze zmiany: przypisanie do mnie oraz status i przypisanie technika w moich zgłoszeniach."""
-        assigned_to_me = and_(TicketHistory.field == "assignee", TicketHistory.new_value == login)
+        # include_assigned=False dla zgłaszającego: login w historii przypisań nie odsłoni cudzych zgłoszeń.
+        assigned_to_me = (
+            and_(TicketHistory.field == "assignee", TicketHistory.new_value == login)
+            if include_assigned
+            else false()
+        )
         in_my_ticket = and_(
             Ticket.reporter_id == user_id,
             or_(
@@ -59,7 +67,8 @@ class NotificationRepository:
                     joinedload(Ticket.reporter),
                 )
                 .where(
-                    Ticket.priority == TicketPriority.P1,
+                    # Priorytet z chwili utworzenia – podniesienie do P1 później nie jest „nowym P1”.
+                    initial_priority() == TicketPriority.P1.value,
                     Ticket.created_at >= since,
                     # Własne zgłoszenie P1 to własna zmiana.
                     Ticket.reporter_id != user_id,

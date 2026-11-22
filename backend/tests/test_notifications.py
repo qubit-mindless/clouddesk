@@ -5,8 +5,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select, update
 
+from app.core import clock
 from app.models import Ticket, TicketHistory, User
-from tests.conftest import email
+from tests.conftest import add_assistant_answer, email
 
 
 def create(client, title="Nie działa VPN", priority="P3"):
@@ -71,12 +72,53 @@ def test_self_assignment_is_not_notified_but_reporter_gets_taken_and_status(logi
     assert len(kinds(anna)) == 2
 
 
-def test_own_changes_and_resolve_are_not_notified(login_as):
+def test_own_changes_and_resolve_are_not_notified(login_as, db):
     anna = login_as("anna.k")
     tid = create(anna, priority="P1")
     anna.patch(f"/api/tickets/{tid}", json={"title": "Nowy tytuł zgłoszenia"})
-    anna.post(f"/api/tickets/{tid}/resolve", json={})
+    add_assistant_answer(db, tid)
+    assert anna.post(f"/api/tickets/{tid}/resolve", json={}).status_code == 200
     assert kinds(anna) == []
+
+
+def test_new_p1_uses_priority_at_creation(login_as):
+    anna, admin, tech = login_as("anna.k"), login_as("admin"), login_as("tech.jan")
+    raised = create(anna, title="Podniesione do P1", priority="P2")
+    lowered = create(anna, title="Obniżone z P1", priority="P1")
+    tech.patch(f"/api/tickets/{raised}", json={"priority": "P1"})
+    tech.patch(f"/api/tickets/{lowered}", json={"priority": "P3"})
+    # Podniesienie do P1 później to nie „nowe P1”; zgłoszenie założone jako P1 – tak, mimo obniżenia.
+    assert [(k, t) for k, t, _ in kinds(admin) if k == "new_p1"] == [("new_p1", lowered)]
+
+
+def user_id(db, login: str) -> int:
+    with db() as session:
+        return session.scalars(select(User.id).where(User.email == email(login))).one()
+
+
+def add_change(db, ticket_id, field, new_value, *, by="admin", at=None):
+    with db() as session:
+        row = TicketHistory(ticket_id=ticket_id, changed_by=user_id(db, by), field=field, new_value=new_value)
+        if at is not None:
+            row.changed_at = at
+        session.add(row)
+        session.commit()
+
+
+def test_reporter_gets_only_status_and_taken_from_own_tickets(login_as, db):
+    anna = login_as("anna.k")
+    foreign = create(login_as("piotr.m"), title="Zgłoszenie Piotra")
+    own = create(anna, title="Zgłoszenie Anny")
+    # Login zgłaszającego jako „assignee” w historii (np. dawna rola technika) – nie daje assigned.
+    add_change(db, foreign, "assignee", "anna.k")
+    add_change(db, own, "assignee", "anna.k")
+    # Przypisanie do zgłaszającego (np. zmiana roli) i termin po czasie – bez sla_breached.
+    set_ticket(
+        db, foreign, assignee_id=user_id(db, "anna.k"), sla_due_at=datetime.now(UTC) - timedelta(hours=1)
+    )
+
+    assert kinds(anna) == [("taken", own, "anna.k")]
+    assert "Zgłoszenie Piotra" not in str(notifications(anna))
 
 
 def test_new_p1_for_staff_except_own(login_as):
@@ -167,9 +209,53 @@ def test_mark_read_then_new_events_are_unread(login_as, db):
     assert notifications(tech)["unread"] == 1
 
 
+def seen_at(db, login: str):
+    with db() as session:
+        user = session.scalars(select(User).where(User.email == email(login))).one()
+        return user.notifications_seen_at and user.notifications_seen_at.replace(tzinfo=UTC)
+
+
+def iso(moment: datetime) -> str:
+    return moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def test_read_until_keeps_newer_notifications_unread(login_as, db):
+    anna = login_as("anna.k")
+    tid = create(anna)
+    base = datetime.now(UTC) - timedelta(minutes=10)
+    add_change(db, tid, "status", "ASSIGNED", at=base)
+    shown = notifications(anna)["items"]
+    assert len(shown) == 1
+    # Między pobraniem listy a kliknięciem „przeczytane” przychodzi nowsza zmiana.
+    add_change(db, tid, "status", "IN_PROGRESS", at=base + timedelta(minutes=1))
+
+    res = anna.post("/api/notifications/read", json={"until": shown[0]["at"]})
+    assert res.status_code == 204
+    after = notifications(anna)
+    assert [(n["value"], n["unread"]) for n in after["items"]] == [("IN_PROGRESS", True), ("ASSIGNED", False)]
+    assert after["unread"] == 1
+
+    # Starsze until (np. z nieodświeżonej karty) nie cofa znacznika.
+    anna.post("/api/notifications/read", json={"until": iso(base - timedelta(days=1))})
+    assert notifications(anna)["unread"] == 1
+
+
+def test_read_until_in_future_is_clamped_to_now(login_as, db, monkeypatch):
+    frozen = datetime(2026, 11, 22, 10, 0, tzinfo=UTC)
+    monkeypatch.setattr(clock, "utc_now", lambda: frozen)
+    anna = login_as("anna.k")
+    res = anna.post("/api/notifications/read", json={"until": iso(frozen + timedelta(days=1))})
+    assert res.status_code == 204
+    assert seen_at(db, "anna.k") == frozen
+
+
 @pytest.mark.parametrize("login", ["admin", "tech.jan", "anna.k"])
 def test_every_role_can_read(login_as, login):
     client = login_as(login)
     assert client.get("/api/notifications").status_code == 200
     assert client.post("/api/notifications/read", json={}).status_code == 204
+    assert client.post("/api/notifications/read").status_code == 204  # ciało opcjonalne
     assert client.post("/api/notifications/read", json={"all": True}).status_code == 422
+    res = client.post("/api/notifications/read", json={"until": "2026-11-22T10:00:00"})  # bez strefy
+    assert res.status_code == 422 and res.json()["detail"][0]["loc"] == ["body", "until"]
+    assert client.post("/api/notifications/read", json={"until": "wczoraj"}).status_code == 422

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import ConfigDict
+from pydantic import AwareDatetime, ConfigDict
 
 from app.schemas.ticket import CamelModel
 
@@ -29,6 +29,9 @@ class NotificationList(CamelModel):
 
 
 class NotificationsReadRequest(CamelModel):
-    """Ciało POST /api/notifications/read – puste ({})."""
+    """Ciało POST /api/notifications/read: {} albo {"until": "<at najnowszego pokazanego powiadomienia>"}."""
 
     model_config = ConfigDict(extra="forbid")
+
+    # Data ze strefą (np. „…Z”) – bez strefy nie wiadomo, o którą chwilę chodzi (422).
+    until: AwareDatetime | None = None
