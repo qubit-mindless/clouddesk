@@ -207,6 +207,7 @@ html[data-background='paused'] .blob { animation-play-state: paused; }
 }
 @media (prefers-reduced-transparency: reduce) {
   :root { --glass-fill: var(--glass-fill-strong); --glass-glint: transparent; }
+  .blob { animation: none; }
   .app-header, .details, .assistant, .status-tile, .status-architecture, .table-wrap, .filters, .empty, .toast {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
