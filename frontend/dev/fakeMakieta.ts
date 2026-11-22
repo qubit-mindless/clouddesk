@@ -51,7 +51,12 @@ export function computeActivity(store: FakeStore, actor: User, limit: number): A
         field: null, oldValue: null, newValue: null, at: m.createdAt })
     }
   }
-  return items.sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id)).slice(0, limit)
+  // Jak backend: czas malejąco, przy równym czasie ai → change → created, potem numer wiersza malejąco.
+  const kindOrder = { created: 0, change: 1, ai: 2 } as const
+  const rowId = (id: string) => Number(id.slice(id.indexOf('-') + 1))
+  return items
+    .sort((a, b) => b.at.localeCompare(a.at) || kindOrder[b.kind] - kindOrder[a.kind] || rowId(b.id) - rowId(a.id))
+    .slice(0, limit)
 }
 
 export function computeNotifications(store: FakeStore, actor: User, seenAt: number | undefined): { unread: number; items: AppNotification[] } {

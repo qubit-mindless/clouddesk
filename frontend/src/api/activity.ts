@@ -11,8 +11,9 @@ export function getNotifications(signal?: AbortSignal): Promise<Notifications> {
   return request<Notifications>('/notifications', { signal })
 }
 
-export function markNotificationsRead(): Promise<void> {
-  return request<void>('/notifications/read', { method: 'POST', body: '{}' })
+// `until` = czas najnowszego pokazanego powiadomienia – to, co przyszło później, zostaje nieprzeczytane.
+export function markNotificationsRead(until?: string): Promise<void> {
+  return request<void>('/notifications/read', { method: 'POST', body: JSON.stringify(until ? { until } : {}) })
 }
 
 export function getMeSummary(signal?: AbortSignal): Promise<MeSummary> {

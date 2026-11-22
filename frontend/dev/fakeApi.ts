@@ -196,7 +196,10 @@ export function fakeApi(): Plugin {
           return send(res, 200, computeNotifications(store, actor, notificationsSeen.get(actor.login)))
         }
         if (url.pathname === '/notifications/read' && req.method === 'POST') {
-          notificationsSeen.set(actor.login, Date.now())
+          // Jak backend: do czasu najnowszego pokazanego powiadomienia (przyszłość przycinamy do „teraz”).
+          const body = (await readJson(req)) ?? {}
+          const until = typeof body.until === 'string' ? Date.parse(body.until) : NaN
+          notificationsSeen.set(actor.login, Number.isNaN(until) ? Date.now() : Math.min(until, Date.now()))
           return send(res, 204)
         }
         if (url.pathname === '/me/summary' && req.method === 'GET') return send(res, 200, computeMeSummary(store, actor))
@@ -208,6 +211,9 @@ export function fakeApi(): Plugin {
           if (!owner || (!staff && owner.reporter !== actor.login)) return send(res, 404, { detail: 'Ticket not found' })
           if (staff) return send(res, 403, { detail: 'Technik zamyka zgłoszenie przez zmianę statusu.' })
           if (CLOSED_STATUSES.includes(owner.status)) return send(res, 409, { detail: 'Zgłoszenie jest już rozwiązane lub zamknięte.' })
+          if (!conversations.get(owner.id)?.some((m) => m.role === 'assistant')) {
+            return send(res, 409, { detail: 'Najpierw zapytaj asystenta AI – bez jego odpowiedzi zgłoszenie zamyka technik.' })
+          }
           const changedAt = new Date().toISOString()
           history.push({ id: nextHistoryId++, ticketId: owner.id, field: 'status', oldValue: owner.status, newValue: 'RESOLVED', author: actor.login, changedAt })
           history.push({ id: nextHistoryId++, ticketId: owner.id, field: 'resolution', oldValue: null, newValue: 'SELF_AI', author: actor.login, changedAt })

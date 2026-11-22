@@ -83,7 +83,7 @@ export function NotificationBell() {
 
   const markRead = async () => {
     try {
-      await markNotificationsRead()
+      await markNotificationsRead(data?.items[0]?.at)
       lastUnread.current = 0
       setData((d) => d && { unread: 0, items: d.items.map((n) => ({ ...n, unread: false })) })
     } catch {
