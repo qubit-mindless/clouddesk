@@ -314,7 +314,7 @@ cd frontend && npm run lint && npm run build
 | Jednostkowe i integracyjne backendu | `backend/tests/` | pytest + TestClient (SQLite w pamięci) | logika zgłoszeń, walidacja, historia, SLA (role i logowanie – #94, asystent AI – #97) | job **Backend** w `ci.yml`, każdy PR |
 | Migracje bazy | `backend/tests/test_migrations.py` | pytest + Alembic | `upgrade → downgrade → upgrade` i zgodność migracji z modelami na PostgreSQL 16 | job **Migracje** w `ci.yml` |
 | API na działającej aplikacji | `tests/*.test.js` | Jest + Supertest | statusy HTTP, nagłówki, kształt JSON przez Nginx; na razie test dymny `/api/health`, pełne testy: #98 | lokalnie; w pipeline **po każdym wdrożeniu** (job `e2e-tests` w `deploy.yml`) |
-| E2E w przeglądarce | `tests/*.spec.js` | Playwright (Chromium, headless) | ścieżka użytkownika w UI, selektory `data-testid`; na razie test dymny strony głównej, scenariusz: #99 | lokalnie; w pipeline po każdym wdrożeniu (job `e2e-tests`) |
+| E2E w przeglądarce | `tests/*.spec.js` | Playwright (Chromium, headless) | test dymny strony głównej (`smoke.spec.js`) i scenariusz kluczowej ścieżki (`e2e.spec.js`, #99): logowanie → nowe zgłoszenie przez formularz → widoczne na liście → szczegół → usunięcie; selektory `data-testid` i etykiety pól | lokalnie; w pipeline po każdym wdrożeniu (job `e2e-tests`) |
 
 ### Uruchomienie lokalne
 Backend (z katalogu `backend/`, w aktywnym `.venv`):
@@ -337,7 +337,9 @@ npm run test:e2e                         # Playwright
 npx playwright show-report               # raport HTML z ostatniego przebiegu E2E
 ```
 
-Te same testy można puścić na produkcję: `LIVE_APP_URL=https://clouddesk-qubit.polandcentral.cloudapp.azure.com` (do wdrożenia HTTPS – #93 – `http://`). **Zasada:** każdy test, który tworzy zgłoszenie, usuwa je na końcu – nie zaśmiecamy produkcji.
+Te same testy można puścić na produkcję: `LIVE_APP_URL=https://clouddesk-qubit.polandcentral.cloudapp.azure.com` – zawsze z `https://`, bo przy przekierowaniu 301 z `http://` klient HTTP zamienia `POST` na `GET`. **Zasada:** każdy test, który tworzy zgłoszenie, usuwa je na końcu – nie zaśmiecamy produkcji. Scenariusz E2E usuwa zgłoszenie przez UI, a gdy przerwie się wcześniej – przez API w `afterAll`; tytuł ma znacznik `[e2e <czas>]`, więc ewentualną pozostałość łatwo znaleźć.
+
+Sam scenariusz E2E da się też sprawdzić bez backendu, na fake API frontendu (dowolne hasło, konto technika): w `frontend/` `VITE_FAKE_API=true npx vite --port 5179`, a w `tests/` `LIVE_APP_URL=http://localhost:5179 TEST_USER_EMAIL=tech.jan@clouddesk.example TEST_USER_PASSWORD=x npx playwright test`.
 
 ### Jak czytać wyniki
 - **pytest / Jest:** w konsoli lista testów z ✓/✗; przy błędzie – oczekiwana i otrzymana wartość. W GitHub Actions: zakładka *Actions* → przebieg → job.
