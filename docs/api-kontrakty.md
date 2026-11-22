@@ -113,6 +113,10 @@ Nowe elementy z zaakceptowanej makiety UI. Te same zasady co wyżej (camelCase, 
 Zgłaszający zamyka **własne** zgłoszenie po pomocy asystenta AI. Ciało `{}`. Zwraca `Ticket` (200).
 - Tylko osoba zgłaszająca; technik i administrator zamykają przez `PATCH status` → 403. Cudze zgłoszenie → 404.
 - Zgłoszenie już RESOLVED/CLOSED → 409.
+- W zgłoszeniu nie ma jeszcze żadnej odpowiedzi asystenta (`ai_messages`, rola assistant) → 409 z komunikatem
+  „Asystent AI nie odpowiadał jeszcze w tym zgłoszeniu – najpierw zapytaj asystenta. Gdy asystent jest wyłączony,
+  zgłoszenie zamyka technik.” Przycisk „Pomogło” pokazujemy więc dopiero po pierwszej odpowiedzi asystenta.
+- Kolejność sprawdzeń: 404 (nie istnieje / cudze) → 403 (technik, administrator) → 409 (zamknięte) → 409 (brak odpowiedzi AI).
 - Skutek: `status = RESOLVED`, `resolvedAt = teraz`, w historii dwa wiersze z autorem = zgłaszający:
   `status` (stary → `RESOLVED`) i `resolution` (`null` → `SELF_AI`). Ten drugi pozwala policzyć „rozwiązane bez technika”.
 - W osi historii (#139) pole `resolution` pokazujemy jako „zamknięte przez zgłaszającego po pomocy asystenta”.
@@ -133,13 +137,17 @@ Ostatnie zdarzenia w zgłoszeniach widocznych dla użytkownika (zgłaszający �
 }
 ```
 - Źródła: `ticket_history` (`kind: change`, pola jak w #139, także `resolution`), utworzenie zgłoszenia
-  (`kind: created`, `field: priority`, `newValue` = priorytet), odpowiedzi asystenta z `ai_messages` (`kind: ai`).
-- Sort: `at` malejąco, przy równym czasie `id` malejąco. `id` unikalne w obrębie listy (`h-`, `t-`, `a-` + id wiersza).
-- Treści (opis, wiadomości AI) **nie** wracają – tylko tytuł zgłoszenia.
+  (`kind: created`, `field: priority`, `newValue` = priorytet z chwili utworzenia: stara wartość pierwszej zmiany
+  priorytetu w historii, a bez zmian – bieżący), odpowiedzi asystenta z `ai_messages` (`kind: ai`).
+- `id` unikalne w obrębie listy: `h-` (id wiersza `ticket_history`), `t-` (id zgłoszenia), `a-` (id wiersza `ai_messages`).
+- Sort: `at` malejąco; przy równym `at` najpierw `ai`, potem `change`, potem `created` (zdarzenia w kolejności, w jakiej
+  zaszły, czytane od najnowszego); przy równym `at` i rodzaju – liczbowa część `id` malejąco (`h-10` przed `h-9`).
+- Treści (opis, wiadomości AI) **nie** wracają – tylko tytuł zgłoszenia. Zmiana pola `description` ma `oldValue`
+  i `newValue` = `null` (widać tylko, że opis zmieniono).
 
 ### `GET /api/notifications` i `POST /api/notifications/read` – dzwonek
-Powiadomienia wyliczane z tych samych danych (bez osobnej tabeli). „Przeczytane” = starsze niż `users.notifications_seen_at`
-(nowa kolumna, `NULL` = nic nie przeczytane; migracja Alembic).
+Powiadomienia wyliczane z tych samych danych (bez osobnej tabeli). Pozycja jest nieprzeczytana (`unread: true`), gdy
+`users.notifications_seen_at` jest `NULL` albo `at > notifications_seen_at` (ostro większe; nowa kolumna, migracja Alembic).
 ```json
 {
   "unread": 2,
@@ -154,13 +162,21 @@ Powiadomienia wyliczane z tych samych danych (bez osobnej tabeli). „Przeczytan
 | `kind` | Kto dostaje | Kiedy (`at`) |
 |---|---|---|
 | `assigned` | technik, któremu ktoś **inny** przypisał zgłoszenie (`value` = jego login) | czas zmiany w historii |
-| `new_p1` | technicy i administratorzy – nowe zgłoszenie P1 (`value: "P1"`) | `createdAt` |
+| `new_p1` | technicy i administratorzy – zgłoszenie **utworzone** jako P1 (priorytet z chwili utworzenia jak w `/api/activity`; późniejsze podniesienie do P1 nie liczy się) (`value: "P1"`) | `createdAt` |
 | `sla_breached` | technik przypisany do otwartego zgłoszenia po terminie; nieprzypisane – technicy i administratorzy | `slaDueAt` |
 | `status` | zgłaszający, gdy ktoś **inny** zmienił status jego zgłoszenia (`value` = nowy status) | czas zmiany |
 | `taken` | zgłaszający, gdy ktoś przypisał technika do jego zgłoszenia (`value` = login technika) | czas zmiany |
 
-- Ostatnie 7 dni, najwyżej 20 pozycji, sort `at` malejąco. Własnych zmian nie powiadamiamy.
-- `POST /api/notifications/read` (ciało `{}`) ustawia `notifications_seen_at = teraz` → 204. Obie ścieżki dla każdej zalogowanej roli.
+- Ostatnie 7 dni, najwyżej 20 pozycji, sort `at` malejąco (przy równym `at` – liczbowa część `id` malejąco).
+  Własnych zmian nie powiadamiamy. `unread` w odpowiedzi = liczba nieprzeczytanych wśród zwróconych pozycji.
+- Zgłaszający (REPORTER) dostaje wyłącznie `status` i `taken` ze swoich zgłoszeń; `assigned`, `new_p1` i `sla_breached`
+  są tylko dla technika i administratora.
+- `POST /api/notifications/read` – ciało `{}` (albo bez ciała) lub `{"until": "<ISO 8601 ze strefą>"}`, gdzie `until` = `at`
+  najnowszego powiadomienia, które UI pokazało użytkownikowi. Serwer ustawia `notifications_seen_at = min(until, teraz)`
+  (bez `until` – teraz; `until` z przyszłości przycinane do teraz) → 204. Znacznik się nie cofa: `until` starsze niż
+  zapisany znacznik niczego nie zmienia. Powiadomienie nowsze niż `until` (przyszło po pobraniu listy) zostaje
+  nieprzeczytane. Inne pola albo `until` bez strefy czasowej / nie-data → 422 (`loc: ["body", "until"]`).
+  Obie ścieżki dla każdej zalogowanej roli.
 
 ### `GET /api/me/summary` – powitanie, liczniki i „Asystent AI dziś”
 ```json
@@ -175,7 +191,8 @@ Powiadomienia wyliczane z tych samych danych (bez osobnej tabeli). „Przeczytan
   (`atRisk` = < 25% czasu SLA). `nextDueAt` – najbliższy termin SLA wśród `mine` przed terminem, `null` gdy brak.
 - `team` i `aiToday` – tylko technik i admin; dla zgłaszającego `null`. `last7Days` – dokładnie 7 dni, ostatni = dziś.
 - `aiToday.conversations` – zgłoszenia z odpowiedzią asystenta dziś; `resolvedByReporter` – z nich zamknięte dziś przez
-  `/resolve` (`resolution = SELF_AI`); `handedOver` = `conversations − resolvedByReporter`; `answers` – odpowiedzi dziś.
+  `/resolve` (`resolution = SELF_AI`) i **wciąż** RESOLVED/CLOSED (otwarte ponownie przez technika wracają do `handedOver`);
+  `handedOver` = `conversations − resolvedByReporter`; `answers` – odpowiedzi dziś.
 
 ### `GET /api/stats` – porównanie z poprzednim okresem (dopisek do #138)
 Pole `previous` (to samo okno długości `days` tuż przed bieżącym): `{ "compliancePct": 70.8, "mttrHours": 41.8, "aiAnswers": 8 }`
