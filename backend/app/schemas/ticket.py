@@ -37,6 +37,12 @@ class TicketUpdate(CamelModel):
     assignee: Login | None = None
 
 
+class ResolveRequest(CamelModel):
+    """Ciało POST /api/tickets/{id}/resolve – puste ({}); inne pola to błąd 422."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class TicketOut(CamelModel):
     id: int
     title: str
