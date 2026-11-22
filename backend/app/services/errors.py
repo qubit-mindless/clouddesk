@@ -13,3 +13,23 @@ class FieldValidationError(Exception):
         super().__init__(message)
         self.field = field
         self.message = message
+
+
+class LimitExceededError(Exception):
+    """Przekroczony limit (np. pytań do asystenta) – router zamienia na 429."""
+
+
+class AssistantUnavailableError(Exception):
+    """Usługa AI wyłączona, niedostępna albo zwróciła błąd – router zamienia na 503."""
+
+
+class AssistantRefusedError(Exception):
+    """Filtr treści usługi AI odrzucił wiadomość – router zamienia na 422 z komunikatem."""
+
+
+class AssistantBusyError(Exception):
+    """Asystent już odpowiada na pytanie w tym zgłoszeniu – router zamienia na 409."""
+
+
+class AssistantClosedError(Exception):
+    """Zgłoszenie rozwiązane lub zamknięte – rozmowa z asystentem jest zamknięta; router zamienia na 409."""

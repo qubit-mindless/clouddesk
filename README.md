@@ -43,7 +43,7 @@ CloudDesk to helpdesk IT oparty na cyklu życia incydentu ITIL.
 - statusy ITIL: Nowe → Przypisane → W toku → Rozwiązane → Zamknięte, z pełnym audytem zmian;
 - priorytety P1–P4 z terminami SLA i ostrzeżeniem „SLA zagrożone”;
 - wyszukiwanie, filtrowanie i paginacja listy zgłoszeń;
-- czat z asystentem AI dołączony do każdego zgłoszenia;
+- czat zgłaszającego z asystentem AI przy każdym zgłoszeniu; technik widzi tę rozmowę do odczytu, zanim przejmie zgłoszenie;
 - załączniki w Azure Blob Storage i powiadomienia e-mail;
 - dashboard SLA: liczba zgłoszeń, MTTR, naruszenia SLA.
 
@@ -251,6 +251,8 @@ Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Az
 | POST | `/api/tickets` | nowe zgłoszenie: `title` (5–200 znaków), `description`, `priority` (P1–P4); zgłaszający = zalogowany, status `NEW` i termin SLA nadaje backend | 201, 401, 422 | token |
 | PATCH | `/api/tickets/{id}` | zmiana wybranych pól: `title`, `description`, `priority` (przelicza SLA), `status`, `assignee` (login technika lub `null`); każda zmiana trafia do historii z autorem. REPORTER: tylko treść i priorytet własnego zgłoszenia | 200, 401, 403, 404, 422 | token |
 | DELETE | `/api/tickets/{id}` | usunięcie zgłoszenia razem z historią, komentarzami i załącznikami | 204, 401, 403, 404 | token, TECHNICIAN/ADMIN |
+| GET | `/api/tickets/{id}/assistant` | rozmowa zgłaszającego z asystentem AI: `items` (`role` user/assistant, `content`, `createdAt`), `enabled`, `remaining` (ile odpowiedzi zostało), `canAsk`, `readOnlyReason` (`not_reporter` – technik/administrator widzi rozmowę do odczytu, `resolved` – zgłoszenie rozwiązane) | 200, 401, 404 | token |
+| POST | `/api/tickets/{id}/assistant` | pytanie do asystenta – **tylko osoba zgłaszająca**, dopóki zgłoszenie nie jest rozwiązane: `{"message": "…"}` (1–1000 znaków) albo `{}` = pierwsze wskazówki; zwraca całą rozmowę. 403 – technik/administrator (cudze zgłoszenie); 409 – zgłoszenie rozwiązane/zamknięte albo ta sama replika backendu właśnie odpowiada w tym zgłoszeniu (limit i tak jest sprawdzany w bazie) | 200, 401, 403, 404, 409, 422, 429, 503 | token |
 
 Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni.
 
@@ -264,6 +266,7 @@ Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 �
 
 - **Hasła:** skrót argon2id; ta sama odpowiedź 401 dla nieznanego e-maila i złego hasła (także w czasie odpowiedzi).
 - **Tokeny:** JWT HS256 podpisany kluczem `JWT_SECRET`. W Azure klucz jest w Key Vault (`jwt-secret`), a bez niego backend nie wystartuje. Użytkownik jest odczytywany z bazy przy każdym żądaniu, więc usunięte konto traci dostęp od razu.
+- **Asystent AI:** pierwsza linia pomocy dla osoby zgłaszającej – podpowiada, co sprawdzić samodzielnie, a technik czyta tę rozmowę przed przejęciem zgłoszenia (sam nie pisze do asystenta). Rozmowa jest otwarta do rozwiązania zgłoszenia. Azure OpenAI (`gpt-4o-mini`), wywoływany z backendu przez REST z tożsamością zarządzaną (bez klucza). Limit 10 odpowiedzi na zgłoszenie, timeout 30 s, treść zgłoszenia przekazywana modelowi jako dane, nie polecenia. Awaria usługi → 503 z komunikatem, a pytanie nie zostaje zapisane. Treść rozmów nie trafia do logów.
 - **Konta demo** z seeda: `admin@`, `tech.jan@`, `tech.ola@`, `anna.k@`… `clouddesk.example`, wspólne hasło z `DEMO_PASSWORD`. W Azure hasło jest w Key Vault (`demo-password`); odczyt: `terraform output demo_password_hint`.
 
 ## Uruchomienie lokalne

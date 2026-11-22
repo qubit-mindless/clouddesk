@@ -7,6 +7,7 @@
 | `nginx-http.conf` | Konfiguracja przejściowa przed pierwszym certyfikatem (nowa VM): strona po HTTP + ścieżka `/.well-known/acme-challenge/` |
 | `nginx-app.conf` | Wspólna część obu: statyczny frontend, nagłówki bezpieczeństwa (w tym HSTS), reverse proxy `/api` do backendu (`${BACKEND_INTERNAL_URL}`). Na VM: `/etc/nginx/snippets/clouddesk-app.conf` |
 | `package-web.sh` | Buduje frontend i pakuje go z szablonami Nginx i `deploy-web.sh` do `build/clouddesk-web.tar.gz` (używa go też job `deploy-web` w CD) |
+| `web-run-scripts.sh` | Używany przez job `deploy-web` w CD: dzieli paczkę na skrypty dla `az vm run-command` (każdy poniżej limitu treści), z kontrolą SHA-256 złożonej paczki na VM |
 | `deploy-web.sh` | Uruchamiany na VM: wgrywa build do `/var/www/clouddesk`, instaluje konfigurację Nginx z adresem backendu i domeną, w razie potrzeby pobiera certyfikat (certbot), `nginx -t`, przeładowanie; przy błędzie przywraca poprzednią wersję |
 
 Zasady:
@@ -30,7 +31,7 @@ Po zielonym CI na `main` i wdrożeniu backendu job `deploy-web`:
 
 1. buduje paczkę `config/package-web.sh` z `VITE_APP_VERSION` = SHA commita;
 2. loguje się do Azure przez OIDC i odczytuje adres backendu z Container Apps (`properties.configuration.ingress.fqdn`);
-3. wysyła na `vm-web` przez `az vm run-command` skrypt z paczką osadzoną jako base64, który ją rozpakowuje i uruchamia `deploy-web.sh`. Run-command nie przekazuje kodu wyjścia, więc job sprawdza w wyjściu komunikat „Frontend wdrożony”. Skrypt z paczką ma ok. 125 KB; job przerywa wdrożenie powyżej 200 KB;
+3. wysyła paczkę na `vm-web` przez `az vm run-command` w kawałkach (`config/web-run-scripts.sh`): paczka jako base64 jest dzielona na skrypty po ok. 146 KB (limit treści jednego skryptu – job sprawdza 200 KB dla każdego). Kolejne wywołania dopisują kawałki do `/var/tmp/clouddesk-web-<sha>.b64`, ostatnie sprawdza SHA-256 złożonej paczki (musi być identyczna z tą z CI), rozpakowuje ją i uruchamia `deploy-web.sh`, a na koniec sprząta plik. Run-command nie przekazuje kodu wyjścia, więc job sprawdza w wyjściu komunikaty „Część i/N zapisana” i na końcu „Frontend wdrożony”. Do testu podziału lokalnie (wymaga GNU coreutils, np. kontener `ubuntu:24.04`) można zmniejszyć części zmienną `LINES_PER_PART`;
 4. sprawdza z zewnątrz stronę (bundle zawiera SHA) i `/api/health` (pole `commit` = SHA, kilka prób na zimny start backendu). Wynik trafia do podsumowania przebiegu.
 
 ### Ręcznie

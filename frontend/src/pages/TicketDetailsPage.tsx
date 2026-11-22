@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { ApiError, errorMessage } from '../api/client'
 import { deleteTicket, getTicket } from '../api/tickets'
+import { AssistantPanel } from '../components/AssistantPanel'
 import { canDeleteTicket, canEditTicket } from '../auth/permissions'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
@@ -67,6 +68,7 @@ export function TicketDetailsPage() {
       )}
       {error !== undefined && !notFound && <ErrorState error={error} onRetry={reload} />}
       {ticket && <TicketDetails ticket={ticket} />}
+      {ticket && <AssistantPanel ticketId={ticket.id} reporter={ticket.reporter} />}
     </>
   )
 }
