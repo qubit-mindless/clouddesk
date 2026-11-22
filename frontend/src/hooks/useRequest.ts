@@ -4,24 +4,28 @@ interface RequestState<T> {
   data?: T
   error?: unknown
   loading: boolean
-  // Do którego `key` należą zwracane dane – przy keepData w trakcie ładowania mogą być jeszcze z poprzedniego.
+  // Do którego `key` należą zwracane dane (zawsze do bieżącego, jeśli w ogóle są).
   dataKey?: string
   // Kiedy przyszły zwracane dane (ms od epoki) – do napisu „odświeżono 5 s temu”.
   updatedAt?: number
   // Ostatnia próba dla tego `key` skończyła się błędem i od tamtej pory nic się nie udało
   // (zostaje także w trakcie kolejnej próby, więc wskaźnik nie miga przy każdym odpytaniu).
   failed: boolean
+  // Numer próby – pozwala odróżnić odświeżenie zlecone ręcznie od odpytywania w tle.
+  attempt: number
   reload: () => void
 }
 
 interface RequestOptions {
-  // W trakcie ponownego pobierania zwraca ostatnie dane (loading = true), zamiast je czyścić – strona nie miga,
-  // a przycisk „Odśwież” nie znika razem z fokusem. Dane z innego `key` pokazujemy tylko w trakcie ładowania:
-  // gdy nowe żądanie się nie uda, strona dostaje błąd, a nie wyniki poprzedniego filtra.
+  // W trakcie ponownego pobierania tego samego `key` zwraca ostatnie dane (loading = true), zamiast je czyścić –
+  // strona nie miga, a przycisk „Odśwież” nie znika razem z fokusem. Dane innego `key` (np. poprzedni filtr)
+  // nigdy nie są pokazywane pod nowym: zmiana klucza zaczyna od ładowania, a błąd to błąd, nie cudze wyniki.
   keepData?: boolean
   // Ponowne pobieranie co tyle ms (#141), liczone od zakończenia poprzedniego żądania – wolna odpowiedź
   // (np. backend budzący się ze skali zero) nie jest przerywana przez następną. Stoi przy ukrytej karcie:
   // każde żądanie budzi replikę, a po zamknięciu karty ma ona zejść do zera. Po powrocie na kartę od razu odświeża.
+  // Nie rusza, dopóki dla tego `key` nie ma żadnych danych – błąd pierwszego ładowania zostaje na ekranie
+  // (z fokusem na „Spróbuj ponownie”) aż do ręcznej próby.
   intervalMs?: number
 }
 
@@ -58,11 +62,13 @@ export function useRequest<T>(
   }, [key, attempt])
 
   const current = state?.key === key && state.attempt === attempt ? state : undefined
-  const settled = current !== undefined
+  // Z keepData ostatnie dane tego samego widoku zostają także przy błędzie odświeżenia – strona pokazuje je obok błędu.
+  const data = current?.data !== undefined ? current.data : keepData && last?.key === key ? last.data : undefined
+  const canPoll = Boolean(intervalMs) && current !== undefined && data !== undefined
 
-  // Odpytywanie: kolejne żądanie dopiero po zakończeniu bieżącego (sukces albo błąd).
+  // Odpytywanie: kolejne żądanie dopiero po zakończeniu bieżącego (sukces albo błąd odświeżenia).
   useEffect(() => {
-    if (!intervalMs || !settled) return
+    if (!intervalMs || !canPoll) return
     let timer: number | undefined
     const tick = () => setAttempt((n) => n + 1)
     const onVisibility = () => {
@@ -76,29 +82,18 @@ export function useRequest<T>(
       window.clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [intervalMs, settled, key, attempt])
+  }, [intervalMs, canPoll, key, attempt])
 
   const reload = useCallback(() => setAttempt((n) => n + 1), [])
-
-  let data: T | undefined
-  let dataKey: string | undefined
-  if (current?.data !== undefined) {
-    data = current.data
-    dataKey = key
-  } else if (keepData && last && (last.key === key || (!current && failedKey !== key))) {
-    // Ten sam widok: ostatnie dane także przy błędzie odświeżenia. Inny widok: tylko w trakcie pierwszego
-    // ładowania – po błędzie tego widoku (także w trakcie ponownej próby) już nie, żeby nie udawać jego wyników.
-    data = last.data
-    dataKey = last.key
-  }
 
   return {
     data,
     error: current?.error,
     loading: !current,
-    dataKey,
+    dataKey: data !== undefined ? key : undefined,
     updatedAt: data !== undefined ? last?.at : undefined,
     failed: failedKey === key,
+    attempt,
     reload,
   }
 }

@@ -20,7 +20,15 @@ export function SlaDue({ ticket, now }: { ticket: Ticket; now: number }) {
   const title = `Termin SLA: ${formatDateTime(ticket.slaDueAt)}`
 
   if (state === 'done') {
-    const onTime = ticket.resolvedAt === null || Date.parse(ticket.resolvedAt) <= due
+    // Bez daty rozwiązania (stare dane) nie wiemy, czy zdążyliśmy – neutralne „zakończone” zamiast zgadywania.
+    if (ticket.resolvedAt === null) {
+      return (
+        <span className="sla-pill sla-done" data-sla="done" title={title} data-testid="sla-pill">
+          zakończone
+        </span>
+      )
+    }
+    const onTime = Date.parse(ticket.resolvedAt) <= due
     return (
       <span className={`sla-pill sla-done ${onTime ? 'sla-met' : 'sla-missed'}`} data-sla="done" title={title} data-testid="sla-pill">
         <span aria-hidden="true">{onTime ? '✓' : '✗'}</span> {onTime ? 'w terminie' : 'po terminie'}
@@ -45,6 +53,8 @@ export function SlaProgress({ ticket, now }: { ticket: Ticket; now: number }) {
   const created = Date.parse(ticket.createdAt)
   const due = Date.parse(ticket.slaDueAt)
   const end = ticket.resolvedAt ? Date.parse(ticket.resolvedAt) : now
+  // „Po terminie” rozstrzyga porównanie niezaokrąglonych czasów – zaokrąglony procent mógłby pokazać 100% przy już minionym terminie.
+  const over = end > due
   const pct = due > created ? Math.max(0, Math.round(((end - created) / (due - created)) * 100)) : 100
 
   return (
@@ -53,7 +63,7 @@ export function SlaProgress({ ticket, now }: { ticket: Ticket; now: number }) {
         <span className={`sla-progress-fill sla-${state}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </span>
       <small>
-        {pct > 100
+        {over
           ? ticket.resolvedAt
             ? 'rozwiązane po upływie czasu SLA'
             : 'czas SLA minął'

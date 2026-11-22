@@ -40,17 +40,18 @@ export function DashboardPage() {
 function DashboardContent() {
   const [params, setParams] = useSearchParams()
   const days = pickPeriod(params.get('days'))
-  const { data, error, loading, updatedAt, failed, reload } = useRequest(String(days), (signal) => getStats(days, signal), {
+  const { data, error, loading, updatedAt, failed, attempt, reload } = useRequest(String(days), (signal) => getStats(days, signal), {
     keepData: true,
     intervalMs: REFRESH_MS,
   })
-  // Kiedy użytkownik kliknął „Odśwież” – napis „Odświeżanie…” tylko dla takiego odświeżenia, nie dla odpytywania w tle.
-  const [manualAt, setManualAt] = useState<number>()
+  // „Odświeżanie…” i aria-busy tylko dla odświeżenia zleconego przyciskiem – odpytywanie w tle nie ma ich pokazywać.
+  // Zapamiętujemy numer próby, którą wywołał klik; kolejne próby (odpytywanie) mają inny numer, więc nic nie zostaje „na stałe”.
+  const [manualAttempt, setManualAttempt] = useState<number>()
   const manualReload = () => {
-    setManualAt(Date.now())
+    setManualAttempt(attempt + 1)
     reload()
   }
-  const busy = loading && manualAt !== undefined && (updatedAt ?? 0) < manualAt
+  const busy = loading && manualAttempt === attempt
 
   return (
     <>
@@ -73,7 +74,7 @@ function DashboardContent() {
       {loading && !data && <Loading label="Ładowanie pulpitu…" />}
       {error !== undefined && !data && <ErrorState error={error} onRetry={reload} />}
       {data && (
-        <Dashboard stats={data} refreshing={loading} busy={busy} updatedAt={updatedAt} failed={failed} onReload={manualReload} />
+        <Dashboard stats={data} busy={busy} updatedAt={updatedAt} failed={failed} onReload={manualReload} />
       )}
     </>
   )
@@ -81,18 +82,17 @@ function DashboardContent() {
 
 interface DashboardProps {
   stats: Stats
-  refreshing: boolean
   busy: boolean
   updatedAt?: number
   failed: boolean
   onReload: () => void
 }
 
-function Dashboard({ stats, refreshing, busy, updatedAt, failed, onReload }: DashboardProps) {
+function Dashboard({ stats, busy, updatedAt, failed, onReload }: DashboardProps) {
   const { sla, days } = stats
 
   return (
-    <div className="bento" aria-busy={refreshing} data-testid="dashboard">
+    <div className="bento" aria-busy={busy} data-testid="dashboard">
       <section className="bento-tile tile-risk" aria-labelledby="tile-risk">
         <h3 id="tile-risk">Zagrożone SLA teraz</h3>
         <div className="risk">

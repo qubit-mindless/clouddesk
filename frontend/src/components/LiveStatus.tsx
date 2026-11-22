@@ -8,7 +8,12 @@ export function LiveStatus({ updatedAt, failed, busy = false }: { updatedAt?: nu
   if (updatedAt === undefined) return null
 
   const seconds = Math.max(0, Math.round((now - updatedAt) / 1000))
-  const ago = seconds < 60 ? `${seconds} s temu` : `${Math.floor(seconds / 60)} min temu`
+  const ago =
+    seconds < 60
+      ? `${seconds} s temu`
+      : seconds < 3600
+        ? `${Math.floor(seconds / 60)} min temu`
+        : `${Math.floor(seconds / 3600)} h temu`
 
   return (
     <span className={`live-status ${failed ? 'live-failed' : ''}`} data-testid="live-status">
