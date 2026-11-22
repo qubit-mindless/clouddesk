@@ -7,6 +7,7 @@ import { APP_VERSION } from './config'
 import { useBackgroundAnimation } from './hooks/useBackgroundAnimation'
 import { useGlassPointer } from './hooks/useGlassPointer'
 import { LoginPage } from './pages/LoginPage'
+import { StatusPage } from './pages/StatusPage'
 import { TicketDetailsPage } from './pages/TicketDetailsPage'
 import { TicketEditPage } from './pages/TicketEditPage'
 import { TicketListPage } from './pages/TicketListPage'
@@ -33,6 +34,8 @@ export default function App() {
           </header>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            {/* Publiczna – stan wdrożenia bez logowania (#140). */}
+            <Route path="/status" element={<StatusPage />} />
             <Route
               element={
                 <RequireAuth>
@@ -54,6 +57,10 @@ export default function App() {
               <code data-testid="app-version" title={APP_VERSION}>
                 {APP_VERSION.slice(0, 7)}
               </code>
+              {' · '}
+              <Link to="/status" data-testid="footer-status">
+                Stan systemu
+              </Link>
             </span>
             <button
               type="button"

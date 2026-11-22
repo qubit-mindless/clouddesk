@@ -162,6 +162,11 @@ resource "azurerm_container_app" "backend" {
         name  = "APP_ENV"
         value = "azure"
       }
+      # Region na stronie /status (#140). Rewizję i replikę Container Apps ustawia sam (CONTAINER_APP_REVISION…).
+      env {
+        name  = "APP_REGION"
+        value = azurerm_resource_group.main.location
+      }
       env {
         name        = "DATABASE_URL"
         secret_name = "database-url"

@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     # SHA commita, z którego zbudowano obraz (build-arg GIT_SHA w Dockerfile); lokalnie "local".
     git_sha: str = "local"
+    # Strona /status (#140). Rewizję i replikę ustawia sam Azure Container Apps, region – Terraform
+    # (APP_REGION). Poza Azure puste (null w /health).
+    container_app_revision: str | None = None
+    container_app_replica_name: str | None = None
+    app_region: str | None = None
     database_url: str
     cors_origins: str = "http://localhost:5173"
     # Klucz HMAC do podpisywania tokenów JWT. W Azure z Key Vault (sekret jwt-secret);

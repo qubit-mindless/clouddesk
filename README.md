@@ -242,7 +242,7 @@ Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Az
 
 | Metoda | Ścieżka | Opis | Odpowiedzi | Autoryzacja |
 |---|---|---|---|---|
-| GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`); z zewnątrz przez Nginx tylko `/api/health`; `/health` służy też monitoringowi | 200, 503 | – |
+| GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`), rewizja, replika i region Container Apps, czas startu, stan asystenta AI – dla strony `/status`; z zewnątrz przez Nginx tylko `/api/health`; `/health` służy też monitoringowi | 200, 503 | – |
 | GET | `/health/live` | czy proces backendu odpowiada (bez sprawdzania bazy) – sonda startup, liveness i readiness Container Apps; tylko wewnątrz VNet | 200 | – |
 | POST | `/api/auth/login` | logowanie: `email`, `password` → `accessToken` (JWT, ważny 60 min), `tokenType`, `expiresIn`, `user` (`id`, `email`, `login`, `fullName`, `role`) | 200, 401, 422 | – |
 | GET | `/api/auth/me` | zalogowany użytkownik | 200, 401 | token |
@@ -386,8 +386,15 @@ Jak trzymamy koszty w ryzach:
 `GET /health` (wewnątrz VNet) i `GET /api/health` (z zewnątrz przez Nginx) odpytują bazę (`SELECT 1`) i zwracają:
 
 ```json
-{"status": "UP", "database": "CONNECTED", "version": "0.1.0", "commit": "<SHA wdrożonego commita>", "timestamp": "…"}
+{"status": "UP", "database": "CONNECTED", "version": "0.1.0", "commit": "<SHA wdrożonego commita>", "timestamp": "…",
+ "revision": "ca-clouddesk-backend--…", "replica": "…", "region": "polandcentral", "startedAt": "…", "assistant": "ENABLED"}
 ```
+
+`revision` i `replica` ustawia Container Apps, `region` – Terraform (`APP_REGION`); poza Azure są `null`. `assistant` mówi tylko,
+czy asystent jest skonfigurowany (bez wywołania modelu). Celowo nie zwracamy nazwy hosta, domeny środowiska, adresów IP z VNet
+ani niczego z `DATABASE_URL`. Te dane pokazuje publiczna strona **`/status`** (link w stopce): wersje frontendu i backendu
+z linkami do commitów, warstwy Internet → Nginx → Container Apps → PostgreSQL, czas odpowiedzi mierzony w przeglądarce,
+komunikat o wybudzeniu backendu ze skali 0 (gdy odpowiedź trwa > 5 s) i koszty z sekcji FinOps.
 
 Gdy baza nie odpowiada, odpowiedź to **503** z `"status": "DOWN", "database": "DISCONNECTED"`.
 - Pipeline CD po każdym wdrożeniu sprawdza `/api/health`, w tym czy `commit` to wdrożony SHA.

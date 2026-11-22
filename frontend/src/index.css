@@ -149,6 +149,8 @@ html[data-background='paused'] .liquid { background-image: url('./assets/backgro
 .app-header,
 .details,
 .assistant,
+.status-tile,
+.status-architecture,
 .table-wrap,
 .filters,
 .empty,
@@ -172,7 +174,7 @@ html[data-background='paused'] .liquid { background-image: url('./assets/backgro
 @media (prefers-reduced-transparency: reduce) {
   :root { --glass-fill: var(--glass-fill-strong); --glass-glint: transparent; }
   .liquid { background-image: url('./assets/background/dark-still.webp'); }
-  .app-header, .details, .assistant, .table-wrap, .filters, .empty, .toast {
+  .app-header, .details, .assistant, .status-tile, .status-architecture, .table-wrap, .filters, .empty, .toast {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -190,6 +192,8 @@ a { color: var(--link); text-underline-offset: 3px; }
 code { font-family: inherit; font-variant-numeric: tabular-nums; }
 
 :focus-visible { outline: 2px solid var(--tidal); outline-offset: 2px; border-radius: 8px; }
+/* Tekst tylko dla czytników ekranu. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .app-header {
   position: sticky;
@@ -277,6 +281,33 @@ tr:has(.sla-breached) td:first-child { box-shadow: inset 3px 0 0 var(--sla-breac
 .details dt { color: var(--text-muted); }
 .details dd { margin: 0; font-variant-numeric: tabular-nums; }
 .details-description { max-width: 72ch; white-space: pre-line; line-height: 1.65; }
+
+/* ---------------------------------------------------------------- strona /status (#140) */
+.status-summary { margin: 0 0 16px; padding: 12px 18px; border-radius: var(--radius-inner); font-weight: 600; }
+.status-summary-ok { background: var(--green-bg); color: var(--green-fg); }
+.status-summary-down { background: var(--red-bg); color: var(--red-fg); }
+
+.status-architecture { margin: 0 0 16px; padding: 20px 24px; border-radius: var(--radius-pane); }
+.status-architecture ol { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px 28px; margin: 0; padding: 0; list-style: none; }
+.status-architecture li { position: relative; display: grid; flex: 1 1 150px; gap: 2px; padding: 10px 14px; border: 1px solid; border-radius: var(--radius-inner); }
+/* Strzałka do następnej warstwy (na wąskim ekranie warstwy zawijają się i strzałki znikają). */
+.status-architecture li + li::before { content: '→'; position: absolute; left: -22px; top: 50%; translate: 0 -50%; color: var(--text-muted); }
+.status-architecture li span { font-size: 0.8rem; color: var(--text-muted); }
+.layer-ok { border-color: var(--green-fg); background: var(--green-bg); }
+.layer-down { border-color: var(--red-fg); background: var(--red-bg); }
+.status-architecture figcaption { margin-top: 12px; font-size: 0.8rem; color: var(--text-muted); }
+@media (max-width: 640px) { .status-architecture li + li::before { content: none; } }
+
+.status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.status-tile { padding: 18px 22px; border-radius: var(--radius-pane); }
+.status-tile h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+.status-tile dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 0.9rem; }
+.status-tile dt { color: var(--text-muted); }
+.status-tile dd { margin: 0; min-width: 0; overflow-wrap: break-word; font-variant-numeric: tabular-nums; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; }
+.status-dot-ok { background: var(--green-fg); box-shadow: 0 0 10px var(--green-fg); }
+.status-dot-down { background: var(--red-fg); box-shadow: 0 0 10px var(--red-fg); }
+.status-checked { margin-top: 16px; font-size: 0.8rem; color: var(--text-muted); }
 
 /* ---------------------------------------------------------------- przyciski i pola */
 button, .button {
