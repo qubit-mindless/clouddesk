@@ -104,6 +104,9 @@ export function fakeApi(): Plugin {
   // Kiedy użytkownik ostatnio otworzył powiadomienia (POST /notifications/read).
   const notificationsSeen = new Map<string, number>()
   const store = { tickets, history, conversations, users: USERS }
+  // Jak TicketOut w backendzie: obok loginów imię i nazwisko do wyświetlenia (w magazynie wyliczane przy odpowiedzi).
+  const fullName = (login: string) => USERS.find((u) => u.login === login)?.fullName ?? login
+  const dto = (t: Ticket) => ({ ...t, reporterName: fullName(t.reporter), assigneeName: t.assignee ? fullName(t.assignee) : null })
 
   const send = (res: ServerResponse, status: number, body?: unknown) => {
     res.statusCode = status
@@ -220,7 +223,7 @@ export function fakeApi(): Plugin {
           history.push({ id: nextHistoryId++, ticketId: owner.id, field: 'status', oldValue: owner.status, newValue: 'RESOLVED', author: actor.login, changedAt })
           history.push({ id: nextHistoryId++, ticketId: owner.id, field: 'resolution', oldValue: null, newValue: 'SELF_AI', author: actor.login, changedAt })
           Object.assign(owner, { status: 'RESOLVED', resolvedAt: changedAt, updatedAt: changedAt })
-          return send(res, 200, owner)
+          return send(res, 200, dto(owner))
         }
 
         // Oś historii (#139): widoczność jak przy samym zgłoszeniu.
@@ -322,9 +325,9 @@ export function fakeApi(): Plugin {
           const items = tickets.filter(
             (t) => (staff || t.reporter === actor.login) && (!status || t.status === status) && (!priority || t.priority === priority) && (!assignee || t.assignee === assignee),
           )
-          return send(res, 200, items)
+          return send(res, 200, items.map(dto))
         }
-        if (req.method === 'GET') return send(res, 200, ticket)
+        if (req.method === 'GET' && ticket) return send(res, 200, dto(ticket))
 
         if (req.method === 'POST' && !ticket) {
           const body = await readJson(req)
@@ -341,14 +344,16 @@ export function fakeApi(): Plugin {
             status: 'NEW',
             priority,
             reporter: actor.login,
+            reporterName: actor.fullName,
             assignee: null,
+            assigneeName: null,
             createdAt: now,
             updatedAt: now,
             slaDueAt: slaDueAt(now, priority),
             resolvedAt: null,
           }
           tickets.push(created)
-          return send(res, 201, created)
+          return send(res, 201, dto(created))
         }
 
         if (req.method === 'PATCH' && ticket) {
@@ -395,7 +400,7 @@ export function fakeApi(): Plugin {
             Object.assign(ticket, { [field]: value })
           }
           if (changed) ticket.updatedAt = changedAt
-          return send(res, 200, ticket)
+          return send(res, 200, dto(ticket))
         }
 
         if (req.method === 'DELETE' && ticket) {
