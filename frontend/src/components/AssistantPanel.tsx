@@ -63,7 +63,8 @@ export function AssistantPanel({ ticketId, reporter, autoSuggest = false, onReso
 
   const conversationReady = conversation !== undefined
   useEffect(() => {
-    if (!autoSuggest || !conversation || suggested.current === ticketId) return
+    // Tylko dla zgłaszającego – technik zakładający zgłoszenie (np. test E2E) nie zużywa zapytań do modelu.
+    if (!autoSuggest || user?.role !== 'REPORTER' || !conversation || suggested.current === ticketId) return
     if (!conversation.canAsk || !conversation.enabled || conversation.items.length > 0) return
     suggested.current = ticketId
     void send()
