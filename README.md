@@ -52,7 +52,8 @@ zgłaszający rozwiązuje sam z pomocą asystenta AI, a technik dostaje zgłosze
 - powiadomienia w aplikacji (dzwonek): przypisanie, nowe P1, przekroczone SLA, zmiana statusu mojego zgłoszenia;
 - czat zgłaszającego z asystentem AI; technik widzi rozmowę do odczytu;
 - publiczna strona `/status`: wersja frontendu i backendu, rewizja, region, stan bazy i asystenta;
-- w toku przed v1.0.0: pulpit SLA (liczba zgłoszeń, MTTR, zgodność z SLA – #138) i oś historii zgłoszenia (#139).
+- pulpit SLA dla technika i administratora (`/dashboard`, 7/30/90 dni): zgłoszenia zagrożone i po terminie z odliczaniem, zgodność z SLA liczona z zakończonych, MTTR, trend utworzonych i rozwiązanych, otwarte według priorytetu, obciążenie techników, odpowiedzi asystenta AI;
+- w toku przed v1.0.0: oś historii zgłoszenia (#139).
 
 ## Zespół
 | Rola | Osoba | GitHub |

@@ -1,6 +1,7 @@
 import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router'
 import { AuthProvider } from './auth/AuthProvider'
 import { RequireAuth } from './auth/RequireAuth'
+import { AppNav } from './components/AppNav'
 import { NotificationBell } from './components/NotificationBell'
 import { ToastProvider } from './components/Toast'
 import { UserMenu } from './components/UserMenu'
@@ -8,6 +9,7 @@ import { APP_VERSION } from './config'
 import { useBackgroundAnimation } from './hooks/useBackgroundAnimation'
 import { useAuth } from './hooks/useAuth'
 import { useGlassPointer } from './hooks/useGlassPointer'
+import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { MyTicketsPage } from './pages/MyTicketsPage'
 import { StatusPage } from './pages/StatusPage'
@@ -56,6 +58,7 @@ export default function App() {
               </h1>
               <p>System zgłoszeń IT z SLA i asystentem AI</p>
             </div>
+            <AppNav />
             <HeaderActions />
           </header>
           <Routes>
@@ -74,6 +77,7 @@ export default function App() {
               <Route path="/tickets/new" element={<TicketNewPage />} />
               <Route path="/tickets/:id" element={<TicketDetailsPage />} />
               <Route path="/tickets/:id/edit" element={<TicketEditPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="*" element={<Navigate to="/tickets" replace />} />
             </Route>
           </Routes>
