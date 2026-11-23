@@ -37,6 +37,12 @@ class TicketUpdate(CamelModel):
     assignee: Login | None = None
 
 
+class ResolveRequest(CamelModel):
+    """Ciało POST /api/tickets/{id}/resolve – puste ({}); inne pola to błąd 422."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class TicketOut(CamelModel):
     id: int
     title: str
@@ -44,7 +50,10 @@ class TicketOut(CamelModel):
     status: TicketStatus
     priority: TicketPriority
     reporter: str
+    # Imię i nazwisko do wyświetlenia (np. zgłaszający widzi „Aleksandra Nowak”, a nie login „tech.ola”).
+    reporter_name: str
     assignee: str | None
+    assignee_name: str | None
     created_at: datetime
     updated_at: datetime
     sla_due_at: datetime
