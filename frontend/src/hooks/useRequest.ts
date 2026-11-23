@@ -23,7 +23,8 @@ interface RequestOptions {
   keepData?: boolean
   // Ponowne pobieranie co tyle ms (#141), liczone od zakończenia poprzedniego żądania – wolna odpowiedź
   // (np. backend budzący się ze skali zero) nie jest przerywana przez następną. Stoi przy ukrytej karcie:
-  // każde żądanie budzi replikę, a po zamknięciu karty ma ona zejść do zera. Po powrocie na kartę od razu odświeża.
+  // każde żądanie budzi replikę, a po zamknięciu karty ma ona zejść do zera. Po powrocie na kartę odświeża od razu tylko
+  // nieaktualne dane (starsze niż intervalMs) – szybkie przełączanie kart nie wysyła serii żądań.
   // Nie rusza, dopóki dla tego `key` nie ma żadnych danych – błąd pierwszego ładowania zostaje na ekranie
   // (z fokusem na „Spróbuj ponownie”) aż do ręcznej próby.
   intervalMs?: number
@@ -65,15 +66,21 @@ export function useRequest<T>(
   // Z keepData ostatnie dane tego samego widoku zostają także przy błędzie odświeżenia – strona pokazuje je obok błędu.
   const data = current?.data !== undefined ? current.data : keepData && last?.key === key ? last.data : undefined
   const canPoll = Boolean(intervalMs) && current !== undefined && data !== undefined
+  const lastAt = last?.key === key ? last.at : undefined
 
   // Odpytywanie: kolejne żądanie dopiero po zakończeniu bieżącego (sukces albo błąd odświeżenia).
   useEffect(() => {
     if (!intervalMs || !canPoll) return
     let timer: number | undefined
     const tick = () => setAttempt((n) => n + 1)
+    // Po powrocie na kartę: dane starsze niż intervalMs – od razu, świeższe – w zwykłym rytmie.
+    const schedule = () => {
+      const age = lastAt === undefined ? intervalMs : Date.now() - lastAt
+      timer = window.setTimeout(tick, Math.max(0, intervalMs - age))
+    }
     const onVisibility = () => {
       window.clearTimeout(timer)
-      if (!document.hidden) tick()
+      if (!document.hidden) schedule()
     }
 
     if (!document.hidden) timer = window.setTimeout(tick, intervalMs)
@@ -82,7 +89,7 @@ export function useRequest<T>(
       window.clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [intervalMs, canPoll, key, attempt])
+  }, [intervalMs, canPoll, key, attempt, lastAt])
 
   const reload = useCallback(() => setAttempt((n) => n + 1), [])
 

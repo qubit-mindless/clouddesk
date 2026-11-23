@@ -6,7 +6,9 @@ import { SlaDue } from './SlaDue'
 import { StatusBadge } from './StatusBadge'
 
 // `highlighted`: wiersze zmienione przy ostatnim odświeżeniu w tle – na chwilę się podświetlają (#141).
-export function TicketList({ tickets, highlighted }: { tickets: Ticket[]; highlighted?: Set<number> }) {
+// `flashSeq`: numer podświetlenia – parzyste i nieparzyste mają osobne (identyczne) animacje, więc wiersz zmieniony
+// ponownie, zanim zgasł, miga od początku (sama klasa, która zostaje na `tr`, animacji nie restartuje).
+export function TicketList({ tickets, highlighted, flashSeq = 0 }: { tickets: Ticket[]; highlighted?: Set<number>; flashSeq?: number }) {
   const navigate = useNavigate()
   // Jeden timer dla wszystkich pigułek SLA w tabeli.
   const now = useNow(30_000)
@@ -37,7 +39,7 @@ export function TicketList({ tickets, highlighted }: { tickets: Ticket[]; highli
         </thead>
         <tbody>
           {tickets.map((t) => (
-            <tr key={t.id} data-testid={`ticket-row-${t.id}`} className={`clickable ${highlighted?.has(t.id) ? 'row-flash' : ''}`} onClick={() => navigate(`/tickets/${t.id}`, { state })}>
+            <tr key={t.id} data-testid={`ticket-row-${t.id}`} className={`clickable ${highlighted?.has(t.id) ? `row-flash row-flash-${flashSeq % 2}` : ''}`} onClick={() => navigate(`/tickets/${t.id}`, { state })}>
               <td>{t.id}</td>
               <td>
                 {/* Link zostaje dla klawiatury i czytników ekranu, kliknięcie w wiersz to skrót dla myszy. */}

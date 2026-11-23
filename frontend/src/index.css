@@ -622,6 +622,7 @@ select option { color: #141a3c; background: #fff; }
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .bento-footer { grid-column: 1 / -1; margin: 0; font-size: 0.8rem; color: var(--text-muted); text-align: right; }
+.bento-refresh-error { color: var(--sla-warning); }
 @media (max-width: 900px) {
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tile-trend, .tile-priority, .tile-techs, .tile-ai { grid-column: span 2; }
@@ -712,8 +713,11 @@ select option { color: #141a3c; background: #fff; }
 @keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgb(75 227 166 / 0.5); } 70%, 100% { box-shadow: 0 0 0 7px rgb(75 227 166 / 0); } }
 
 /* Wiersz zmieniony przy odświeżeniu w tle – krótki błysk tła (tylko opacity/kolor, bez przesuwania). */
-tr.row-flash td { animation: row-flash 2.4s ease-out; }
-@keyframes row-flash { 0%, 30% { background: var(--blue-bg); } 100% { background: transparent; } }
+tr.row-flash-0 td { animation: row-flash-0 2.4s ease-out; }
+tr.row-flash-1 td { animation: row-flash-1 2.4s ease-out; }
+/* Dwie identyczne animacje: zmiana nazwy restartuje ją przy ponownym podświetleniu (TicketList, flashSeq). */
+@keyframes row-flash-0 { 0%, 30% { background: var(--blue-bg); } 100% { background: transparent; } }
+@keyframes row-flash-1 { 0%, 30% { background: var(--blue-bg); } 100% { background: transparent; } }
 
 @media (prefers-reduced-motion: reduce) {
   .live-dot { animation: none; }
