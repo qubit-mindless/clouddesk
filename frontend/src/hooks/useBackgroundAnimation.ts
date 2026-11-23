@@ -17,7 +17,7 @@ function applyToDocument(enabled: boolean) {
 
 /**
  * Włączanie i zatrzymywanie animowanego tła (WCAG 2.2.2: ruch dłuższy niż 5 s musi dać się zatrzymać).
- * Ustawia html[data-background] – CSS podmienia wtedy animację na nieruchomą klatkę. Wybór zapisuje się tylko
+ * Ustawia html[data-background] – CSS zatrzymuje wtedy dryf plam tła. Wybór zapisuje się tylko
  * po kliknięciu (nowa karta nie nadpisuje ustawienia), a inne karty dostają zmianę przez zdarzenie `storage`.
  */
 export function useBackgroundAnimation(): [boolean, () => void] {

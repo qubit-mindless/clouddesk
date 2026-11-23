@@ -28,3 +28,5 @@ class User(Base):
         server_default=UserRole.REPORTER.value,
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Powiadomienia (dzwonek) starsze niż ta chwila są przeczytane; NULL = nic jeszcze nie przeczytano.
+    notifications_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

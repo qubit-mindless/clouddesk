@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router'
 import { PRIORITY_LABEL } from '../api/labels'
+import { ApiError } from '../api/client'
 import { getStats } from '../api/stats'
 import type { AtRiskTicket, Stats, TicketPriority } from '../api/types'
 import { canManageTicket } from '../auth/permissions'
@@ -72,7 +73,17 @@ function DashboardContent() {
         </div>
       </div>
       {loading && !data && <Loading label="Ładowanie pulpitu…" />}
-      {error !== undefined && !data && <ErrorState error={error} onRetry={reload} />}
+      {/* 404 = backend nie ma jeszcze GET /api/stats (#138). Gdy endpoint trafi na main, 404 nie powinno się już zdarzyć – wtedy tę gałąź usunąć. */}
+      {error instanceof ApiError && error.status === 404 && !data ? (
+        <div className="empty" role="status" data-testid="dashboard-unavailable">
+          <p>Pulpit SLA będzie dostępny po wdrożeniu statystyk w backendzie.</p>
+          <p>
+            Do tego czasu stan zgłoszeń sprawdzisz na <Link to="/tickets">liście zgłoszeń</Link>.
+          </p>
+        </div>
+      ) : (
+        error !== undefined && !data && <ErrorState error={error} onRetry={reload} />
+      )}
       {data && (
         <Dashboard stats={data} busy={busy} updatedAt={updatedAt} failed={failed} onReload={manualReload} />
       )}

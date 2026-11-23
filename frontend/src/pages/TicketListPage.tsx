@@ -1,12 +1,16 @@
 import { Link, useSearchParams } from 'react-router'
 import { PRIORITY_LABEL, STATUS_LABEL } from '../api/labels'
+import { getMeSummary } from '../api/activity'
 import { getTickets } from '../api/tickets'
 import type { TicketPriority, TicketStatus } from '../api/types'
 import { ErrorState } from '../components/ErrorState'
 import { LiveStatus } from '../components/LiveStatus'
 import { Loading } from '../components/Loading'
+import { ActivityFeed } from '../components/overview/ActivityFeed'
+import { AiTodayCard, Hello, SummaryStrip } from '../components/overview/SummaryStrip'
 import { TicketFilters, type TicketFilterValues } from '../components/TicketFilters'
 import { TicketList } from '../components/TicketList'
+import { useAuth } from '../hooks/useAuth'
 import { useChangedRows } from '../hooks/useChangedRows'
 import { useRequest } from '../hooks/useRequest'
 
@@ -42,27 +46,41 @@ export function TicketListPage() {
   )
   const flash = useChangedRows(data, dataKey, !loading && error === undefined)
 
+  // Powitanie, liczniki i karta AI (pakiet z makiety) – jedno żądanie /me/summary, odświeżane razem z listą.
+  const { user } = useAuth()
+  const { data: summary } = useRequest('me-summary', getMeSummary, { keepData: true, intervalMs: REFRESH_MS })
+
   const query = filters.query.trim().toLowerCase()
   const tickets = data?.filter((t) => !query || t.title.toLowerCase().includes(query))
 
   return (
     <>
       <div className="page-actions">
+        <Hello name={user?.fullName.split(' ')[0] ?? ''} summary={summary} />
         <Link to="/tickets/new" className="button primary" data-testid="ticket-new">
           + Nowe zgłoszenie
         </Link>
       </div>
-      <TicketFilters values={filters} onChange={handleChange} />
-      <div className="list-meta">
-        <LiveStatus updatedAt={updatedAt} failed={failed} />
+      {summary && <SummaryStrip summary={summary} />}
+      <div className="list-layout">
+        <div className="list-main">
+          <TicketFilters values={filters} onChange={handleChange} />
+          <div className="list-meta">
+            <LiveStatus updatedAt={updatedAt} failed={failed} />
+          </div>
+          {/* Nowe zgłoszenia ogłaszamy raz, po odświeżeniu – bez tykających liczb. */}
+          <p className="visually-hidden" aria-live="polite" data-testid="list-announcer">
+            {flash?.added ? `Nowe zgłoszenia na liście: ${flash.added}` : ''}
+          </p>
+          {loading && !data && <Loading label="Ładowanie zgłoszeń…" />}
+          {error !== undefined && !data && <ErrorState error={error} onRetry={reload} />}
+          {tickets && <TicketList tickets={tickets} highlighted={flash?.ids} />}
+        </div>
+        <aside className="list-side" aria-label="Aktywność i asystent AI">
+          <ActivityFeed />
+          {summary && <AiTodayCard summary={summary} />}
+        </aside>
       </div>
-      {/* Nowe zgłoszenia ogłaszamy raz, po odświeżeniu – bez tykających liczb. */}
-      <p className="visually-hidden" aria-live="polite" data-testid="list-announcer">
-        {flash?.added ? `Nowe zgłoszenia na liście: ${flash.added}` : ''}
-      </p>
-      {loading && !data && <Loading label="Ładowanie zgłoszeń…" />}
-      {error !== undefined && !data && <ErrorState error={error} onRetry={reload} />}
-      {tickets && <TicketList tickets={tickets} highlighted={flash?.ids} />}
     </>
   )
 }
