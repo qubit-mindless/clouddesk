@@ -27,7 +27,9 @@ def test_create_returns_201_with_camel_case_and_sla(client):
     body = res.json()
     assert body["status"] == "NEW"
     assert body["reporter"] == "admin"
+    assert body["reporterName"] == "Administrator"
     assert body["assignee"] is None
+    assert body["assigneeName"] is None
     assert {"createdAt", "slaDueAt", "updatedAt", "resolvedAt"} <= body.keys()
     assert parse(body["slaDueAt"]) - parse(body["createdAt"]) == timedelta(hours=4)
 
@@ -84,6 +86,7 @@ def test_patch_assign_status_and_history(client, db):
     res = client.patch(f"/api/tickets/{tid}", json={"assignee": "tech.jan", "status": "ASSIGNED"})
     assert res.status_code == 200
     assert res.json()["assignee"] == "tech.jan" and res.json()["status"] == "ASSIGNED"
+    assert res.json()["assigneeName"] == "Jan Kowalski"
     assert client.get("/api/tickets?assignee=tech.jan").json()["total"] == 1
 
     resolved = client.patch(f"/api/tickets/{tid}", json={"status": "RESOLVED"}).json()

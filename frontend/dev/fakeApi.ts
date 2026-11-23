@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import type { HistoryField, Ticket, TicketPriority, TicketStatus, User, UserRole } from '../src/api/types.ts'
 import { buildDemoData, CLOSED_STATUSES, slaDueAt } from './fakeDemo.ts'
+import { computeActivity, computeMeSummary, computeNotifications } from './fakeMakieta.ts'
 import { computeStats } from './fakeStats.ts'
 
 // Udawane API do pracy nad frontendem bez backendu. Działa tylko w `npm run dev` z VITE_FAKE_API=true,
@@ -100,6 +101,12 @@ export function fakeApi(): Plugin {
   const conversations = new Map<number, AssistantMessage[]>()
   let nextMessageId = 1
   const sessions = new Map<string, User>()
+  // Kiedy użytkownik ostatnio otworzył powiadomienia (POST /notifications/read).
+  const notificationsSeen = new Map<string, number>()
+  const store = { tickets, history, conversations, users: USERS }
+  // Jak TicketOut w backendzie: obok loginów imię i nazwisko do wyświetlenia (w magazynie wyliczane przy odpowiedzi).
+  const fullName = (login: string) => USERS.find((u) => u.login === login)?.fullName ?? login
+  const dto = (t: Ticket) => ({ ...t, reporterName: fullName(t.reporter), assigneeName: t.assignee ? fullName(t.assignee) : null })
 
   const send = (res: ServerResponse, status: number, body?: unknown) => {
     res.statusCode = status
@@ -177,6 +184,46 @@ export function fakeApi(): Plugin {
               .map(([id, items]) => [id, items.filter((m) => m.role === 'assistant').map((m) => m.createdAt)]),
           )
           return send(res, 200, computeStats(tickets, USERS, answers, days))
+        }
+
+        // Pakiet z makiety: aktywność, powiadomienia, podsumowanie użytkownika.
+        if (url.pathname === '/activity' && req.method === 'GET') {
+          const raw = url.searchParams.get('limit')
+          const limit = raw === null ? 20 : Number(raw)
+          if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+            return send(res, 422, { detail: [{ loc: ['query', 'limit'], msg: 'Input should be an integer between 1 and 50', type: 'value_error' }] })
+          }
+          return send(res, 200, { items: computeActivity(store, actor, limit) })
+        }
+        if (url.pathname === '/notifications' && req.method === 'GET') {
+          return send(res, 200, computeNotifications(store, actor, notificationsSeen.get(actor.login)))
+        }
+        if (url.pathname === '/notifications/read' && req.method === 'POST') {
+          // Jak backend: do czasu najnowszego pokazanego powiadomienia (przyszłość przycinamy do „teraz”).
+          const body = (await readJson(req)) ?? {}
+          const until = typeof body.until === 'string' ? Date.parse(body.until) : NaN
+          const next = Number.isNaN(until) ? Date.now() : Math.min(until, Date.now())
+          // Znacznik się nie cofa – stara karta przeglądarki nie oznaczy przeczytanych z powrotem jako nowe.
+          notificationsSeen.set(actor.login, Math.max(next, notificationsSeen.get(actor.login) ?? 0))
+          return send(res, 204)
+        }
+        if (url.pathname === '/me/summary' && req.method === 'GET') return send(res, 200, computeMeSummary(store, actor))
+
+        // „Pomogło – zamknij”: tylko zgłaszający, we własnym, otwartym zgłoszeniu.
+        const resolveMatch = url.pathname.match(/^\/tickets\/(\d+)\/resolve\/?$/)
+        if (resolveMatch && req.method === 'POST') {
+          const owner = tickets.find((t) => t.id === Number(resolveMatch[1]))
+          if (!owner || (!staff && owner.reporter !== actor.login)) return send(res, 404, { detail: 'Ticket not found' })
+          if (staff) return send(res, 403, { detail: 'Technik zamyka zgłoszenie przez zmianę statusu.' })
+          if (CLOSED_STATUSES.includes(owner.status)) return send(res, 409, { detail: 'Zgłoszenie jest już rozwiązane lub zamknięte.' })
+          if (!conversations.get(owner.id)?.some((m) => m.role === 'assistant')) {
+            return send(res, 409, { detail: 'Najpierw zapytaj asystenta AI – bez jego odpowiedzi zgłoszenie zamyka technik.' })
+          }
+          const changedAt = new Date().toISOString()
+          history.push({ id: nextHistoryId++, ticketId: owner.id, field: 'status', oldValue: owner.status, newValue: 'RESOLVED', author: actor.login, changedAt })
+          history.push({ id: nextHistoryId++, ticketId: owner.id, field: 'resolution', oldValue: null, newValue: 'SELF_AI', author: actor.login, changedAt })
+          Object.assign(owner, { status: 'RESOLVED', resolvedAt: changedAt, updatedAt: changedAt })
+          return send(res, 200, dto(owner))
         }
 
         // Oś historii (#139): widoczność jak przy samym zgłoszeniu.
@@ -278,9 +325,9 @@ export function fakeApi(): Plugin {
           const items = tickets.filter(
             (t) => (staff || t.reporter === actor.login) && (!status || t.status === status) && (!priority || t.priority === priority) && (!assignee || t.assignee === assignee),
           )
-          return send(res, 200, items)
+          return send(res, 200, items.map(dto))
         }
-        if (req.method === 'GET') return send(res, 200, ticket)
+        if (req.method === 'GET' && ticket) return send(res, 200, dto(ticket))
 
         if (req.method === 'POST' && !ticket) {
           const body = await readJson(req)
@@ -297,14 +344,16 @@ export function fakeApi(): Plugin {
             status: 'NEW',
             priority,
             reporter: actor.login,
+            reporterName: actor.fullName,
             assignee: null,
+            assigneeName: null,
             createdAt: now,
             updatedAt: now,
             slaDueAt: slaDueAt(now, priority),
             resolvedAt: null,
           }
           tickets.push(created)
-          return send(res, 201, created)
+          return send(res, 201, dto(created))
         }
 
         if (req.method === 'PATCH' && ticket) {
@@ -351,7 +400,7 @@ export function fakeApi(): Plugin {
             Object.assign(ticket, { [field]: value })
           }
           if (changed) ticket.updatedAt = changedAt
-          return send(res, 200, ticket)
+          return send(res, 200, dto(ticket))
         }
 
         if (req.method === 'DELETE' && ticket) {

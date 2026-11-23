@@ -1,41 +1,47 @@
 flowchart LR
     user(["👤 Użytkownik<br/>przeglądarka"])
-    gh["GitHub Actions<br/>CI/CD + OIDC"]
+    gh["GitHub Actions<br/>CI/CD · OIDC, bez haseł"]
+    ghcr[("GHCR<br/>obraz backendu<br/>skan Trivy")]
+    le["Let's Encrypt<br/>certyfikat TLS"]
 
-    subgraph azure["Microsoft Azure · rg-clouddesk"]
+    subgraph azure["Microsoft Azure · rg-clouddesk · polandcentral"]
         direction LR
         subgraph vnet["VNet vnet-clouddesk · 10.0.0.0/16"]
             direction LR
-            subgraph web["1 · WEB · snet-web 10.0.1.0/24 · publiczna · NSG: 443 + 80→443 z Internetu"]
-                nginx["VM Linux + Nginx<br/>React (statyczny)<br/>reverse proxy /api"]
+            subgraph web["1 · WEB · snet-web 10.0.1.0/24 · publiczna<br/>NSG: 443 i 80→301 z Internetu, SSH zamknięty"]
+                nginx["vm-web · Nginx<br/>React (statyczny)<br/>reverse proxy /api<br/>TLS 1.2/1.3 + HSTS"]
             end
-            subgraph app["2 · APP · snet-app 10.0.2.0/24 · prywatna · NSG: 80/443 tylko z snet-web"]
-                api["Azure Container Apps<br/>FastAPI<br/>ingress: internal"]
+            subgraph app["2 · APP · snet-app 10.0.2.0/24 · prywatna<br/>NSG: 80/443 tylko z snet-web"]
+                api["Container Apps<br/>FastAPI · ingress internal<br/>skala 0–2"]
+                jobs["Zadania Container Apps<br/>migracje Alembic<br/>kopia bazy 02:00"]
             end
-            subgraph data["3 · DATA · snet-db 10.0.3.0/24 · prywatna · NSG: 5432 tylko z snet-app"]
-                db[("PostgreSQL<br/>Flexible Server<br/>bez publicznego IP")]
+            subgraph data["3 · DATA · snet-db 10.0.3.0/24 · prywatna<br/>NSG: 5432 tylko z snet-app"]
+                db[("PostgreSQL 16<br/>Flexible Server<br/>bez dostępu publicznego")]
             end
         end
         subgraph services["Usługi zarządzane"]
             direction TB
-            ai["Azure OpenAI<br/>asystent AI"]
-            blob["Blob Storage<br/>załączniki"]
-            mail["Communication Services<br/>e-mail"]
-            kv["Key Vault<br/>sekrety"]
-            logs["Log Analytics +<br/>App Insights"]
+            kv["Key Vault<br/>hasło bazy, JWT"]
+            logs["Log Analytics<br/>logi, dashboard, budżet"]
+            st["Storage<br/>kopie bazy"]
         end
     end
+    ai["Azure OpenAI · gpt-4o-mini<br/>swedencentral, dane w UE"]
 
     user -->|"HTTPS 443"| nginx
-    nginx -->|"HTTPS 443 (ingress)<br/>tylko z snet-web"| api
-    api -->|"TCP 5432<br/>tylko z snet-app"| db
-    api -->|HTTPS| ai
-    api --> blob
-    api --> mail
-    kv -.->|sekrety| api
+    nginx -->|"HTTPS 443 · tylko /api"| api
+    api -->|"TCP 5432"| db
+    jobs -->|"TCP 5432"| db
+    jobs --> st
+    api -->|"HTTPS · tożsamość zarządzana"| ai
+    kv -.->|"sekrety · tożsamość zarządzana"| api
     api -.->|logi| logs
-    gh -.->|deploy| nginx
-    gh -.->|deploy| api
+    db -.->|"logi, metryki"| logs
+    gh -.->|"run-command · paczka frontendu"| nginx
+    gh -.->|"nowa rewizja"| api
+    gh -->|push| ghcr
+    ghcr -.->|obraz| api
+    le -.->|certbot| nginx
 
     classDef tierWeb fill:#e8f1ff,stroke:#2563eb,color:#1e3a8a
     classDef tierApp fill:#e9f9ef,stroke:#16a34a,color:#14532d
@@ -43,10 +49,10 @@ flowchart LR
     classDef svc fill:#f5f3ff,stroke:#7c3aed,color:#3b0764
     classDef ext fill:#ffffff,stroke:#475569,color:#0f172a
     class nginx tierWeb
-    class api tierApp
+    class api,jobs tierApp
     class db tierDb
-    class ai,blob,mail,kv,logs svc
-    class user,gh ext
+    class kv,logs,st,ai svc
+    class user,gh,ghcr,le ext
     style web fill:#f3f8ff,stroke:#2563eb
     style app fill:#f2fcf5,stroke:#16a34a
     style data fill:#fff6f6,stroke:#dc2626
