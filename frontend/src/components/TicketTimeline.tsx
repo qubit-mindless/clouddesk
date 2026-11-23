@@ -20,6 +20,9 @@ const ICON: Partial<Record<string, string>> = {
   description: '✎',
 }
 
+// „Imię Nazwisko (login)”, a gdy nazwiska brak albo jest równe loginowi – sam login.
+const person = (name: string | null | undefined, login: string) => (name && name !== login ? `${name} (${login})` : login)
+
 const statusLabel = (v: string | null) => (v ? (STATUS_LABEL[v as TicketStatus] ?? v) : '—')
 const priorityLabel = (v: string | null) => (v ? (PRIORITY_LABEL[v as TicketPriority] ?? v) : '—')
 
@@ -46,19 +49,25 @@ function describeChange({ field, oldValue, newValue }: TicketHistoryEntry): stri
 export function TicketTimeline({ ticket }: { ticket: Ticket }) {
   const now = useNow(60_000)
   const { data, error, loading, reload } = useRequest(String(ticket.id), (signal) => getTicketHistory(ticket.id, signal))
-  // 404 przy istniejącym zgłoszeniu = backend nie ma jeszcze tego endpointu – bez alarmu, tylko informacja.
 
   return (
     <section className="history" aria-labelledby="history-title" data-testid="ticket-history">
       <h3 id="history-title">Historia zmian</h3>
       <ol className="timeline" aria-busy={loading}>
-          <TimelineItem icon="+" text="Utworzono zgłoszenie" who={ticket.reporter} at={ticket.createdAt} now={now} testId="history-created" />
+        <TimelineItem
+          icon="+"
+          text="Utworzono zgłoszenie"
+          who={person(ticket.reporterName, ticket.reporter)}
+          at={ticket.createdAt}
+          now={now}
+          testId="history-created"
+        />
         {data?.items.map((entry) => (
           <TimelineItem
             key={entry.id}
             icon={ICON[entry.field] ?? '•'}
             text={describeChange(entry)}
-            who={entry.authorName && entry.authorName !== entry.author ? `${entry.authorName} (${entry.author})` : entry.author}
+            who={person(entry.authorName, entry.author)}
             at={entry.changedAt}
             now={now}
             testId={`history-item-${entry.id}`}
@@ -67,15 +76,20 @@ export function TicketTimeline({ ticket }: { ticket: Ticket }) {
         ))}
       </ol>
       {loading && !data && <p className="history-hint">Ładowanie historii…</p>}
+      {/* Komunikat w regionie statusu, przycisk obok – czytnik ogłasza tylko treść. */}
       {error !== undefined && (
-        <p className="history-hint" role="status" data-testid="history-error">
-          {error instanceof ApiError && error.status === 404
-            ? 'Historia zmian nie jest jeszcze dostępna.'
-            : `Nie udało się pobrać historii zmian. ${errorMessage(error)}`}{' '}
+        <div className="history-error">
+          <p className="history-hint" role="status" data-testid="history-error">
+            {/* 404 przy istniejącym zgłoszeniu = backend nie ma jeszcze GET /tickets/{id}/history – bez alarmu, tylko
+                informacja. Gdy endpoint trafi na main, 404 będzie znaczyć „zgłoszenie niedostępne” – wtedy zawęzić. */}
+            {error instanceof ApiError && error.status === 404
+              ? 'Historia zmian nie jest jeszcze dostępna.'
+              : `Nie udało się pobrać historii zmian. ${errorMessage(error)}`}
+          </p>
           <button type="button" className="link-button" onClick={reload} data-testid="history-retry">
             Spróbuj ponownie
           </button>
-        </p>
+        </div>
       )}
       {data && data.items.length === 0 && <p className="history-hint">Bez zmian od utworzenia.</p>}
     </section>

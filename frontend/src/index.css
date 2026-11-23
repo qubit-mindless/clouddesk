@@ -725,13 +725,17 @@ tr.row-flash td { animation: row-flash 2.4s ease-out; }
 .history { margin-top: 16px; padding: 24px 28px; border-radius: var(--radius-pane); }
 .history h3 { margin-top: 0; }
 .history-hint { margin: 8px 0 0; color: var(--text-muted); font-size: 0.88rem; }
+.history-error { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.history-error .link-button { font-size: 0.88rem; }
 .timeline { position: relative; margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
 /* Pionowa linia osi za ikonami. */
 .timeline::before { content: ''; position: absolute; top: 14px; bottom: 14px; left: 15px; width: 2px; background: var(--row-line); }
 .timeline-item { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; align-items: start; }
 .timeline-icon {
   display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
-  border: 1px solid var(--field-edge); background: var(--glass-fill-strong); font-size: 0.9rem; line-height: 1;
+  /* Kryjące tło: półprzezroczyste szkło na var(--bg), żeby linia osi nie prześwitywała przez ikonę. */
+  border: 1px solid var(--field-edge); background: linear-gradient(var(--glass-fill-strong), var(--glass-fill-strong)), var(--bg);
+  font-size: 0.9rem; line-height: 1;
 }
 .timeline-status .timeline-icon { color: var(--blue-fg); border-color: var(--blue-fg); }
 .timeline-priority .timeline-icon { color: var(--orange-fg); border-color: var(--orange-fg); }
