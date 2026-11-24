@@ -37,10 +37,23 @@ class SafeJSONResponse(JSONResponse):
             return json.dumps(content, ensure_ascii=True, separators=(",", ":")).encode("ascii")
 
 
+# Pydantic dokleja ten prefiks do komunikatów z naszych walidatorów (ValueError), a frontend pokazuje `msg`
+# dosłownie przy polu formularza.
+_VALUE_ERROR_PREFIX = "Value error, "
+
+
+def _user_message(error: dict[str, Any]) -> dict[str, Any]:
+    msg = error.get("msg")
+    if error.get("type") == "value_error" and isinstance(msg, str) and msg.startswith(_VALUE_ERROR_PREFIX):
+        return {**error, "msg": msg.removeprefix(_VALUE_ERROR_PREFIX)}
+    return error
+
+
 async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     # Ten sam kształt co domyślny handler FastAPI, ale odpowiedź 422 odsyła błędne dane (pole "input"),
     # a te mogą zawierać pojedynczy surogat z JSON-a – domyślny JSONResponse kończy się wtedy błędem 500.
-    return SafeJSONResponse(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
+    errors = [_user_message(error) for error in exc.errors()]
+    return SafeJSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 
 
 async def database_unavailable(request: Request, exc: Exception) -> JSONResponse:

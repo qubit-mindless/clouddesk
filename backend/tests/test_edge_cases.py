@@ -113,6 +113,9 @@ def test_nul_character_returns_422_not_500(client, field):
     res = create(client, **{field: "Nie działa\x00VPN"})
     assert res.status_code == 422
     assert field in error_fields(res)
+    # Frontend pokazuje `msg` przy polu – bez technicznego prefiksu Pydantica „Value error, ”.
+    msg = next(e["msg"] for e in res.json()["detail"] if e["loc"][-1] == field)
+    assert msg == "Tekst nie może zawierać znaku NUL (\\u0000)."
 
 
 def test_nul_character_in_patch_query_and_login(client, anonymous):
