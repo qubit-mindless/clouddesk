@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { PRIORITY_LABEL, STATUS_LABEL } from '../api/labels'
 import { getMeSummary } from '../api/activity'
 import { errorMessage } from '../api/client'
-import { getTickets, updateTicket } from '../api/tickets'
+import { getTicket, getTickets, updateTicket } from '../api/tickets'
 import type { Ticket, TicketPriority, TicketStatus } from '../api/types'
 import { ErrorState } from '../components/ErrorState'
 import { LiveStatus } from '../components/LiveStatus'
@@ -58,26 +58,48 @@ export function TicketListPage() {
     pollWithoutData: true,
   })
 
-  // „Przejmij”: przypisanie do siebie (nowe → przypisane) prosto z listy; potem świeża lista i liczniki.
+  // „Przejmij”: przypisanie do siebie (nowe → przypisane) prosto z listy. Lista odświeża się co 20 s, więc przed zapisem
+  // sprawdzamy świeży stan – zgłoszenia, które w międzyczasie przejął ktoś inny, nie nadpisujemy. Wynik zapisu nakładamy
+  // na wiersz od razu (bez czekania na nową listę), a blokada w ref chroni przed podwójnym kliknięciem.
   const toast = useToast()
   const [takingId, setTakingId] = useState<number | null>(null)
+  const taking = useRef(false)
+  const [taken, setTaken] = useState<Map<number, Ticket>>(new Map())
   const take = async (ticket: Ticket) => {
-    if (!user || takingId !== null) return
+    if (!user || taking.current) return
+    taking.current = true
     setTakingId(ticket.id)
     try {
-      await updateTicket(ticket.id, { assignee: user.login, ...(ticket.status === 'NEW' ? { status: 'ASSIGNED' as const } : {}) })
-      toast(`Przejęto zgłoszenie #${ticket.id}.`)
-      reload()
-      reloadSummary()
+      const fresh = await getTicket(ticket.id)
+      if (fresh.assignee) {
+        toast(`Zgłoszenie #${ticket.id} przejął już ${fresh.assigneeName ?? fresh.assignee}.`, 'error')
+        setTaken((m) => new Map(m).set(fresh.id, fresh))
+      } else {
+        const updated = await updateTicket(ticket.id, {
+          assignee: user.login,
+          ...(fresh.status === 'NEW' ? { status: 'ASSIGNED' as const } : {}),
+        })
+        setTaken((m) => new Map(m).set(updated.id, updated))
+        toast(`Przejęto zgłoszenie #${ticket.id}.`)
+      }
     } catch (e) {
       toast(errorMessage(e), 'error')
     } finally {
+      taking.current = false
       setTakingId(null)
+      reload()
+      reloadSummary()
     }
   }
 
   const query = filters.query.trim().toLowerCase()
-  const tickets = data?.filter((t) => !query || t.title.toLowerCase().includes(query))
+  // Wynik „Przejmij” zostaje na wierszu, dopóki lista z serwera nie przyniesie co najmniej tak świeżej wersji.
+  const tickets = data
+    ?.map((t) => {
+      const local = taken.get(t.id)
+      return local && local.updatedAt > t.updatedAt ? local : t
+    })
+    .filter((t) => !query || t.title.toLowerCase().includes(query))
 
   return (
     <>
@@ -107,6 +129,7 @@ export function TicketListPage() {
               flashSeq={flash?.seq}
               onTake={canManageTicket(user) ? take : undefined}
               takingId={takingId}
+              takeBusy={takingId !== null}
             />
           )}
         </div>

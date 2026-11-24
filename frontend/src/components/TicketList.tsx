@@ -15,12 +15,14 @@ interface Props {
   // Technik/administrator: „Przejmij” przy otwartych, nieprzypisanych zgłoszeniach; `takingId` – zgłoszenie w trakcie zapisu.
   onTake?: (ticket: Ticket) => void
   takingId?: number | null
+  // Trwa przejmowanie innego zgłoszenia – wszystkie przyciski „Przejmij” nieaktywne.
+  takeBusy?: boolean
 }
 
 // `highlighted`: wiersze zmienione przy ostatnim odświeżeniu w tle – na chwilę się podświetlają (#141).
 // `flashSeq`: numer podświetlenia – parzyste i nieparzyste mają osobne (identyczne) animacje, więc wiersz zmieniony
 // ponownie, zanim zgasł, miga od początku (sama klasa, która zostaje na `tr`, animacji nie restartuje).
-export function TicketList({ tickets, highlighted, flashSeq = 0, onTake, takingId = null }: Props) {
+export function TicketList({ tickets, highlighted, flashSeq = 0, onTake, takingId = null, takeBusy = false }: Props) {
   const navigate = useNavigate()
   // Jeden timer dla wszystkich pigułek SLA w tabeli.
   const now = useNow(30_000)
@@ -59,7 +61,7 @@ export function TicketList({ tickets, highlighted, flashSeq = 0, onTake, takingI
                   {t.title}
                 </Link>
                 <span className="row-sub" title={t.reporter}>
-                  {t.reporterName} · {timeAgo(t.createdAt)}
+                  {t.reporterName} · {timeAgo(t.createdAt, now)}
                 </span>
               </td>
               <td>
@@ -75,7 +77,7 @@ export function TicketList({ tickets, highlighted, flashSeq = 0, onTake, takingI
                   <button
                     type="button"
                     className="take"
-                    disabled={takingId === t.id}
+                    disabled={takeBusy}
                     onClick={(e) => {
                       e.stopPropagation()
                       onTake(t)

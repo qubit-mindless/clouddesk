@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useState } from 'react'
+import { ApiError } from '../api/client'
 
 interface RequestState<T> {
   data?: T
@@ -25,11 +26,12 @@ interface RequestOptions {
   // (np. backend budzący się ze skali zero) nie jest przerywana przez następną. Stoi przy ukrytej karcie:
   // każde żądanie budzi replikę, a po zamknięciu karty ma ona zejść do zera. Po powrocie na kartę odświeża od razu tylko
   // nieaktualne dane (starsze niż intervalMs) – szybkie przełączanie kart nie wysyła serii żądań.
-  // Nie rusza, dopóki dla tego `key` nie ma żadnych danych – błąd pierwszego ładowania zostaje na ekranie
+  // Nie rusza, dopóki dla tego `key` nie ma żadnych danych (wyjątek: `pollWithoutData`) – błąd pierwszego ładowania zostaje na ekranie
   // (z fokusem na „Spróbuj ponownie”) aż do ręcznej próby.
   intervalMs?: number
   // Ciche żądania boczne (np. liczniki nad listą) bez przycisku „Spróbuj ponownie”: odpytuj także wtedy, gdy pierwsze
-  // ładowanie się nie udało – inaczej po błędzie przy wybudzaniu backendu zostałyby puste do przeładowania strony.
+  // ładowanie się nie udało przejściowo (sieć, 429, 5xx – np. wybudzanie backendu). Przy błędzie trwałym (401, 403, 404…)
+  // odpytywanie stoi, żeby nie budzić backendu co chwilę na próżno.
   pollWithoutData?: boolean
 }
 
@@ -68,7 +70,9 @@ export function useRequest<T>(
   const current = state?.key === key && state.attempt === attempt ? state : undefined
   // Z keepData ostatnie dane tego samego widoku zostają także przy błędzie odświeżenia – strona pokazuje je obok błędu.
   const data = current?.data !== undefined ? current.data : keepData && last?.key === key ? last.data : undefined
-  const canPoll = Boolean(intervalMs) && current !== undefined && (data !== undefined || pollWithoutData)
+  const transient = (error: unknown) => !(error instanceof ApiError) || error.status === 0 || error.status === 429 || error.status >= 500
+  const canPoll =
+    Boolean(intervalMs) && current !== undefined && (data !== undefined || (pollWithoutData && transient(current.error)))
   const lastAt = last?.key === key ? last.at : undefined
 
   // Odpytywanie: kolejne żądanie dopiero po zakończeniu bieżącego (sukces albo błąd odświeżenia).
