@@ -718,6 +718,7 @@ select option { color: #141a3c; background: #fff; }
 
 /* Wskaźnik „na żywo”: kropka pulsuje, przy ograniczonym ruchu stoi. */
 .list-meta { display: flex; justify-content: flex-end; min-height: 1.4em; margin: -6px 0 8px; }
+.list-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 0.85rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .live-status { display: inline-flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--text-muted); }
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--chart-resolved); box-shadow: 0 0 0 0 var(--chart-resolved); animation: live-pulse 2s ease-out infinite; }
 .live-failed .live-dot { background: var(--sla-warning); animation: none; }

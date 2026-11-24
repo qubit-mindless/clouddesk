@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { getMeSummary } from '../api/activity'
-import { getTickets } from '../api/tickets'
+import { getTickets, MAX_TICKETS } from '../api/tickets'
 import type { Ticket, TicketStatus } from '../api/types'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
@@ -30,7 +30,7 @@ function who(t: Ticket): string {
 
 export function MyTicketsPage() {
   const { user } = useAuth()
-  const { data: tickets, error, loading, reload } = useRequest('mine', (signal) => getTickets({}, signal))
+  const { data: tickets, error, loading, reload } = useRequest('mine', async (signal) => (await getTickets({}, MAX_TICKETS, signal)).items)
   const { data: summary } = useRequest('me-summary', getMeSummary)
   const [showAllClosed, setShowAllClosed] = useState(false)
 

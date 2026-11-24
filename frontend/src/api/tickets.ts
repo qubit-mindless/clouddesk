@@ -1,14 +1,34 @@
 import { request } from './client'
-import type { Ticket, TicketCreate, TicketHistory, TicketQuery, TicketUpdate } from './types'
+import type { Ticket, TicketCreate, TicketHistory, TicketPage, TicketQuery, TicketUpdate } from './types'
 
-// Lista może przyjść jako tablica albo strona { items, total, page, size } (paginacja z #13).
-type TicketListResponse = Ticket[] | { items: Ticket[] }
+// API przyjmuje size 1–100 – więcej zgłoszeń wczytujemy kolejnymi stronami.
+const MAX_PAGE_SIZE = 100
+// Górna granica jednej listy: lista odświeża się w tle, więc każde odświeżenie pobiera wszystkie wczytane strony.
+// Dalej – zawęzić filtrem albo wyszukiwaniem.
+export const MAX_TICKETS = 500
 
-export async function getTickets(query: TicketQuery = {}, signal?: AbortSignal): Promise<Ticket[]> {
-  const params = new URLSearchParams(Object.entries(query).filter(([, value]) => value) as [string, string][])
-  const search = params.size ? `?${params}` : ''
-  const body = await request<TicketListResponse>(`/tickets${search}`, { signal })
-  return Array.isArray(body) ? body : body.items
+export interface TicketSlice {
+  items: Ticket[]
+  // Ile zgłoszeń pasuje do filtrów łącznie – lista pokazuje „Pokazano X z Y”.
+  total: number
+}
+
+// Pierwsze `limit` zgłoszeń pasujących do filtrów, od najnowszych (tak sortuje backend). Bez tego lista pokazywała
+// po cichu tylko domyślne 50.
+export async function getTickets(query: TicketQuery = {}, limit = MAX_PAGE_SIZE, signal?: AbortSignal): Promise<TicketSlice> {
+  // Ten sam rozmiar strony na każdej stronie – inaczej przesunięcia stron by się rozjechały.
+  const size = Math.min(limit, MAX_PAGE_SIZE)
+  const filters = Object.entries(query).filter(([, value]) => value) as [string, string][]
+  const fetchPage = (page: number) =>
+    request<TicketPage>(`/tickets?${new URLSearchParams([...filters, ['page', String(page)], ['size', String(size)]])}`, { signal })
+  // Pierwsza strona mówi, ile jest wszystkich; pozostałe (najwyżej do `limit`) – równolegle.
+  const first = await fetchPage(1)
+  const pages = Math.min(Math.ceil(limit / size), Math.ceil(first.total / size))
+  const rest = await Promise.all(Array.from({ length: Math.max(0, pages - 1) }, (_, i) => fetchPage(i + 2)))
+  // Nowe zgłoszenie między stronami przesuwa kolejne – Map po id usuwa ewentualny duplikat.
+  const items = new Map<number, Ticket>()
+  for (const page of [first, ...rest]) for (const ticket of page.items) items.set(ticket.id, ticket)
+  return { items: [...items.values()].slice(0, limit), total: first.total }
 }
 
 export function getTicket(id: number, signal?: AbortSignal): Promise<Ticket> {
