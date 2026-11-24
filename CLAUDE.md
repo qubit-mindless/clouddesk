@@ -12,6 +12,7 @@ Przed pracą przeczytaj:
 - `backend/`: Python 3.12 + FastAPI + SQLAlchemy 2 + Pydantic. Testy: `pytest`. Lint: `ruff check . && ruff format --check .`
 - Baza: PostgreSQL 16 (lokalnie `config/docker-compose.yml`).
 - Chmura: Azure (VNet 10.0.0.0/16: snet-web 10.0.1.0/24 public, snet-app 10.0.2.0/24 private, snet-db 10.0.3.0/24 private). IaC w `terraform/`.
+- Hook `.claude/settings.json`: po każdej edycji pliku `backend/**/*.py` uruchamia `ruff format` (z `backend/.venv`), a dla `terraform/*.tf` `terraform fmt`. Wymaga `jq`. Bez `jq`, ruffa lub terraforma hook po prostu nic nie robi. `ruff check` i tak uruchamiasz sam przed PR.
 
 ## Zasady, których nie wolno łamać
 - Architektura 3-tier: frontend nigdy nie łączy się z bazą. Backend nie ma publicznego IP. Baza przyjmuje ruch tylko z snet-app.

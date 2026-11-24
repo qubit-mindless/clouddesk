@@ -1,26 +1,16 @@
 import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
-import type { User, UserRole } from '../src/api/types.ts'
+import type { HistoryField, Ticket, TicketPriority, TicketStatus, User, UserRole } from '../src/api/types.ts'
+import { buildDemoData, CLOSED_STATUSES, slaDueAt } from './fakeDemo.ts'
+import { computeActivity, computeMeSummary, computeNotifications } from './fakeMakieta.ts'
+import { computeStats } from './fakeStats.ts'
 
 // Udawane API do pracy nad frontendem bez backendu. Działa tylko w `npm run dev` z VITE_FAKE_API=true,
 // trzyma dane w pamięci (restart serwera je resetuje) i odpowiada jak FastAPI: te same ścieżki, statusy
 // i format błędów 422. Logowanie i role jak w kontrakcie z #106: konta demo z seeda backendu, dowolne
 // niepuste hasło (to tylko makieta – prawdziwe hasło jest w Key Vault). Tokeny giną przy restarcie serwera,
-// co pozwala sprawdzić wygaśnięcie sesji (401).
-
-interface Ticket {
-  id: number
-  title: string
-  description: string
-  status: string
-  priority: string
-  reporter: string
-  assignee: string | null
-  createdAt: string
-  slaDueAt: string
-}
-
+// co pozwala sprawdzić wygaśnięcie sesji (401). Kontrakty nowych endpointów (#142): docs/api-kontrakty.md.
 
 const USERS: User[] = (
   [
@@ -41,13 +31,28 @@ const USERS: User[] = (
 const TOKEN_TTL_S = 3600
 // Pola, które może zmienić tylko technik lub administrator (nieznane klucze backend pomija).
 const STAFF_ONLY = ['status', 'assignee']
-const CLOSED = ['RESOLVED', 'CLOSED']
 const PRIORITIES = ['P1', 'P2', 'P3', 'P4']
 const STATUSES = ['NEW', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']
-const SLA_HOURS: Record<string, number> = { P1: 4, P2: 8, P3: 48, P4: 120 }
 const DELAY_MS = 400
+const STATS_DAYS = { min: 7, max: 90, default: 30 }
+const SUMMARY_COOLDOWN_MS = 5 * 60_000
+const STARTED_AT = new Date().toISOString()
 
 type FieldError = { loc: string[]; msg: string; type: string }
+
+interface AssistantMessage {
+  id: number
+  role: 'user' | 'assistant'
+  author: string | null
+  content: string
+  createdAt: string
+}
+
+const ASSISTANT_LIMIT = 10
+const SUGGEST_PROMPT = 'Podpowiedz, co mogę sprawdzić samodzielnie, zanim technik zajmie się zgłoszeniem.'
+const FAKE_ANSWER =
+  'To odpowiedź udawanego asystenta (VITE_FAKE_API).\n\n1. Uruchom ponownie urządzenie lub aplikację.\n' +
+  '2. Sprawdź połączenie z siecią firmową.\n3. Jeśli problem wraca, technik przejmie zgłoszenie.'
 
 function validate(body: Record<string, unknown>, partial: boolean): FieldError[] {
   const errors: FieldError[] = []
@@ -87,9 +92,21 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null>
 
 export function fakeApi(): Plugin {
   const mocksUrl = new URL('../src/mocks/tickets.json', import.meta.url)
-  const tickets: Ticket[] = JSON.parse(readFileSync(mocksUrl, 'utf8'))
+  const demo = buildDemoData(JSON.parse(readFileSync(mocksUrl, 'utf8')), USERS)
+  const tickets = demo.tickets
+  const history = demo.history
+  let nextHistoryId = demo.nextHistoryId
   let nextId = Math.max(...tickets.map((t) => t.id)) + 1
+  const summaryAt = new Map<number, number>()
+  const conversations = new Map<number, AssistantMessage[]>()
+  let nextMessageId = 1
   const sessions = new Map<string, User>()
+  // Kiedy użytkownik ostatnio otworzył powiadomienia (POST /notifications/read).
+  const notificationsSeen = new Map<string, number>()
+  const store = { tickets, history, conversations, users: USERS }
+  // Jak TicketOut w backendzie: obok loginów imię i nazwisko do wyświetlenia (w magazynie wyliczane przy odpowiedzi).
+  const fullName = (login: string) => USERS.find((u) => u.login === login)?.fullName ?? login
+  const dto = (t: Ticket) => ({ ...t, reporterName: fullName(t.reporter), assigneeName: t.assignee ? fullName(t.assignee) : null })
 
   const send = (res: ServerResponse, status: number, body?: unknown) => {
     res.statusCode = status
@@ -106,6 +123,23 @@ export function fakeApi(): Plugin {
       server.middlewares.use('/api', async (req, res) => {
         await new Promise((r) => setTimeout(r, DELAY_MS))
         const url = new URL(req.url ?? '/', 'http://localhost')
+
+        // /health jest publiczne jak w backendzie. Rewizja, replika i region w Azure przychodzą ze zmiennych
+        // Container Apps i Terraformu – tu stałe wartości, żeby strona /status miała co pokazać.
+        if (url.pathname === '/health' && req.method === 'GET') {
+          return send(res, 200, {
+            status: 'UP',
+            database: 'CONNECTED',
+            version: '0.1.0',
+            commit: 'local',
+            timestamp: new Date().toISOString(),
+            revision: 'ca-clouddesk-backend--fake',
+            replica: 'ca-clouddesk-backend--fake-0',
+            region: 'polandcentral',
+            startedAt: STARTED_AT,
+            assistant: 'ENABLED',
+          })
+        }
 
         if (url.pathname === '/auth/login' && req.method === 'POST') {
           const body = await readJson(req)
@@ -135,6 +169,149 @@ export function fakeApi(): Plugin {
 
         if (url.pathname === '/auth/me' && req.method === 'GET') return send(res, 200, actor)
 
+        // Pulpit SLA (#138): tylko technik i administrator.
+        if (url.pathname === '/stats' && req.method === 'GET') {
+          if (!staff) return send(res, 403, { detail: 'Pulpit jest dostępny dla technika i administratora.' })
+          const raw = url.searchParams.get('days')
+          const days = raw === null ? STATS_DAYS.default : Number(raw)
+          if (!Number.isInteger(days) || days < STATS_DAYS.min || days > STATS_DAYS.max) {
+            const msg = `Input should be an integer between ${STATS_DAYS.min} and ${STATS_DAYS.max}`
+            return send(res, 422, { detail: [{ loc: ['query', 'days'], msg, type: 'value_error' }] })
+          }
+          const answers = new Map(
+            [...conversations]
+              .filter(([id]) => tickets.some((t) => t.id === id))
+              .map(([id, items]) => [id, items.filter((m) => m.role === 'assistant').map((m) => m.createdAt)]),
+          )
+          return send(res, 200, computeStats(tickets, USERS, answers, days))
+        }
+
+        // Pakiet z makiety: aktywność, powiadomienia, podsumowanie użytkownika.
+        if (url.pathname === '/activity' && req.method === 'GET') {
+          const raw = url.searchParams.get('limit')
+          const limit = raw === null ? 20 : Number(raw)
+          if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+            return send(res, 422, { detail: [{ loc: ['query', 'limit'], msg: 'Input should be an integer between 1 and 50', type: 'value_error' }] })
+          }
+          return send(res, 200, { items: computeActivity(store, actor, limit) })
+        }
+        if (url.pathname === '/notifications' && req.method === 'GET') {
+          return send(res, 200, computeNotifications(store, actor, notificationsSeen.get(actor.login)))
+        }
+        if (url.pathname === '/notifications/read' && req.method === 'POST') {
+          // Jak backend: do czasu najnowszego pokazanego powiadomienia (przyszłość przycinamy do „teraz”).
+          const body = (await readJson(req)) ?? {}
+          const until = typeof body.until === 'string' ? Date.parse(body.until) : NaN
+          const next = Number.isNaN(until) ? Date.now() : Math.min(until, Date.now())
+          // Znacznik się nie cofa – stara karta przeglądarki nie oznaczy przeczytanych z powrotem jako nowe.
+          notificationsSeen.set(actor.login, Math.max(next, notificationsSeen.get(actor.login) ?? 0))
+          return send(res, 204)
+        }
+        if (url.pathname === '/me/summary' && req.method === 'GET') return send(res, 200, computeMeSummary(store, actor))
+
+        // „Pomogło – zamknij”: tylko zgłaszający, we własnym, otwartym zgłoszeniu.
+        const resolveMatch = url.pathname.match(/^\/tickets\/(\d+)\/resolve\/?$/)
+        if (resolveMatch && req.method === 'POST') {
+          const owner = tickets.find((t) => t.id === Number(resolveMatch[1]))
+          if (!owner || (!staff && owner.reporter !== actor.login)) return send(res, 404, { detail: 'Ticket not found' })
+          if (staff) return send(res, 403, { detail: 'Technik zamyka zgłoszenie przez zmianę statusu.' })
+          if (CLOSED_STATUSES.includes(owner.status)) return send(res, 409, { detail: 'Zgłoszenie jest już rozwiązane lub zamknięte.' })
+          if (!conversations.get(owner.id)?.some((m) => m.role === 'assistant')) {
+            return send(res, 409, { detail: 'Najpierw zapytaj asystenta AI – bez jego odpowiedzi zgłoszenie zamyka technik.' })
+          }
+          const changedAt = new Date().toISOString()
+          history.push({ id: nextHistoryId++, ticketId: owner.id, field: 'status', oldValue: owner.status, newValue: 'RESOLVED', author: actor.login, changedAt })
+          history.push({ id: nextHistoryId++, ticketId: owner.id, field: 'resolution', oldValue: null, newValue: 'SELF_AI', author: actor.login, changedAt })
+          Object.assign(owner, { status: 'RESOLVED', resolvedAt: changedAt, updatedAt: changedAt })
+          return send(res, 200, dto(owner))
+        }
+
+        // Oś historii (#139): widoczność jak przy samym zgłoszeniu.
+        const historyMatch = url.pathname.match(/^\/tickets\/(\d+)\/history\/?$/)
+        if (historyMatch && req.method === 'GET') {
+          const ticketId = Number(historyMatch[1])
+          const owner = tickets.find((t) => t.id === ticketId)
+          if (!owner || (!staff && owner.reporter !== actor.login)) return send(res, 404, { detail: 'Ticket not found' })
+          const items = history
+            .filter((h) => h.ticketId === ticketId)
+            .sort((a, b) => a.changedAt.localeCompare(b.changedAt) || a.id - b.id)
+            .map(({ id, field, oldValue, newValue, author, changedAt }) => {
+              const authorName = USERS.find((u) => u.login === author)?.fullName ?? author
+              return { id, field, oldValue, newValue, author, authorName, changedAt }
+            })
+          return send(res, 200, { items })
+        }
+
+        // Podsumowanie rozmowy dla technika (#143, opcjonalne).
+        const summaryMatch = url.pathname.match(/^\/tickets\/(\d+)\/assistant\/summary\/?$/)
+        if (summaryMatch) {
+          const ticketId = Number(summaryMatch[1])
+          const owner = tickets.find((t) => t.id === ticketId)
+          if (!owner || (!staff && owner.reporter !== actor.login)) return send(res, 404, { detail: 'Ticket not found' })
+          if (req.method !== 'POST') return send(res, 405, { detail: 'Method Not Allowed' })
+          if (!staff) return send(res, 403, { detail: 'Podsumowanie rozmowy jest dla technika i administratora.' })
+          if (!conversations.get(ticketId)?.length) {
+            return send(res, 409, { detail: 'Zgłaszający nie rozmawiał jeszcze z asystentem – nie ma czego podsumować.' })
+          }
+          const last = summaryAt.get(ticketId)
+          if (last !== undefined && Date.now() - last < SUMMARY_COOLDOWN_MS) {
+            res.setHeader('Retry-After', String(Math.ceil((SUMMARY_COOLDOWN_MS - (Date.now() - last)) / 1000)))
+            return send(res, 429, { detail: 'Podsumowanie można wygenerować ponownie za kilka minut.' })
+          }
+          summaryAt.set(ticketId, Date.now())
+          return send(res, 200, {
+            problem: `Zgłaszający opisuje problem: ${owner.title}.`,
+            checked: ['Ponowne uruchomienie urządzenia', 'Połączenie z siecią firmową'],
+            errors: [],
+            nextStep: 'Sprawdzić konfigurację konta użytkownika i logi aplikacji.',
+            generatedAt: new Date().toISOString(),
+          })
+        }
+
+        // Asystent AI: /tickets/{id}/assistant – ten sam kształt odpowiedzi co backend (#97).
+        const assistant = url.pathname.match(/^\/tickets\/(\d+)\/assistant\/?$/)
+        if (assistant) {
+          const ticketId = Number(assistant[1])
+          // Jak backend: zgłaszający widzi tylko swoje zgłoszenia, cudze wyglądają jak nieistniejące.
+          const owner = tickets.find((t) => t.id === ticketId)
+          if (!owner || (!staff && owner.reporter !== actor.login)) return send(res, 404, { detail: 'Ticket not found' })
+          const items = conversations.get(ticketId) ?? []
+          const answers = () => items.filter((m) => m.role === 'assistant').length
+          // Jak backend: pyta tylko zgłaszający, do rozwiązania zgłoszenia; technik widzi rozmowę do odczytu.
+          const readOnlyReason = owner.reporter !== actor.login ? 'not_reporter' : CLOSED_STATUSES.includes(owner.status) ? 'resolved' : null
+          const conversation = () => ({
+            items,
+            enabled: true,
+            remaining: Math.max(ASSISTANT_LIMIT - answers(), 0),
+            canAsk: readOnlyReason === null,
+            readOnlyReason,
+          })
+          if (req.method === 'GET') return send(res, 200, conversation())
+          if (req.method !== 'POST') return send(res, 405, { detail: 'Method Not Allowed' })
+
+          const body = await readJson(req)
+          if (!body) return send(res, 400, { detail: 'Invalid JSON' })
+          // Jak backend: brak pola albo null = prośba o pierwszą propozycję rozwiązania.
+          const message = typeof body.message === 'string' ? body.message.trim() : undefined
+          if (body.message != null && (!message || message.length > 1000)) {
+            return send(res, 422, { detail: [{ loc: ['body', 'message'], msg: 'Wiadomość musi mieć 1–1000 znaków', type: 'value_error' }] })
+          }
+          if (readOnlyReason === 'not_reporter') {
+            return send(res, 403, { detail: 'Do asystenta AI pisze tylko osoba zgłaszająca – pozostali widzą rozmowę do odczytu.' })
+          }
+          if (readOnlyReason === 'resolved') {
+            return send(res, 409, { detail: 'Zgłoszenie jest rozwiązane – rozmowa z asystentem AI jest zamknięta.' })
+          }
+          if (answers() >= ASSISTANT_LIMIT) {
+            return send(res, 429, { detail: 'Wyczerpano limit pytań do asystenta dla tego zgłoszenia.' })
+          }
+          const createdAt = new Date().toISOString()
+          items.push({ id: nextMessageId++, role: 'user', author: actor.login, content: message ?? SUGGEST_PROMPT, createdAt })
+          items.push({ id: nextMessageId++, role: 'assistant', author: null, content: FAKE_ANSWER, createdAt })
+          conversations.set(ticketId, items)
+          return send(res, 200, conversation())
+        }
+
         const match = url.pathname.match(/^\/tickets(?:\/(\d+))?\/?$/)
         if (!match) return send(res, 404, { detail: 'Not Found' })
 
@@ -148,9 +325,9 @@ export function fakeApi(): Plugin {
           const items = tickets.filter(
             (t) => (staff || t.reporter === actor.login) && (!status || t.status === status) && (!priority || t.priority === priority) && (!assignee || t.assignee === assignee),
           )
-          return send(res, 200, items)
+          return send(res, 200, items.map(dto))
         }
-        if (req.method === 'GET') return send(res, 200, ticket)
+        if (req.method === 'GET' && ticket) return send(res, 200, dto(ticket))
 
         if (req.method === 'POST' && !ticket) {
           const body = await readJson(req)
@@ -158,20 +335,25 @@ export function fakeApi(): Plugin {
           const errors = validate(body, false)
           if (errors.length) return send(res, 422, { detail: errors })
 
-          const now = new Date()
+          const now = new Date().toISOString()
+          const priority = body.priority as TicketPriority
           const created: Ticket = {
             id: nextId++,
             title: String(body.title).trim(),
             description: String(body.description).trim(),
             status: 'NEW',
-            priority: String(body.priority),
+            priority,
             reporter: actor.login,
+            reporterName: actor.fullName,
             assignee: null,
-            createdAt: now.toISOString(),
-            slaDueAt: new Date(now.getTime() + SLA_HOURS[String(body.priority)] * 3_600_000).toISOString(),
+            assigneeName: null,
+            createdAt: now,
+            updatedAt: now,
+            slaDueAt: slaDueAt(now, priority),
+            resolvedAt: null,
           }
           tickets.push(created)
-          return send(res, 201, created)
+          return send(res, 201, dto(created))
         }
 
         if (req.method === 'PATCH' && ticket) {
@@ -179,24 +361,54 @@ export function fakeApi(): Plugin {
           if (!body) return send(res, 400, { detail: 'Invalid JSON' })
           // Jak w FastAPI: najpierw walidacja ciała (422), potem uprawnienia w serwisie (403).
           const errors = validate(body, true)
+          // Jak schemat Pydantic: login 1–100 znaków albo null (null zwalnia zgłoszenie).
+          const assignee = typeof body.assignee === 'string' ? body.assignee.trim() : body.assignee
+          if ('assignee' in body && assignee !== null && (typeof assignee !== 'string' || !assignee || assignee.length > 100)) {
+            errors.push({ loc: ['body', 'assignee'], msg: 'String should have 1–100 characters', type: 'value_error' })
+          }
           if (errors.length) return send(res, 422, { detail: errors })
           if (!staff) {
             if (STAFF_ONLY.some((key) => key in body)) {
               return send(res, 403, { detail: 'Status i przypisanie zgłoszenia zmienia technik.' })
             }
-            if (CLOSED.includes(ticket.status)) {
+            if (CLOSED_STATUSES.includes(ticket.status)) {
               return send(res, 403, { detail: 'Rozwiązanego lub zamkniętego zgłoszenia nie można już zmieniać.' })
             }
           }
-          for (const key of ['title', 'description', 'priority', 'status', 'assignee'] as const) {
-            if (key in body) Object.assign(ticket, { [key]: body[key] })
+          if (typeof assignee === 'string') {
+            // Jak serwis backendu (po sprawdzeniu uprawnień): tylko istniejący technik lub administrator.
+            const user = USERS.find((u) => u.login === assignee)
+            const msg = !user ? `Nie ma użytkownika „${assignee}”.` : user.role === 'REPORTER' ? 'Zgłoszenie można przypisać tylko technikowi.' : null
+            if (msg) return send(res, 422, { detail: [{ loc: ['body', 'assignee'], msg, type: 'value_error' }] })
           }
-          return send(res, 200, ticket)
+          // Jak backend: każda faktyczna zmiana pola trafia do historii z autorem; nowy priorytet przelicza SLA
+          // od utworzenia, przejście do RESOLVED/CLOSED ustawia resolvedAt, ponowne otwarcie je zeruje.
+          const changedAt = new Date().toISOString()
+          let changed = false
+          for (const field of ['assignee', 'title', 'description', 'priority', 'status'] as const satisfies HistoryField[]) {
+            if (!(field in body)) continue
+            const value = body[field] === null ? null : String(body[field]).trim()
+            if (value === ticket[field]) continue
+            history.push({ id: nextHistoryId++, ticketId: ticket.id, field, oldValue: ticket[field], newValue: value, author: actor.login, changedAt })
+            changed = true
+            if (field === 'priority') ticket.slaDueAt = slaDueAt(ticket.createdAt, value as TicketPriority)
+            if (field === 'status') {
+              const status = value as TicketStatus
+              if (!CLOSED_STATUSES.includes(status)) ticket.resolvedAt = null
+              else if (ticket.resolvedAt === null) ticket.resolvedAt = changedAt
+            }
+            Object.assign(ticket, { [field]: value })
+          }
+          if (changed) ticket.updatedAt = changedAt
+          return send(res, 200, dto(ticket))
         }
 
         if (req.method === 'DELETE' && ticket) {
           if (!staff) return send(res, 403, { detail: 'Zgłoszenie może usunąć tylko technik lub administrator.' })
           tickets.splice(tickets.indexOf(ticket), 1)
+          for (let i = history.length - 1; i >= 0; i--) if (history[i].ticketId === ticket.id) history.splice(i, 1)
+          conversations.delete(ticket.id)
+          summaryAt.delete(ticket.id)
           return send(res, 204)
         }
         return send(res, 405, { detail: 'Method Not Allowed' })

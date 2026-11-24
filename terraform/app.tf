@@ -188,6 +188,11 @@ resource "azurerm_container_app" "backend" {
         name  = "AZURE_CLIENT_ID"
         value = azurerm_user_assigned_identity.backend.client_id
       }
+      # Na końcu listy – plan pokazuje wtedy tylko dodaną zmienną. Region na stronie /status (#140). Rewizję i replikę Container Apps ustawia sam (CONTAINER_APP_REVISION…).
+      env {
+        name  = "APP_REGION"
+        value = azurerm_resource_group.main.location
+      }
 
       # Sondy zdrowia – wszystkie na /health/live (proces odpowiada, bez bazy):
       # - liveness: restart tylko wtedy, gdy zawiesił się sam proces. Awaria PostgreSQL nie powoduje pętli

@@ -11,6 +11,7 @@ from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.ticket import Ticket
+    from app.models.user import User
 
 
 class AiMessageRole(StrEnum):
@@ -35,7 +36,11 @@ class AiMessage(Base):
             values_callable=lambda e: [m.value for m in e],
         )
     )
+    # Kto zadał pytanie (rozmowę widzą zgłaszający i technik); NULL dla odpowiedzi asystenta
+    # i dla pytań usuniętych użytkowników.
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     ticket: Mapped[Ticket] = relationship(back_populates="ai_messages")
+    author: Mapped[User | None] = relationship()

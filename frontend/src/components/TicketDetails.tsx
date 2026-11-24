@@ -1,10 +1,12 @@
 import type { Ticket } from '../api/types'
 import { formatDateTime } from '../utils/sla'
 import { PriorityBadge } from './PriorityBadge'
-import { SlaDue } from './SlaDue'
+import { useNow } from '../hooks/useNow'
+import { SlaDue, SlaProgress } from './SlaDue'
 import { StatusBadge } from './StatusBadge'
 
 export function TicketDetails({ ticket }: { ticket: Ticket }) {
+  const now = useNow(30_000)
   return (
     <article className="details" data-testid="ticket-details">
       <header>
@@ -24,8 +26,11 @@ export function TicketDetails({ ticket }: { ticket: Ticket }) {
         <dt>Utworzono</dt>
         <dd>{formatDateTime(ticket.createdAt)}</dd>
         <dt>Termin SLA</dt>
-        <dd>
-          <SlaDue ticket={ticket} />
+        <dd className="sla-cell">
+          <span>
+            <SlaDue ticket={ticket} now={now} /> <span className="sla-date">{formatDateTime(ticket.slaDueAt)}</span>
+          </span>
+          <SlaProgress ticket={ticket} now={now} />
         </dd>
       </dl>
       <h3>Opis</h3>

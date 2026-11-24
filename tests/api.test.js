@@ -35,6 +35,11 @@ const JSON_TYPE = /^application\/json/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
 const STATUSES = ["NEW", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 const PRIORITIES = ["P1", "P2", "P3", "P4"];
+// Dopasowanie w toEqual: tekst albo null.
+const NULLABLE_STRING = {
+  asymmetricMatch: (value) => value === null || typeof value === "string",
+  toAsymmetricMatcher: () => "String | null",
+};
 // Id, którego na pewno nie ma (maksimum typu integer w PostgreSQL).
 const MISSING_ID = 2147483647;
 // Znacznik w tytule, żeby zgłoszenia z testów dało się rozpoznać, gdyby sprzątanie się nie udało.
@@ -56,6 +61,7 @@ function expectTicketShape(ticket) {
       title: expect.any(String),
       description: expect.any(String),
       reporter: expect.any(String),
+      reporterName: expect.any(String),
       createdAt: expect.stringMatching(ISO_DATE),
       updatedAt: expect.stringMatching(ISO_DATE),
       slaDueAt: expect.stringMatching(ISO_DATE),
@@ -64,6 +70,8 @@ function expectTicketShape(ticket) {
   expect(STATUSES).toContain(ticket.status);
   expect(PRIORITIES).toContain(ticket.priority);
   expect(ticket.assignee === null || typeof ticket.assignee === "string").toBe(true);
+  // Imię i nazwisko technika jest tylko wtedy, gdy zgłoszenie ma przypisanego technika.
+  expect(ticket.assignee === null ? ticket.assigneeName === null : typeof ticket.assigneeName === "string").toBe(true);
   expect(ticket.resolvedAt === null || ISO_DATE.test(ticket.resolvedAt)).toBe(true);
 }
 
@@ -149,6 +157,12 @@ describe("GET /api/health", () => {
       version: expect.any(String),
       commit: expect.any(String),
       timestamp: expect.stringMatching(ISO_DATE),
+      startedAt: expect.stringMatching(ISO_DATE),
+      // Rewizja, replika i region Container Apps – poza Azure (lokalnie) null.
+      revision: NULLABLE_STRING,
+      replica: NULLABLE_STRING,
+      region: NULLABLE_STRING,
+      assistant: expect.stringMatching(/^(ENABLED|DISABLED)$/),
     });
   });
 
