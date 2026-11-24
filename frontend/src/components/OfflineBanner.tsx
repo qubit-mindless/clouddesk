@@ -13,7 +13,8 @@ export function OfflineBanner() {
     if (!online) wasOffline.current = true
     else if (wasOffline.current) {
       wasOffline.current = false
-      toast('Połączenie wróciło.')
+      // „Sieć”, nie „serwer”: zdarzenie online nie mówi, czy backend odpowiada (może się jeszcze budzić).
+      toast('Sieć wróciła.')
     }
   }, [online, toast])
 

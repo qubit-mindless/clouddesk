@@ -5,6 +5,7 @@ import type { ReturnTo } from '../auth/RequireAuth'
 import { Loading } from '../components/Loading'
 import { DEMO_ACCOUNTS } from '../config'
 import { useAuth } from '../hooks/useAuth'
+import { charCount } from '../utils/text'
 
 // Te same limity co LoginRequest w backendzie (#106); backend i tak sprawdza je ponownie.
 const EMAIL_MAX = 255
@@ -14,9 +15,9 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 function validate(email: string, password: string): FieldErrors {
   const errors: FieldErrors = {}
   if (!email) errors.email = 'Podaj adres e-mail.'
-  else if (email.length > EMAIL_MAX || !EMAIL_PATTERN.test(email)) errors.email = 'Podaj poprawny adres e-mail.'
+  else if (charCount(email) > EMAIL_MAX || !EMAIL_PATTERN.test(email)) errors.email = 'Podaj poprawny adres e-mail.'
   if (!password) errors.password = 'Podaj hasło.'
-  else if (password.length > PASSWORD_MAX) errors.password = `Hasło może mieć najwyżej ${PASSWORD_MAX} znaków.`
+  else if (charCount(password) > PASSWORD_MAX) errors.password = `Hasło może mieć najwyżej ${PASSWORD_MAX} znaków.`
   return errors
 }
 

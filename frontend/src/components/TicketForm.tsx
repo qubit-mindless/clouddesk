@@ -105,14 +105,26 @@ export function TicketForm({ ticket, canManage = false, submitLabel, onSubmit, o
   const fieldProps = (field: keyof TicketFormValues) => ({
     id: `ticket-${field}`,
     'aria-invalid': Boolean(errors[field]),
-    'aria-describedby': errors[field] ? `ticket-${field}-error` : undefined,
+    // Czytnik ekranu odczyta przy polu licznik znaków (tytuł, opis) i błąd, jeśli jest.
+    'aria-describedby':
+      [
+        field === 'title' || field === 'description' ? `ticket-${field}-counter` : '',
+        errors[field] ? `ticket-${field}-error` : '',
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined,
   })
   // Licznik znaków pod polem: od razu widać, ile zostało do limitu (liczony jak w backendzie, po przycięciu spacji).
   const counter = (field: 'title' | 'description', max: number) => {
     const count = charCount(values[field].trim())
     return (
-      <span className={count > max ? 'field-counter over' : 'field-counter'} data-testid={`ticket-form-${field}-counter`}>
+      <span
+        className={count > max ? 'field-counter over' : 'field-counter'}
+        id={`ticket-${field}-counter`}
+        data-testid={`ticket-form-${field}-counter`}
+      >
         {count}/{max}
+        {count > max && <span className="visually-hidden"> – przekroczono limit</span>}
       </span>
     )
   }
