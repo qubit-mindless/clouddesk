@@ -307,6 +307,22 @@ def test_invalid_message_returns_422(login_as, ai, ticket_of_anna, payload):
     assert ai.prompts == []
 
 
+# Surowy JSON z ucieczkami \u – tak tekst przychodzi w żądaniu (pojedynczego surogatu nie zakoduje httpx).
+@pytest.mark.parametrize(
+    "raw_message", ['"Nie dzia\\u0142a\\u0000VPN"', '"\\ud800"'], ids=["nul", "lone-surrogate"]
+)
+def test_unstorable_question_is_rejected_before_the_ai_call(login_as, ai, ticket_of_anna, raw_message):
+    """Tekstu, którego PostgreSQL nie zapisze, nie wysyłamy do AI (koszt) – 422 zamiast 500 po wywołaniu."""
+    res = login_as("anna.k").post(
+        url(ticket_of_anna),
+        content='{"message": ' + raw_message + "}",
+        headers={"Content-Type": "application/json"},
+    )
+    assert res.status_code == 422
+    assert res.json()["detail"][0]["loc"] == ["body", "message"]
+    assert ai.prompts == []
+
+
 def test_limit_per_ticket(login_as, ai, ticket_of_anna, monkeypatch):
     from app.core import config
 
