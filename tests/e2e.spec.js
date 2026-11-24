@@ -31,7 +31,12 @@ test.afterAll(async ({ request }) => {
   createdId = null
 })
 
+// Backend po przerwie skaluje się od zera i pierwsze żądanie potrafi czekać ~30–50 s, a samo logowanie ma na to
+// do 60 s. Domyślny limit testu (60 s) nie zmieściłby reszty scenariusza, więc ten test ma 2 minuty.
+const LOGIN_TIMEOUT = 60_000
+
 test('logowanie → nowe zgłoszenie → lista → szczegół → usunięcie', async ({ page }) => {
+  test.setTimeout(120_000)
   const { email, password } = testUser()
 
   await test.step('logowanie', async () => {
@@ -41,8 +46,12 @@ test('logowanie → nowe zgłoszenie → lista → szczegół → usunięcie', a
     await page.getByTestId('login-email').fill(email)
     await page.getByTestId('login-password').fill(password)
     await page.getByTestId('login-submit').click()
-    await expect(page.getByTestId('user-menu')).toBeVisible()
-    await expect(page.getByTestId('ticket-list')).toBeVisible()
+    // Pierwsze żądanie do uśpionego backendu – stąd dłuższe czekanie niż domyślne 15 s.
+    await expect(page.getByTestId('user-menu')).toBeVisible({ timeout: LOGIN_TIMEOUT })
+    // Przycisk „Nowe zgłoszenie” jest zawsze; ticket-list nie pojawi się, gdy konto nie widzi żadnego zgłoszenia.
+    await expect(page.getByTestId('ticket-new')).toBeVisible()
+    // …ale lista musi się wczytać: tabela albo pusty stan (nie „Ładowanie…” ani błąd).
+    await expect(page.getByTestId('ticket-list').or(page.getByTestId('ticket-list-empty'))).toBeVisible()
   })
 
   await test.step('nowe zgłoszenie przez formularz', async () => {
@@ -61,9 +70,8 @@ test('logowanie → nowe zgłoszenie → lista → szczegół → usunięcie', a
     expect(created.status()).toBe(201)
     createdId = (await created.json()).id
 
-    // Po zapisie aplikacja przechodzi do szczegółów nowego zgłoszenia: /tickets/{id}.
-    // Komunikaty mogą się nakładać (poprzedni jeszcze nie zniknął) – szukamy konkretnego po treści.
-    await expect(page.getByTestId('toast-success').filter({ hasText: 'Utworzono zgłoszenie' })).toBeVisible()
+    // Po zapisie aplikacja przechodzi do szczegółów nowego zgłoszenia: /tickets/{id}. Toastu „Utworzono…”
+    // nie sprawdzamy – znika po 4 s, a zapis i tak potwierdzają 201, adres i treść szczegółów.
     await expect(page).toHaveURL(new RegExp(`/tickets/${createdId}$`))
     await expect(page.getByTestId('ticket-details')).toContainText(TITLE)
   })
@@ -88,10 +96,8 @@ test('logowanie → nowe zgłoszenie → lista → szczegół → usunięcie', a
   await test.step('usunięcie (sprzątanie)', async () => {
     page.once('dialog', (dialog) => dialog.accept())
     await page.getByTestId('ticket-delete').click()
-    await expect(
-      page.getByTestId('toast-success').filter({ hasText: `Usunięto zgłoszenie #${createdId}.` }),
-    ).toBeVisible()
-    // Powrót na listę z zachowanym wyszukiwaniem po unikalnym tytule – po usunięciu nie ma już żadnego wyniku.
+    // Toastu „Usunięto…” nie sprawdzamy (znika po 4 s). Usunięcie potwierdza powrót na listę z zachowanym
+    // wyszukiwaniem po unikalnym tytule – po usunięciu nie ma już żadnego wyniku.
     await expect(page).toHaveURL(/\/tickets(\?|$)/)
     await expect(page.getByTestId('ticket-search')).toHaveValue(TITLE)
     await expect(page.getByTestId('ticket-list-empty')).toBeVisible()

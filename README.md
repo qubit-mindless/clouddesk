@@ -425,7 +425,7 @@ Sam scenariusz E2E da się też sprawdzić bez backendu, na fake API frontendu (
 
   W CI trace jest wyłączony (`--trace off`): repozytorium jest publiczne, a trace zapisuje wpisane wartości, np. hasło konta testowego. Czerwony job nie cofa wdrożenia – sygnalizuje błąd do naprawy.
 - **Sekrety środowiska `azure`** potrzebne testom z logowaniem: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD` (konto TECHNICIAN; hasło = `demo-password` z Key Vault). Bez nich przechodzą tylko testy dymne.
-- Pierwsze żądanie po przerwie może trwać do ~20 s (backend skaluje się do zera) – dlatego limit czasu testów to 30 s.
+- Pierwsze żądanie po przerwie może trwać kilkadziesiąt sekund (backend skaluje się do zera). Dlatego limit czasu testu to 30 s w Jest i 60 s w Playwright; w scenariuszu E2E samo logowanie czeka do 60 s, a cały test ma 2 minuty.
 
 ## CI i bezpieczeństwo kodu
 Każdy PR do `main` i każdy push na `main` uruchamia workflow **CI** (`.github/workflows/ci.yml`). Najpierw skan sekretów; dopiero gdy przejdzie, ruszają pozostałe joby (`needs: secret-scan`).
