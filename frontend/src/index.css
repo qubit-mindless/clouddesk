@@ -197,7 +197,8 @@ html[data-background='paused'] .blob { animation-play-state: paused; }
 .filters,
 .empty,
 .toast,
-.bento-tile {
+.bento-tile,
+.history {
   --mx: 50%;
   --my: -60%;
   border: 1px solid var(--glass-edge);
@@ -217,7 +218,7 @@ html[data-background='paused'] .blob { animation-play-state: paused; }
 @media (prefers-reduced-transparency: reduce) {
   :root { --glass-fill: var(--glass-fill-strong); --glass-glint: transparent; }
   .blob { animation: none; }
-  .app-header, .details, .assistant, .login-card, .my-card, .kpi, .side-card, .status-tile, .status-architecture, .table-wrap, .filters, .empty, .toast, .bento-tile {
+  .app-header, .details, .assistant, .login-card, .my-card, .kpi, .side-card, .status-tile, .status-architecture, .table-wrap, .filters, .empty, .toast, .bento-tile, .history {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -733,3 +734,27 @@ tr.row-flash-1 td { animation: row-flash-1 2.4s ease-out; }
   .live-dot { animation: none; }
   tr.row-flash td { animation: none; }
 }
+
+/* ---------------------------------------------------------------- oś historii (#139) */
+.history { margin-top: 16px; padding: 24px 28px; border-radius: var(--radius-pane); }
+.history h3 { margin-top: 0; }
+.history-hint { margin: 8px 0 0; color: var(--text-muted); font-size: 0.88rem; }
+.history-error { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.history-error .link-button { font-size: 0.88rem; }
+.timeline { position: relative; margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+/* Pionowa linia osi za ikonami. */
+.timeline::before { content: ''; position: absolute; top: 14px; bottom: 14px; left: 15px; width: 2px; background: var(--row-line); }
+.timeline-item { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; align-items: start; }
+.timeline-icon {
+  display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  /* Kryjące tło: półprzezroczyste szkło na var(--bg), żeby linia osi nie prześwitywała przez ikonę. */
+  border: 1px solid var(--field-edge); background: linear-gradient(var(--glass-fill-strong), var(--glass-fill-strong)), var(--bg);
+  font-size: 0.9rem; line-height: 1;
+}
+.timeline-status .timeline-icon { color: var(--blue-fg); border-color: var(--blue-fg); }
+.timeline-priority .timeline-icon { color: var(--orange-fg); border-color: var(--orange-fg); }
+.timeline-assignee .timeline-icon { color: var(--violet-fg); border-color: var(--violet-fg); }
+.timeline-created .timeline-icon { color: var(--green-fg); border-color: var(--green-fg); }
+.timeline-text { margin: 4px 0 0; overflow-wrap: anywhere; }
+.timeline-meta { margin: 2px 0 0; font-size: 0.8rem; color: var(--text-muted); }
+.timeline-meta time { font-variant-numeric: tabular-nums; }
