@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router'
 import { PRIORITY_LABEL } from '../api/labels'
-import { ApiError } from '../api/client'
+import { ApiError, errorMessage } from '../api/client'
 import { getStats } from '../api/stats'
 import type { AtRiskTicket, Stats, TicketPriority } from '../api/types'
 import { canManageTicket } from '../auth/permissions'
@@ -8,6 +9,7 @@ import { BarList } from '../components/dashboard/BarList'
 import { RiskRing } from '../components/dashboard/RiskRing'
 import { TrendChart } from '../components/dashboard/TrendChart'
 import { ErrorState } from '../components/ErrorState'
+import { LiveStatus } from '../components/LiveStatus'
 import { Loading } from '../components/Loading'
 import { PriorityBadge } from '../components/PriorityBadge'
 import { useAuth } from '../hooks/useAuth'
@@ -19,9 +21,11 @@ import { formatDateTime, formatRemaining, getSlaState } from '../utils/sla'
 const PERIODS = [7, 30, 90] as const
 const DEFAULT_PERIOD = 30
 const PRIORITIES: TicketPriority[] = ['P1', 'P2', 'P3', 'P4']
+// Pulpit odświeża się sam (#141); przy ukrytej karcie stoi, żeby backend mógł zejść do zera.
+const REFRESH_MS = 30_000
 
 const number = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 1 })
-const time = new Intl.DateTimeFormat('pl-PL', { timeStyle: 'short' })
+const asOf = new Intl.DateTimeFormat('pl-PL', { timeStyle: 'short' })
 
 function pickPeriod(value: string | null): number {
   const days = Number(value)
@@ -37,7 +41,20 @@ export function DashboardPage() {
 function DashboardContent() {
   const [params, setParams] = useSearchParams()
   const days = pickPeriod(params.get('days'))
-  const { data, error, loading, reload } = useRequest(String(days), (signal) => getStats(days, signal), { keepData: true })
+  const { data, error, loading, updatedAt, failed, attempt, reload } = useRequest(String(days), (signal) => getStats(days, signal), {
+    keepData: true,
+    intervalMs: REFRESH_MS,
+  })
+  // „Odświeżanie…” i aria-busy tylko dla odświeżenia zleconego przyciskiem – odpytywanie w tle nie ma ich pokazywać.
+  // Zapamiętujemy numer próby, którą wywołał klik; kolejne próby (odpytywanie) mają inny numer, więc nic nie zostaje „na stałe”.
+  const [manualAttempt, setManualAttempt] = useState<number>()
+  const manualReload = () => {
+    setManualAttempt(attempt + 1)
+    reload()
+  }
+  const busy = loading && manualAttempt === attempt
+  // Nieudane „Odśwież” przy zachowanych danych: ErrorState się nie pokazuje, więc powód (403, 500…) podajemy w stopce.
+  const refreshError = data !== undefined && error !== undefined && manualAttempt === attempt ? errorMessage(error) : undefined
 
   return (
     <>
@@ -59,7 +76,7 @@ function DashboardContent() {
       </div>
       {loading && !data && <Loading label="Ładowanie pulpitu…" />}
       {/* 404 = backend nie ma jeszcze GET /api/stats (#138). Gdy endpoint trafi na main, 404 nie powinno się już zdarzyć – wtedy tę gałąź usunąć. */}
-      {error instanceof ApiError && error.status === 404 ? (
+      {error instanceof ApiError && error.status === 404 && !data ? (
         <div className="empty" role="status" data-testid="dashboard-unavailable">
           <p>Pulpit SLA będzie dostępny po wdrożeniu statystyk w backendzie.</p>
           <p>
@@ -67,18 +84,36 @@ function DashboardContent() {
           </p>
         </div>
       ) : (
-        error !== undefined && <ErrorState error={error} onRetry={reload} />
+        error !== undefined && !data && <ErrorState error={error} onRetry={reload} />
       )}
-      {data && <Dashboard stats={data} refreshing={loading} onReload={reload} />}
+      {data && (
+        <Dashboard
+          stats={data}
+          busy={busy}
+          updatedAt={updatedAt}
+          failed={failed}
+          refreshError={refreshError}
+          onReload={manualReload}
+        />
+      )}
     </>
   )
 }
 
-function Dashboard({ stats, refreshing, onReload }: { stats: Stats; refreshing: boolean; onReload: () => void }) {
+interface DashboardProps {
+  stats: Stats
+  busy: boolean
+  updatedAt?: number
+  failed: boolean
+  refreshError?: string
+  onReload: () => void
+}
+
+function Dashboard({ stats, busy, updatedAt, failed, refreshError, onReload }: DashboardProps) {
   const { sla, days } = stats
 
   return (
-    <div className="bento" aria-busy={refreshing} data-testid="dashboard">
+    <div className="bento" aria-busy={busy} data-testid="dashboard">
       <section className="bento-tile tile-risk" aria-labelledby="tile-risk">
         <h3 id="tile-risk">Zagrożone SLA teraz</h3>
         <div className="risk">
@@ -87,6 +122,8 @@ function Dashboard({ stats, refreshing, onReload }: { stats: Stats; refreshing: 
             <li className="legend-breached">Przekroczone: {sla.breachedOpen}</li>
             <li className="legend-warning">Zagrożone: {sla.atRisk}</li>
             <li className="legend-ok">W terminie: {Math.max(sla.open - sla.breachedOpen - sla.atRisk, 0)}</li>
+            {/* Liczniki są z odpowiedzi API, a odliczanie w wierszach tyka co 30 s – podajemy, z której chwili są liczby. */}
+            <li className="risk-asof">stan na {asOf.format(new Date(stats.generatedAt))}</li>
           </ul>
         </div>
         <AtRiskList tickets={stats.atRiskTop} />
@@ -162,10 +199,16 @@ function Dashboard({ stats, refreshing, onReload }: { stats: Stats; refreshing: 
       </section>
 
       <p className="bento-footer">
-        {refreshing ? 'Odświeżanie…' : `Dane z ${time.format(new Date(stats.generatedAt))}`} ·{' '}
+        <LiveStatus updatedAt={updatedAt} failed={failed} busy={busy} /> ·{' '}
         <button type="button" className="link-button" onClick={onReload} data-testid="dashboard-reload">
           Odśwież
         </button>
+        {refreshError && (
+          <span className="bento-refresh-error" role="alert" data-testid="dashboard-refresh-error">
+            {' '}
+            · {refreshError}
+          </span>
+        )}
       </p>
     </div>
   )
