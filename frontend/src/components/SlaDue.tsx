@@ -72,3 +72,17 @@ export function SlaProgress({ ticket, now }: { ticket: Ticket; now: number }) {
     </div>
   )
 }
+
+// Cienki pasek pod pigułką w tabeli: ile czasu SLA upłynęło. Tylko dla oka – stan i czas mówi już pigułka.
+export function SlaMiniBar({ ticket, now }: { ticket: Ticket; now: number }) {
+  const state = getSlaState(ticket, new Date(now))
+  if (state === 'done') return null
+  const created = Date.parse(ticket.createdAt)
+  const due = Date.parse(ticket.slaDueAt)
+  const pct = due > created ? Math.min(100, Math.max(0, ((now - created) / (due - created)) * 100)) : 100
+  return (
+    <span className="sla-mini" aria-hidden="true">
+      <span className={`sla-mini-fill sla-${state}`} style={{ width: `${pct}%` }} />
+    </span>
+  )
+}

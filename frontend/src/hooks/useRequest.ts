@@ -28,6 +28,9 @@ interface RequestOptions {
   // Nie rusza, dopóki dla tego `key` nie ma żadnych danych – błąd pierwszego ładowania zostaje na ekranie
   // (z fokusem na „Spróbuj ponownie”) aż do ręcznej próby.
   intervalMs?: number
+  // Ciche żądania boczne (np. liczniki nad listą) bez przycisku „Spróbuj ponownie”: odpytuj także wtedy, gdy pierwsze
+  // ładowanie się nie udało – inaczej po błędzie przy wybudzaniu backendu zostałyby puste do przeładowania strony.
+  pollWithoutData?: boolean
 }
 
 // Pobiera dane przy montowaniu i przy każdej zmianie `key`. Poprzednie żądanie jest przerywane,
@@ -35,7 +38,7 @@ interface RequestOptions {
 export function useRequest<T>(
   key: string,
   load: (signal: AbortSignal) => Promise<T>,
-  { keepData = false, intervalMs }: RequestOptions = {},
+  { keepData = false, intervalMs, pollWithoutData = false }: RequestOptions = {},
 ): RequestState<T> {
   const run = useEffectEvent(load)
   const [attempt, setAttempt] = useState(0)
@@ -65,7 +68,7 @@ export function useRequest<T>(
   const current = state?.key === key && state.attempt === attempt ? state : undefined
   // Z keepData ostatnie dane tego samego widoku zostają także przy błędzie odświeżenia – strona pokazuje je obok błędu.
   const data = current?.data !== undefined ? current.data : keepData && last?.key === key ? last.data : undefined
-  const canPoll = Boolean(intervalMs) && current !== undefined && data !== undefined
+  const canPoll = Boolean(intervalMs) && current !== undefined && (data !== undefined || pollWithoutData)
   const lastAt = last?.key === key ? last.at : undefined
 
   // Odpytywanie: kolejne żądanie dopiero po zakończeniu bieżącego (sukces albo błąd odświeżenia).
