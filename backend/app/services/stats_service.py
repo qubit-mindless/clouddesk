@@ -1,14 +1,14 @@
 import math
-from collections import Counter
-from datetime import timedelta
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.core import clock
 from app.models import TicketPriority, TicketStatus, User
-from app.repositories.stats_repository import StatsRepository
-from app.repositories.summary_repository import SummaryRepository
-from app.schemas.stats import AiStats, AtRiskTicket, SlaStats, Stats, TechnicianStats
+from app.repositories.stats_repository import ResolvedRow, StatsRepository, StatusChangeRow
+from app.repositories.summary_repository import OPEN_STATUSES, SummaryRepository
+from app.schemas.stats import AiStats, AtRiskTicket, PreviousPeriod, SlaStats, Stats, TechnicianStats
 from app.schemas.summary import DayCount
 from app.services.errors import ForbiddenError
 from app.services.summary_service import sla_state
@@ -16,11 +16,43 @@ from app.services.ticket_service import STAFF_ROLES, login_of
 
 AT_RISK_TOP = 5
 HOUR = timedelta(hours=1)
+# „Otwarte tydzień temu” na kafelku – porównanie z bieżącą liczbą otwartych.
+WEEK = timedelta(days=7)
+OPEN_VALUES = frozenset(status.value for status in OPEN_STATUSES)
 
 
 def round1(value: float) -> float:
     """Zaokrąglenie do 1 miejsca „połówka w górę” – jak Math.round w makiecie frontendu (fakeStats.ts)."""
     return math.floor(value * 10 + 0.5) / 10
+
+
+def on_time_count(resolved: list[ResolvedRow]) -> int:
+    return sum(1 for _, done, due, _ in resolved if clock.as_utc(done) <= clock.as_utc(due))
+
+
+def compliance_pct(resolved: list[ResolvedRow]) -> float | None:
+    return round1(on_time_count(resolved) / len(resolved) * 100) if resolved else None
+
+
+def mttr_hours(resolved: list[ResolvedRow]) -> float | None:
+    if not resolved:
+        return None
+    spent = sum((clock.as_utc(done) - clock.as_utc(created) for created, done, _, _ in resolved), timedelta())
+    return round1(spent / HOUR / len(resolved))
+
+
+def was_open(
+    moment: datetime, status: TicketStatus, resolved_at: datetime | None, changes: list[StatusChangeRow]
+) -> bool:
+    """Czy zgłoszenie było otwarte w chwili `moment` (`changes` – zmiany statusu po kolei)."""
+    before = [change for change in changes if clock.as_utc(change[1]) <= moment]
+    if before:
+        return before[-1][3] in OPEN_VALUES
+    if changes:
+        # Wszystkie zmiany są późniejsze – w chwili `moment` miało status sprzed pierwszej z nich.
+        return changes[0][2] in OPEN_VALUES
+    # Bez historii statusu (np. dane wgrane seedem): otwarte, jeśli nadal jest albo rozwiązano je później.
+    return status in OPEN_STATUSES or (resolved_at is not None and clock.as_utc(resolved_at) > moment)
 
 
 class StatsService:
@@ -44,13 +76,12 @@ class StatsService:
         states = {t.id: sla_state(t.created_at, t.sla_due_at, now) for t in open_tickets}
         resolved = self.repo.resolved_between(start, end)
 
-        on_time = sum(1 for _, done, due, _ in resolved if clock.as_utc(done) <= clock.as_utc(due))
-        mttr = None
-        if resolved:
-            spent = sum(
-                (clock.as_utc(done) - clock.as_utc(created) for created, done, _, _ in resolved), timedelta()
-            )
-            mttr = round1(spent / HOUR / len(resolved))
+        # Poprzedni okres: tyle samo dni kalendarzowych tuż przed oknem. Bieżące okno kończy się „teraz”, więc
+        # poprzedni – o tej samej porze `days` dni wcześniej; inaczej rano liczba odpowiedzi AI by „spadała”.
+        previous_start = clock.day_start(dates[0] - timedelta(days=days))
+        previous_end = clock.days_earlier(now, days)
+        previous_resolved = self.repo.resolved_between(previous_start, previous_end)
+        previous_answers, _ = self.summary.ai_answers_between(previous_start, previous_end)
 
         open_by_tech = Counter(t.assignee_id for t in open_tickets)
         resolved_by_tech = Counter(assignee_id for *_, assignee_id in resolved)
@@ -87,10 +118,10 @@ class StatsService:
                 breached_open=sum(1 for s in states.values() if s == "breached"),
                 at_risk=sum(1 for s in states.values() if s == "at_risk"),
                 resolved=len(resolved),
-                resolved_on_time=on_time,
-                compliance_pct=round1(on_time / len(resolved) * 100) if resolved else None,
+                resolved_on_time=on_time_count(resolved),
+                compliance_pct=compliance_pct(resolved),
             ),
-            mttr_hours=mttr,
+            mttr_hours=mttr_hours(resolved),
             per_technician=technicians,
             daily=[
                 DayCount(date=day, created=created_per_day[day], resolved=resolved_per_day[day])
@@ -109,4 +140,22 @@ class StatsService:
                 )
                 for t in flagged[:AT_RISK_TOP]
             ],
+            previous=PreviousPeriod(
+                compliance_pct=compliance_pct(previous_resolved),
+                mttr_hours=mttr_hours(previous_resolved),
+                ai_answers=previous_answers,
+            ),
+            open_week_ago=self.open_at(now - WEEK),
+        )
+
+    def open_at(self, moment: datetime) -> int:
+        """Ile zgłoszeń było otwartych w chwili `moment` – z historii zmian statusu."""
+        tickets = self.repo.state_candidates(moment)
+        changes: defaultdict[int, list[StatusChangeRow]] = defaultdict(list)
+        for change in self.repo.status_changes_of([ticket_id for ticket_id, _, _ in tickets]):
+            changes[change[0]].append(change)
+        return sum(
+            1
+            for ticket_id, status, resolved_at in tickets
+            if was_open(moment, status, resolved_at, changes[ticket_id])
         )

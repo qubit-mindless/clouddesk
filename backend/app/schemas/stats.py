@@ -43,6 +43,15 @@ class AtRiskTicket(CamelModel):
     sla_due_at: dt.datetime
 
 
+class PreviousPeriod(CamelModel):
+    """Okres tej samej długości tuż przed bieżącym oknem – do porównania ↑↓ na pulpicie."""
+
+    # None, gdy w poprzednim okresie nic nie rozwiązano.
+    compliance_pct: float | None
+    mttr_hours: float | None
+    ai_answers: int
+
+
 class Stats(CamelModel):
     days: int
     generated_at: dt.datetime
@@ -56,3 +65,6 @@ class Stats(CamelModel):
     daily: list[DayCount]
     ai: AiStats
     at_risk_top: list[AtRiskTicket]
+    previous: PreviousPeriod
+    # Otwarte dokładnie 7 dni temu (odtworzone z historii statusów) – porównanie z `sla.open`.
+    open_week_ago: int
