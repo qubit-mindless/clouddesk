@@ -1,1 +1,9 @@
-Generic single-database configuration.
+Migracje bazy (Alembic). Uruchamiane z katalogu backend/, adres bazy z DATABASE_URL.
+
+  alembic upgrade head                         # schemat do najnowszej wersji
+  alembic revision --autogenerate -m "opis"    # nowa migracja po zmianie modeli w app/models/
+  alembic downgrade -1                         # cofnięcie ostatniej migracji
+
+Wygenerowaną migrację zawsze przejrzyj przed commitem. Test tests/test_migrations.py sprawdza
+upgrade → downgrade → upgrade i zgodność migracji z modelami (SQLite, a z TEST_DATABASE_URL też PostgreSQL).
+W Azure: scripts/azure-migrate.sh (zadanie Container Apps caj-clouddesk-migrate). Model danych: docs/database/ERD.md.

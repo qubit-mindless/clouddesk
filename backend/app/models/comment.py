@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
 
 class Comment(Base):
+    """Komentarz do zgłoszenia – tabela zarezerwowana na v2.0; na razie bez API, tylko dane z seeda."""
+
     __tablename__ = "comments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
