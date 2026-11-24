@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { ApiError, errorMessage, type FieldErrors } from '../api/client'
 import { PRIORITY_LABEL, STATUS_LABEL } from '../api/labels'
 import type { Ticket, TicketPriority, TicketStatus, TicketUpdate } from '../api/types'
+import { charCount } from '../utils/text'
 
 // Te same reguły co w DTO z #13. Backend sprawdza je ponownie, a jego 422 trafia do tych samych pól.
 const TITLE_MIN = 5
@@ -36,12 +37,12 @@ interface Props {
 function validate(values: TicketFormValues): FieldErrors {
   const errors: FieldErrors = {}
   const title = values.title.trim()
-  if (title.length < TITLE_MIN) errors.title = `Tytuł musi mieć co najmniej ${TITLE_MIN} znaków.`
-  else if (title.length > TITLE_MAX) errors.title = `Tytuł może mieć najwyżej ${TITLE_MAX} znaków.`
+  if (charCount(title) < TITLE_MIN) errors.title = `Tytuł musi mieć co najmniej ${TITLE_MIN} znaków.`
+  else if (charCount(title) > TITLE_MAX) errors.title = `Tytuł może mieć najwyżej ${TITLE_MAX} znaków.`
   if (!values.priority) errors.priority = 'Wybierz priorytet.'
   const description = values.description.trim()
   if (!description) errors.description = 'Opisz problem.'
-  else if (description.length > DESCRIPTION_MAX) errors.description = `Opis może mieć najwyżej ${DESCRIPTION_MAX} znaków.`
+  else if (charCount(description) > DESCRIPTION_MAX) errors.description = `Opis może mieć najwyżej ${DESCRIPTION_MAX} znaków.`
   return errors
 }
 
@@ -106,6 +107,15 @@ export function TicketForm({ ticket, canManage = false, submitLabel, onSubmit, o
     'aria-invalid': Boolean(errors[field]),
     'aria-describedby': errors[field] ? `ticket-${field}-error` : undefined,
   })
+  // Licznik znaków pod polem: od razu widać, ile zostało do limitu (liczony jak w backendzie, po przycięciu spacji).
+  const counter = (field: 'title' | 'description', max: number) => {
+    const count = charCount(values[field].trim())
+    return (
+      <span className={count > max ? 'field-counter over' : 'field-counter'} data-testid={`ticket-form-${field}-counter`}>
+        {count}/{max}
+      </span>
+    )
+  }
   const fieldError = (field: keyof TicketFormValues) =>
     errors[field] && (
       <span className="field-error" id={`ticket-${field}-error`} data-testid={`ticket-form-${field}-error`}>
@@ -122,6 +132,7 @@ export function TicketForm({ ticket, canManage = false, submitLabel, onSubmit, o
         value={values.title}
         onChange={(e) => set('title', e.target.value)}
       />
+      {counter('title', TITLE_MAX)}
       {fieldError('title')}
 
       {/* Kafelki zamiast listy: przy każdym priorytecie widać, co znaczy i ile czasu ma technik (SLA). */}
@@ -186,6 +197,7 @@ export function TicketForm({ ticket, canManage = false, submitLabel, onSubmit, o
         value={values.description}
         onChange={(e) => set('description', e.target.value)}
       />
+      {counter('description', DESCRIPTION_MAX)}
       {fieldError('description')}
 
       {formError && (
