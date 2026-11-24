@@ -48,6 +48,9 @@ const MARKER = `[api-test ${new Date().toISOString()}]`;
 let token = null;
 const createdIds = new Set();
 
+// Od logowania (#106) całe /api/tickets wymaga tokenu – bez konta testowego te bloki są pomijane, a nie czerwone.
+const describeWithAuth = AUTH_ENABLED ? describe : describe.skip;
+
 const withAuth = (req) => (token ? req.set("Authorization", `Bearer ${token}`) : req);
 const get = (path) => withAuth(api.get(path));
 const post = (path, body) => withAuth(api.post(path).send(body));
@@ -175,7 +178,7 @@ describe("GET /api/health", () => {
   });
 });
 
-(AUTH_ENABLED ? describe : describe.skip)("logowanie (JWT)", () => {
+describeWithAuth("logowanie (JWT)", () => {
   test("bez tokenu → 401 z WWW-Authenticate: Bearer", async () => {
     const res = await api.get("/api/tickets");
     expect(res.status).toBe(401);
@@ -211,7 +214,7 @@ describe("GET /api/health", () => {
   });
 });
 
-describe("GET /api/tickets", () => {
+describeWithAuth("GET /api/tickets", () => {
   test("200, strona wyników items/total/page/size", async () => {
     const res = await get("/api/tickets?page=1&size=5");
     expect(res.status).toBe(200);
@@ -250,7 +253,7 @@ describe("GET /api/tickets", () => {
   });
 });
 
-describe("POST /api/tickets – walidacja", () => {
+describeWithAuth("POST /api/tickets – walidacja", () => {
   test("za krótki tytuł → 422 przy polu title", async () => {
     const res = await createTicket({ title: "abc" });
     expectValidationError(res, "title");
@@ -267,7 +270,7 @@ describe("POST /api/tickets – walidacja", () => {
   });
 });
 
-describe("cykl życia zgłoszenia: POST → GET → PATCH → DELETE", () => {
+describeWithAuth("cykl życia zgłoszenia: POST → GET → PATCH → DELETE", () => {
   const title = `${MARKER} zażółć gęślą jaźń 🖨️`;
   let created;
   let ticket;
