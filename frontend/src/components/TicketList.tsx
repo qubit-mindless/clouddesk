@@ -1,14 +1,28 @@
 import { Link, useLocation, useNavigate } from 'react-router'
 import type { Ticket } from '../api/types'
 import { useNow } from '../hooks/useNow'
+import { timeAgo } from '../utils/time'
 import { PriorityBadge } from './PriorityBadge'
-import { SlaDue } from './SlaDue'
+import { SlaDue, SlaMiniBar } from './SlaDue'
 import { StatusBadge } from './StatusBadge'
+
+const OPEN = new Set(['NEW', 'ASSIGNED', 'IN_PROGRESS'])
+
+interface Props {
+  tickets: Ticket[]
+  highlighted?: Set<number>
+  flashSeq?: number
+  // Technik/administrator: „Przejmij” przy otwartych, nieprzypisanych zgłoszeniach; `takingId` – zgłoszenie w trakcie zapisu.
+  onTake?: (ticket: Ticket) => void
+  takingId?: number | null
+  // Trwa przejmowanie innego zgłoszenia – wszystkie przyciski „Przejmij” nieaktywne.
+  takeBusy?: boolean
+}
 
 // `highlighted`: wiersze zmienione przy ostatnim odświeżeniu w tle – na chwilę się podświetlają (#141).
 // `flashSeq`: numer podświetlenia – parzyste i nieparzyste mają osobne (identyczne) animacje, więc wiersz zmieniony
 // ponownie, zanim zgasł, miga od początku (sama klasa, która zostaje na `tr`, animacji nie restartuje).
-export function TicketList({ tickets, highlighted, flashSeq = 0 }: { tickets: Ticket[]; highlighted?: Set<number>; flashSeq?: number }) {
+export function TicketList({ tickets, highlighted, flashSeq = 0, onTake, takingId = null, takeBusy = false }: Props) {
   const navigate = useNavigate()
   // Jeden timer dla wszystkich pigułek SLA w tabeli.
   const now = useNow(30_000)
@@ -46,6 +60,9 @@ export function TicketList({ tickets, highlighted, flashSeq = 0 }: { tickets: Ti
                 <Link to={`/tickets/${t.id}`} state={state} onClick={(e) => e.stopPropagation()}>
                   {t.title}
                 </Link>
+                <span className="row-sub" title={t.reporter}>
+                  {t.reporterName} · {timeAgo(t.createdAt, now)}
+                </span>
               </td>
               <td>
                 <PriorityBadge priority={t.priority} />
@@ -53,9 +70,29 @@ export function TicketList({ tickets, highlighted, flashSeq = 0 }: { tickets: Ti
               <td>
                 <StatusBadge status={t.status} />
               </td>
-              <td>{t.assignee ?? '—'}</td>
+              <td>
+                {t.assignee ? (
+                  <span title={t.assignee}>{t.assigneeName ?? t.assignee}</span>
+                ) : onTake && OPEN.has(t.status) ? (
+                  <button
+                    type="button"
+                    className="take"
+                    disabled={takeBusy}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onTake(t)
+                    }}
+                    data-testid={`ticket-take-${t.id}`}
+                  >
+                    {takingId === t.id ? 'Przejmowanie…' : 'Przejmij'}
+                  </button>
+                ) : (
+                  '—'
+                )}
+              </td>
               <td>
                 <SlaDue ticket={t} now={now} />
+                <SlaMiniBar ticket={t} now={now} />
               </td>
             </tr>
           ))}

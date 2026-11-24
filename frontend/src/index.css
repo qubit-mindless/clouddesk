@@ -288,6 +288,16 @@ tr.clickable { cursor: pointer; transition: background-color 0.15s; }
 tr.clickable:hover { background: var(--row-hover); }
 /* Przekroczony termin SLA świeci na krawędzi wiersza. */
 tr:has(.sla-breached) td:first-child { box-shadow: inset 3px 0 0 var(--sla-breached); }
+tr:has(.sla-pill.sla-warning) td:first-child { box-shadow: inset 3px 0 0 var(--sla-warning); }
+/* Pod tytułem: kto zgłosił i kiedy (pakiet z makiety). */
+.row-sub { display: block; margin-top: 2px; font-size: 0.8rem; color: var(--text-muted); }
+/* Cienki pasek pod pigułką SLA: ile czasu już upłynęło. */
+.sla-mini { display: block; width: 104px; height: 3px; margin-top: 6px; border-radius: 999px; background: var(--row-line); overflow: hidden; }
+.sla-mini-fill { display: block; height: 100%; border-radius: inherit; background: var(--tidal); }
+.sla-mini-fill.sla-warning { background: var(--sla-warning); }
+.sla-mini-fill.sla-breached { background: var(--sla-breached); }
+/* „Przejmij” w kolumnie technika – mały przycisk, nie zmienia wysokości wiersza. */
+.take { padding: 3px 12px; font-size: 0.82rem; }
 
 .empty { padding: 32px; border-radius: var(--radius-pane); text-align: center; color: var(--text-muted); }
 

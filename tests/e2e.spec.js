@@ -77,7 +77,8 @@ test('logowanie → nowe zgłoszenie → lista → szczegół → usunięcie', a
   })
 
   await test.step('szczegół zgłoszenia', async () => {
-    await page.getByTestId(`ticket-row-${createdId}`).click()
+    // Klik w tytuł (link), nie w środek wiersza – w kolumnie „Technik” nieprzypisanego zgłoszenia jest przycisk „Przejmij”.
+    await page.getByTestId(`ticket-row-${createdId}`).getByRole('link').click()
     const details = page.getByTestId('ticket-details')
     await expect(details).toContainText(TITLE)
     await expect(details).toContainText(DESCRIPTION)
