@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser
 from app.db.session import get_db
+from app.schemas.history import HistoryPage
 from app.schemas.ticket import (
     ResolveRequest,
     TicketCreate,
@@ -14,6 +15,7 @@ from app.schemas.ticket import (
     TicketUpdate,
 )
 from app.services.errors import ConflictError, FieldValidationError, ForbiddenError, NotFoundError
+from app.services.history_service import HistoryService
 from app.services.ticket_service import TicketService
 
 UNAUTHORIZED = {401: {"description": "Brak lub nieważny token"}}
@@ -29,6 +31,13 @@ def get_service(db: Annotated[Session, Depends(get_db)], user: CurrentUser) -> T
 
 
 Service = Annotated[TicketService, Depends(get_service)]
+
+
+def get_history_service(db: Annotated[Session, Depends(get_db)], user: CurrentUser) -> HistoryService:
+    return HistoryService(db, actor=user)
+
+
+HistoryServiceDep = Annotated[HistoryService, Depends(get_history_service)]
 
 
 def _translate(exc: Exception) -> HTTPException:
@@ -54,6 +63,15 @@ def list_tickets(service: Service, query: Annotated[TicketQuery, Query()]) -> Ti
 def get_ticket(ticket_id: int, service: Service) -> TicketOut:
     try:
         return service.get(ticket_id)
+    except NotFoundError as exc:
+        raise _translate(exc) from exc
+
+
+@router.get("/{ticket_id}/history", response_model=HistoryPage, responses=NOT_FOUND)
+def get_ticket_history(ticket_id: int, service: HistoryServiceDep) -> HistoryPage:
+    """Oś historii: zmiany pól od najstarszej (bez utworzenia – to `createdAt` i `reporter` zgłoszenia)."""
+    try:
+        return service.for_ticket(ticket_id)
     except NotFoundError as exc:
         raise _translate(exc) from exc
 
