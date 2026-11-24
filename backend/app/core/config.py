@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     # SHA commita, z którego zbudowano obraz (build-arg GIT_SHA w Dockerfile); lokalnie "local".
     git_sha: str = "local"
+    # Strona /status (#140). Rewizję i replikę ustawia sam Azure Container Apps, region – Terraform
+    # (APP_REGION). Poza Azure puste (null w /health).
+    container_app_revision: str | None = None
+    container_app_replica_name: str | None = None
+    app_region: str | None = None
     database_url: str
     cors_origins: str = "http://localhost:5173"
     # Klucz HMAC do podpisywania tokenów JWT. W Azure z Key Vault (sekret jwt-secret);
@@ -19,6 +24,17 @@ class Settings(BaseSettings):
     # Lokalnie może zostać pusty: wtedy klucz jest losowany przy starcie (tokeny tracą ważność po restarcie).
     jwt_secret: str | None = None
     jwt_ttl_minutes: int = 60
+    # Asystent AI (Azure OpenAI). Bez endpointu jest wyłączony: GET zwraca enabled=false, POST → 503.
+    azure_openai_endpoint: str | None = None
+    azure_openai_deployment: str = "gpt-4o-mini"
+    azure_openai_api_version: str = "2024-10-21"
+    # Klucz tylko lokalnie/awaryjnie; w Azure tożsamość zarządzana (AZURE_CLIENT_ID = jej client ID).
+    azure_openai_api_key: str | None = None
+    azure_client_id: str | None = None
+    ai_timeout_seconds: float = 30.0
+    ai_max_output_tokens: int = 500
+    # Ile odpowiedzi asystenta może mieć jedno zgłoszenie – górna granica kosztu.
+    ai_max_answers_per_ticket: int = 10
     # Hasło kont demo ustawiane przez seed (python -m app.db.seed). Puste = konta bez możliwości logowania.
     demo_password: str | None = None
 

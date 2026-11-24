@@ -50,6 +50,10 @@ class TicketRepository:
         options = [joinedload(Ticket.reporter), joinedload(Ticket.assignee)]
         return self.db.get(Ticket, ticket_id, options=options)
 
+    def lock(self, ticket_id: int) -> Ticket | None:
+        """Zgłoszenie z blokadą wiersza do końca transakcji (PostgreSQL: SELECT … FOR UPDATE)."""
+        return self.db.scalars(select(Ticket).where(Ticket.id == ticket_id).with_for_update()).first()
+
     def add(self, ticket: Ticket) -> Ticket:
         self.db.add(ticket)
         self.db.flush()

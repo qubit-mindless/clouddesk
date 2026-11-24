@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Base, User, UserRole  # noqa: E402
+from app.models import AiMessage, AiMessageRole, Base, User, UserRole  # noqa: E402
 
 # Losowane przy każdym uruchomieniu – bez stałych haseł w repo (skaner sekretów).
 PASSWORD = secrets.token_urlsafe(12)
@@ -76,3 +76,12 @@ def login_as(db):
 def client(login_as):
     """Domyślnie administrator – testy CRUD sprawdzają logikę zgłoszeń, a role osobno (test_auth.py)."""
     return login_as("admin")
+
+
+def add_assistant_answer(session_factory, ticket_id: int) -> None:
+    """Odpowiedź asystenta AI zapisana wprost w bazie – bez wywołania usługi AI (np. przed /resolve)."""
+    with session_factory() as session:
+        session.add(
+            AiMessage(ticket_id=ticket_id, role=AiMessageRole.ASSISTANT, content="Odpowiedź asystenta.")
+        )
+        session.commit()

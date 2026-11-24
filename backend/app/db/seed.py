@@ -223,7 +223,12 @@ def seed(db: Session) -> dict[str, int]:
             for i, (login, body) in enumerate(COMMENTS.get(number, []))
         ]
         ticket.ai_messages = [
-            AiMessage(role=role, content=content, created_at=created_at + timedelta(minutes=i + 1))
+            AiMessage(
+                role=role,
+                author=ticket.reporter if role == AiMessageRole.USER else None,
+                content=content,
+                created_at=created_at + timedelta(minutes=i + 1),
+            )
             for i, (role, content) in enumerate(AI_CHAT.get(number, []))
         ]
         ticket.attachments = [

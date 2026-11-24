@@ -2,11 +2,13 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core import clock
 from app.models import Ticket, TicketHistory, TicketPriority, TicketStatus, User, UserRole
+from app.repositories.ai_message_repository import AiMessageRepository
 from app.repositories.ticket_repository import TicketRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.ticket import TicketCreate, TicketOut, TicketPage, TicketQuery, TicketUpdate
-from app.services.errors import FieldValidationError, ForbiddenError, NotFoundError
+from app.services.errors import ConflictError, FieldValidationError, ForbiddenError, NotFoundError
 
 # Czas na rozwiązanie zgłoszenia liczony od jego utworzenia (ten sam w seedzie i w fake API frontendu).
 SLA_BY_PRIORITY: dict[TicketPriority, timedelta] = {
@@ -21,6 +23,13 @@ ASSIGNABLE_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
 STAFF_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
 # Zgłaszający może poprawić treść i priorytet własnego zgłoszenia, ale nie prowadzi go dalej.
 REPORTER_EDITABLE = {"title", "description", "priority"}
+# Wiersz historii „sposób rozwiązania”: SELF_AI = zgłaszający zamknął zgłoszenie po pomocy asystenta AI.
+RESOLUTION_FIELD = "resolution"
+RESOLUTION_SELF_AI = "SELF_AI"
+NO_ASSISTANT_ANSWER = (
+    "Asystent AI nie odpowiadał jeszcze w tym zgłoszeniu – najpierw zapytaj asystenta. "
+    "Gdy asystent jest wyłączony, zgłoszenie zamyka technik."
+)
 
 
 def login_of(user: User | None) -> str | None:
@@ -35,7 +44,9 @@ def to_dto(ticket: Ticket) -> TicketOut:
         status=ticket.status,
         priority=ticket.priority,
         reporter=login_of(ticket.reporter),
+        reporter_name=ticket.reporter.full_name,
         assignee=login_of(ticket.assignee),
+        assignee_name=ticket.assignee.full_name if ticket.assignee else None,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         sla_due_at=ticket.sla_due_at,
@@ -49,6 +60,7 @@ class TicketService:
         self.actor = actor
         self.tickets = TicketRepository(db)
         self.users = UserRepository(db)
+        self.ai_messages = AiMessageRepository(db)
 
     @property
     def _is_staff(self) -> bool:
@@ -60,6 +72,10 @@ class TicketService:
         if ticket is None or (not self._is_staff and ticket.reporter_id != self.actor.id):
             raise NotFoundError(f"Nie znaleziono zgłoszenia #{ticket_id}.")
         return ticket
+
+    def visible(self, ticket_id: int) -> Ticket:
+        """Zgłoszenie, jeśli użytkownik może je oglądać – ta sama reguła dla innych serwisów (asystent)."""
+        return self._get(ticket_id)
 
     def list(self, query: TicketQuery) -> TicketPage:
         assignee_id = None
@@ -99,6 +115,8 @@ class TicketService:
         return to_dto(self._get(ticket.id))
 
     def update(self, ticket_id: int, data: TicketUpdate) -> TicketOut:
+        # Blokada wiersza do końca transakcji (jak w resolve): PATCH i /resolve nie nadpiszą się nawzajem.
+        self.tickets.lock(ticket_id)
         ticket = self._get(ticket_id)
         changes = data.model_dump(exclude_unset=True)
         if not self._is_staff:
@@ -112,6 +130,9 @@ class TicketService:
                 raise FieldValidationError(field, "Pole nie może być puste.")
 
         actor = self.actor
+        # Jawny czas zmiany zamiast func.now() w bazie: na PostgreSQL now() to start transakcji, więc zmiana
+        # zapisana równolegle z „oznacz powiadomienia jako przeczytane” mogłaby wyglądać na przeczytaną.
+        now = clock.utc_now()
         history: list[TicketHistory] = []
 
         def record(field: str, old: object, new: object) -> None:
@@ -122,6 +143,7 @@ class TicketService:
                         field=field,
                         old_value=None if old is None else str(old),
                         new_value=None if new is None else str(new),
+                        changed_at=now,
                     )
                 )
 
@@ -151,14 +173,54 @@ class TicketService:
             new_status = changes["status"]
             record("status", ticket.status.value, new_status.value)
             if new_status in CLOSED_STATUSES and ticket.resolved_at is None:
-                ticket.resolved_at = datetime.now(UTC)
+                ticket.resolved_at = now
             elif new_status not in CLOSED_STATUSES:
                 ticket.resolved_at = None
             ticket.status = new_status
 
         if history:
             ticket.history.extend(history)
-            ticket.updated_at = datetime.now(UTC)
+            ticket.updated_at = now
+        self.db.commit()
+        return to_dto(self._get(ticket.id))
+
+    def resolve(self, ticket_id: int) -> TicketOut:
+        """„Pomogło – zamknij”: zgłaszający sam zamyka własne zgłoszenie po pomocy asystenta AI."""
+        # Blokada wiersza (PostgreSQL: FOR UPDATE) – dwa równoległe kliknięcia nie zapiszą historii dwa razy;
+        # zablokowany obiekt trafia do mapy tożsamości, więc _get poniżej zwraca ten sam, świeży stan.
+        self.tickets.lock(ticket_id)
+        ticket = self._get(ticket_id)
+        if self._is_staff:
+            raise ForbiddenError("Technik i administrator zmieniają status zgłoszenia przez edycję statusu.")
+        if ticket.status in CLOSED_STATUSES:
+            raise ConflictError("Zgłoszenie jest już rozwiązane lub zamknięte.")
+        if self.ai_messages.count_answers(ticket.id) == 0:
+            # „Pomogło” tylko po pomocy asystenta – inaczej SELF_AI zawyżałby „rozwiązane bez technika”.
+            raise ConflictError(NO_ASSISTANT_ANSWER)
+
+        now = clock.utc_now()
+        ticket.history.extend(
+            [
+                TicketHistory(
+                    author=self.actor,
+                    field="status",
+                    old_value=ticket.status.value,
+                    new_value=TicketStatus.RESOLVED.value,
+                    changed_at=now,
+                ),
+                # Osobny wiersz pozwala policzyć zgłoszenia rozwiązane bez technika (/api/me/summary).
+                TicketHistory(
+                    author=self.actor,
+                    field=RESOLUTION_FIELD,
+                    old_value=None,
+                    new_value=RESOLUTION_SELF_AI,
+                    changed_at=now,
+                ),
+            ]
+        )
+        ticket.status = TicketStatus.RESOLVED
+        ticket.resolved_at = now
+        ticket.updated_at = now
         self.db.commit()
         return to_dto(self._get(ticket.id))
 
