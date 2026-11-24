@@ -285,19 +285,22 @@ def seed_demo(db: Session, now: datetime | None = None, count: int = DEMO_COUNT)
 
         # Co szóste zgłoszenie ma rozmowę z asystentem; część z nich zgłaszający zamknął sam („Pomogło”).
         chat = rand.choice(AI_CHATS) if rand.random() < 1 / 6 else []
+        if now - plan.created < timedelta(minutes=2 * len(chat)):
+            chat = []  # zbyt świeże zgłoszenie – rozmowa miałaby wiadomości z przyszłości
         self_ai = bool(chat) and plan.status == TicketStatus.RESOLVED and rand.random() < 0.5
         ticket.ai_messages = [
             AiMessage(
                 role=role,
                 author=reporter if role == AiMessageRole.USER else None,
                 content=content,
-                created_at=min(plan.created + timedelta(minutes=2 * i + 1), now),
+                created_at=plan.created + timedelta(minutes=2 * i + 1),
             )
             for i, (role, content) in enumerate(chat)
         ]
         ticket.history = _history(ticket, plan, admins[0], now, self_ai)
 
-        if ticket.assignee is not None and rand.random() < 0.3:
+        # Bez komentarzy przy „Pomogło – zamknij” – to zgłoszenia rozwiązane bez technika.
+        if ticket.assignee is not None and not self_ai and rand.random() < 0.3:
             # Między przypisaniem (pierwszy wpis historii) a rozwiązaniem albo bieżącą chwilą.
             assigned_at = ticket.history[0].changed_at
             end = plan.resolved or now

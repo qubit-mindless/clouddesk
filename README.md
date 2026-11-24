@@ -263,7 +263,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
      bez SSH), sprawdzenie z zewnątrz: HTTP → HTTPS, certyfikat, strona i `/api/health` z wdrożonym SHA.
   4. **Testy API (Jest + Supertest) i E2E (Playwright)** na wdrożonej aplikacji.
 
-  Ręcznie: [`config/README.md`](config/README.md) (frontend), `scripts/azure-migrate.sh [--seed | --seed-demo]` (migracje, konta demo i przykładowe zgłoszenia; `--seed-demo` dodaje ok. 90 zgłoszeń z 30 dni, jednorazowo).
+  Ręcznie: [`config/README.md`](config/README.md) (frontend), `scripts/azure-migrate.sh [--seed | --seed-demo]` (migracje, konta demo i przykładowe zgłoszenia; `--seed-demo` dodaje ok. 90 zgłoszeń z 30 dni, tylko gdy w bazie jest mniej niż 60 zgłoszeń).
 - **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
 
 **Koszt (cennik Azure, polandcentral, ceny katalogowe bez darmowych limitów):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Faktycznie płacimy mniej, bo VM B1s i PostgreSQL B1ms mieszczą się w darmowych limitach subskrypcji studenckiej – rzeczywisty koszt: sekcja [Monitoring i FinOps](#monitoring-i-finops). Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).
