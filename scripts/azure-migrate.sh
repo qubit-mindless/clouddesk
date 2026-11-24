@@ -2,13 +2,21 @@
 # Uruchamia migracje bazy w Azure (zadanie Container Apps caj-clouddesk-migrate) i czeka na wynik.
 #   scripts/azure-migrate.sh          – alembic upgrade head
 #   scripts/azure-migrate.sh --seed   – migracje + dane przykładowe (seed jest idempotentny)
+#   scripts/azure-migrate.sh --seed-demo – jak --seed + ok. 90 zgłoszeń z 30 dni do demo pulpitu
+#                                        (app.db.seed_demo; pomija, gdy w bazie jest już ≥ 60 zgłoszeń;
+#                                        wymaga obrazu z tym modułem – uruchamiać po wdrożeniu przez Deploy)
 # Wymaga: az login, rola co najmniej Contributor na rg-clouddesk.
 set -euo pipefail
 
 rg="${RG:-rg-clouddesk}"
 job="${JOB:-caj-clouddesk-migrate}"
 cmd="alembic upgrade head"
-[[ "${1:-}" == "--seed" ]] && cmd="$cmd && python -m app.db.seed"
+case "${1:-}" in
+  --seed) cmd="$cmd && python -m app.db.seed" ;;
+  --seed-demo) cmd="$cmd && python -m app.db.seed && python -m app.db.seed_demo" ;;
+  "") ;;
+  *) echo "Nieznana opcja: $1 (dostępne: --seed, --seed-demo)" >&2; exit 2 ;;
+esac
 
 job_id="$(az containerapp job show -g "$rg" -n "$job" --query id -o tsv)"
 image="$(az containerapp job show -g "$rg" -n "$job" --query 'properties.template.containers[0].image' -o tsv)"
