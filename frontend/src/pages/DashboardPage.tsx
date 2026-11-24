@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router'
 import { PRIORITY_LABEL } from '../api/labels'
-import { ApiError } from '../api/client'
+import { ApiError, errorMessage } from '../api/client'
 import { getStats } from '../api/stats'
 import type { AtRiskTicket, Stats, TicketPriority } from '../api/types'
 import { canManageTicket } from '../auth/permissions'
@@ -53,6 +53,8 @@ function DashboardContent() {
     reload()
   }
   const busy = loading && manualAttempt === attempt
+  // Nieudane „Odśwież” przy zachowanych danych: ErrorState się nie pokazuje, więc powód (403, 500…) podajemy w stopce.
+  const refreshError = data !== undefined && error !== undefined && manualAttempt === attempt ? errorMessage(error) : undefined
 
   return (
     <>
@@ -85,7 +87,14 @@ function DashboardContent() {
         error !== undefined && !data && <ErrorState error={error} onRetry={reload} />
       )}
       {data && (
-        <Dashboard stats={data} busy={busy} updatedAt={updatedAt} failed={failed} onReload={manualReload} />
+        <Dashboard
+          stats={data}
+          busy={busy}
+          updatedAt={updatedAt}
+          failed={failed}
+          refreshError={refreshError}
+          onReload={manualReload}
+        />
       )}
     </>
   )
@@ -96,10 +105,11 @@ interface DashboardProps {
   busy: boolean
   updatedAt?: number
   failed: boolean
+  refreshError?: string
   onReload: () => void
 }
 
-function Dashboard({ stats, busy, updatedAt, failed, onReload }: DashboardProps) {
+function Dashboard({ stats, busy, updatedAt, failed, refreshError, onReload }: DashboardProps) {
   const { sla, days } = stats
 
   return (
@@ -193,6 +203,12 @@ function Dashboard({ stats, busy, updatedAt, failed, onReload }: DashboardProps)
         <button type="button" className="link-button" onClick={onReload} data-testid="dashboard-reload">
           Odśwież
         </button>
+        {refreshError && (
+          <span className="bento-refresh-error" role="alert" data-testid="dashboard-refresh-error">
+            {' '}
+            · {refreshError}
+          </span>
+        )}
       </p>
     </div>
   )

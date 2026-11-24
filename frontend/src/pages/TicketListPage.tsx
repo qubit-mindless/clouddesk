@@ -68,13 +68,13 @@ export function TicketListPage() {
           <div className="list-meta">
             <LiveStatus updatedAt={updatedAt} failed={failed} />
           </div>
-          {/* Nowe zgłoszenia ogłaszamy raz, po odświeżeniu – bez tykających liczb. */}
+          {/* Zgłoszenia, które pojawiły się na liście, ogłaszamy raz, po odświeżeniu – bez tykających liczb. */}
           <p className="visually-hidden" aria-live="polite" data-testid="list-announcer">
-            {flash?.added ? `Nowe zgłoszenia na liście: ${flash.added}` : ''}
+            {flash?.added ? `Pojawiły się na liście: ${flash.added}` : ''}
           </p>
           {loading && !data && <Loading label="Ładowanie zgłoszeń…" />}
           {error !== undefined && !data && <ErrorState error={error} onRetry={reload} />}
-          {tickets && <TicketList tickets={tickets} highlighted={flash?.ids} />}
+          {tickets && <TicketList tickets={tickets} highlighted={flash?.ids} flashSeq={flash?.seq} />}
         </div>
         <aside className="list-side" aria-label="Aktywność i asystent AI">
           <ActivityFeed />
