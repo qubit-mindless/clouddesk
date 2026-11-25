@@ -18,6 +18,7 @@ import { useChangedRows } from '../hooks/useChangedRows'
 import { useDebounced } from '../hooks/useDebounced'
 import { useRequest } from '../hooks/useRequest'
 import { useToast } from '../hooks/useToast'
+import { firstName } from '../utils/user'
 
 // Nieznana wartość w adresie (np. ?status=FOO) jest pomijana, zamiast dawać pustą listę.
 function pick<T extends string>(value: string | null, allowed: Record<T, string>): T | '' {
@@ -77,7 +78,7 @@ export function TicketListPage() {
   const stale = data === undefined && view !== undefined
   const flash = useChangedRows(data?.items, dataKey, !loading && error === undefined)
 
-  // Powitanie, liczniki i karta AI (pakiet z makiety) – jedno żądanie /me/summary, odświeżane razem z listą.
+  // Powitanie, liczniki i karta AI – jedno żądanie /me/summary, odświeżane razem z listą.
   const { user } = useAuth()
   const { data: summary, reload: reloadSummary } = useRequest('me-summary', getMeSummary, {
     keepData: true,
@@ -128,7 +129,7 @@ export function TicketListPage() {
   return (
     <>
       <div className="page-actions">
-        <Hello name={user?.fullName.split(' ')[0] ?? ''} summary={summary} />
+        <Hello name={firstName(user)} summary={summary} />
         <Link to="/tickets/new" className="button primary" data-testid="ticket-new">
           + Nowe zgłoszenie
         </Link>

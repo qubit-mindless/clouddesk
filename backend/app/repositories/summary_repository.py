@@ -4,6 +4,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.models import AiMessage, AiMessageRole, Ticket, TicketHistory, TicketStatus
+from app.models.ticket_history import RESOLUTION_FIELD
 
 OPEN_STATUSES = (TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS)
 CLOSED_STATUSES = (TicketStatus.RESOLVED, TicketStatus.CLOSED)
@@ -60,7 +61,7 @@ class SummaryRepository:
                 .where(
                     # Tylko wciąż zamknięte – otwarte ponownie przez technika wraca do „przekazanych”.
                     Ticket.status.in_(CLOSED_STATUSES),
-                    TicketHistory.field == "resolution",
+                    TicketHistory.field == RESOLUTION_FIELD,
                     TicketHistory.new_value == resolution,
                     TicketHistory.changed_at >= start,
                     TicketHistory.changed_at < end,

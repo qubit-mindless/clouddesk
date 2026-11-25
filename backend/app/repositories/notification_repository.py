@@ -78,11 +78,9 @@ class NotificationRepository:
             )
         )
 
-    def breached(
-        self, *, user_id: int, include_unassigned: bool, since: datetime, now: datetime, limit: int
-    ) -> list[Ticket]:
-        """Otwarte, z terminem SLA między `since` a `now`: przypisane do mnie i (opcjonalnie) wolne."""
-        unassigned = Ticket.assignee_id.is_(None) if include_unassigned else false()
+    def breached(self, *, user_id: int, since: datetime, now: datetime, limit: int) -> list[Ticket]:
+        """Otwarte, z terminem SLA między `since` a `now`: przypisane do mnie i wolne (nieprzypisane)."""
+        unassigned = Ticket.assignee_id.is_(None)
         return list(
             self.db.scalars(
                 select(Ticket)

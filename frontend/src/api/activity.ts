@@ -1,7 +1,7 @@
 import { request } from './client'
 import type { Activity, MeSummary, Notifications } from './types'
 
-// Pakiet z makiety: aktywność, powiadomienia i podsumowanie użytkownika (docs/api-kontrakty.md).
+// Aktywność na żywo, powiadomienia (dzwonek) i liczniki powitania /me/summary – kontrakty w docs/api-kontrakty.md.
 
 export function getActivity(limit = 20, signal?: AbortSignal): Promise<Activity> {
   return request<Activity>(`/activity?limit=${limit}`, { signal })

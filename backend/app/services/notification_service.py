@@ -67,7 +67,7 @@ class NotificationService:
                 )
 
             for ticket in self.sources.breached(
-                user_id=me.id, include_unassigned=True, since=since, now=now, limit=NOTIFICATION_LIMIT
+                user_id=me.id, since=since, now=now, limit=NOTIFICATION_LIMIT
             ):
                 add(
                     id=f"n-sla-{ticket.id}",

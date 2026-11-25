@@ -7,15 +7,12 @@ export type FieldErrors = Partial<Record<string, string>>
 export class ApiError extends Error {
   readonly status: number
   readonly fieldErrors: FieldErrors
-  // Przy 429: ile sekund poczekać (nagłówek Retry-After), jeśli serwer go podał.
-  readonly retryAfterSeconds?: number
 
-  constructor(status: number, message: string, fieldErrors: FieldErrors = {}, retryAfterSeconds?: number) {
+  constructor(status: number, message: string, fieldErrors: FieldErrors = {}) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.fieldErrors = fieldErrors
-    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -31,7 +28,7 @@ const STATUS_MESSAGE: Record<number, string> = {
 }
 
 // FastAPI zwraca 422 jako { detail: [{ loc: ['body', 'title'], msg: '...' }] }, a inne błędy jako { detail: '...' }.
-export function parseError(status: number, body: unknown, retryAfter: string | null = null): ApiError {
+export function parseError(status: number, body: unknown): ApiError {
   const detail = (body as { detail?: unknown } | null)?.detail
   const fieldErrors: FieldErrors = {}
 
@@ -45,8 +42,7 @@ export function parseError(status: number, body: unknown, retryAfter: string | n
   // Treść błędu 5xx z serwera nic nie mówi użytkownikowi, więc pokazujemy ją tylko dla 4xx.
   const fallback = STATUS_MESSAGE[status] ?? STATUS_MESSAGE[status >= 500 ? 500 : 400]
   const message = typeof detail === 'string' && status < 500 ? detail : fallback
-  const seconds = retryAfter !== null && /^\d+$/.test(retryAfter) ? Number(retryAfter) : undefined
-  return new ApiError(status, message, fieldErrors, seconds)
+  return new ApiError(status, message, fieldErrors)
 }
 
 export function errorMessage(error: unknown): string {
@@ -77,6 +73,6 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   // Bez tokenu (np. złe hasło przy logowaniu) to zwykły błąd, który pokazuje formularz. Spóźniona
   // odpowiedź na stary token nie wylogowuje kogoś, kto w międzyczasie zalogował się ponownie.
   if (response.status === 401 && token && token === getToken()) expireSession()
-  if (!response.ok) throw parseError(response.status, body, response.headers.get('Retry-After'))
+  if (!response.ok) throw parseError(response.status, body)
   return body as T
 }

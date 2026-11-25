@@ -35,7 +35,6 @@ const PRIORITIES = ['P1', 'P2', 'P3', 'P4']
 const STATUSES = ['NEW', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']
 const DELAY_MS = 400
 const STATS_DAYS = { min: 7, max: 90, default: 30 }
-const SUMMARY_COOLDOWN_MS = 5 * 60_000
 const STARTED_AT = new Date().toISOString()
 
 type FieldError = { loc: string[]; msg: string; type: string }
@@ -97,7 +96,6 @@ export function fakeApi(): Plugin {
   const history = demo.history
   let nextHistoryId = demo.nextHistoryId
   let nextId = Math.max(...tickets.map((t) => t.id)) + 1
-  const summaryAt = new Map<number, number>()
   const conversations = new Map<number, AssistantMessage[]>()
   let nextMessageId = 1
   const sessions = new Map<string, User>()
@@ -240,32 +238,6 @@ export function fakeApi(): Plugin {
               return { id, field, oldValue, newValue, author, authorName, changedAt }
             })
           return send(res, 200, { items })
-        }
-
-        // Podsumowanie rozmowy dla technika (#143, opcjonalne).
-        const summaryMatch = url.pathname.match(/^\/tickets\/(\d+)\/assistant\/summary\/?$/)
-        if (summaryMatch) {
-          const ticketId = Number(summaryMatch[1])
-          const owner = tickets.find((t) => t.id === ticketId)
-          if (!owner || (!staff && owner.reporter !== actor.login)) return send(res, 404, { detail: 'Ticket not found' })
-          if (req.method !== 'POST') return send(res, 405, { detail: 'Method Not Allowed' })
-          if (!staff) return send(res, 403, { detail: 'Podsumowanie rozmowy jest dla technika i administratora.' })
-          if (!conversations.get(ticketId)?.length) {
-            return send(res, 409, { detail: 'Zgłaszający nie rozmawiał jeszcze z asystentem – nie ma czego podsumować.' })
-          }
-          const last = summaryAt.get(ticketId)
-          if (last !== undefined && Date.now() - last < SUMMARY_COOLDOWN_MS) {
-            res.setHeader('Retry-After', String(Math.ceil((SUMMARY_COOLDOWN_MS - (Date.now() - last)) / 1000)))
-            return send(res, 429, { detail: 'Podsumowanie można wygenerować ponownie za kilka minut.' })
-          }
-          summaryAt.set(ticketId, Date.now())
-          return send(res, 200, {
-            problem: `Zgłaszający opisuje problem: ${owner.title}.`,
-            checked: ['Ponowne uruchomienie urządzenia', 'Połączenie z siecią firmową'],
-            errors: [],
-            nextStep: 'Sprawdzić konfigurację konta użytkownika i logi aplikacji.',
-            generatedAt: new Date().toISOString(),
-          })
         }
 
         // Asystent AI: /tickets/{id}/assistant – ten sam kształt odpowiedzi co backend (#97).
@@ -418,7 +390,6 @@ export function fakeApi(): Plugin {
           tickets.splice(tickets.indexOf(ticket), 1)
           for (let i = history.length - 1; i >= 0; i--) if (history[i].ticketId === ticket.id) history.splice(i, 1)
           conversations.delete(ticket.id)
-          summaryAt.delete(ticket.id)
           return send(res, 204)
         }
         return send(res, 405, { detail: 'Method Not Allowed' })

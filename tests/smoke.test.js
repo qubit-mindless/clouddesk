@@ -1,4 +1,4 @@
-// Test dymny API: aplikacja odpowiada, a /api/health zgłasza działającą bazę. Pełne testy API: #98.
+// Test dymny API: aplikacja odpowiada, a /api/health zgłasza działającą bazę. Testy kontraktu API: #98 (PR #117).
 const request = require('supertest')
 const { LIVE_APP_URL } = require('./helpers/env')
 

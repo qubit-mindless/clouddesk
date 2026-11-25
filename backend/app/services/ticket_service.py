@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core import clock
 from app.models import Ticket, TicketHistory, TicketPriority, TicketStatus, User, UserRole
+from app.models.ticket_history import RESOLUTION_FIELD, RESOLUTION_SELF_AI
 from app.repositories.ai_message_repository import AiMessageRepository
 from app.repositories.ticket_repository import TicketRepository
 from app.repositories.user_repository import UserRepository
@@ -23,9 +24,6 @@ ASSIGNABLE_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
 STAFF_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
 # Zgłaszający może poprawić treść i priorytet własnego zgłoszenia, ale nie prowadzi go dalej.
 REPORTER_EDITABLE = {"title", "description", "priority"}
-# Wiersz historii „sposób rozwiązania”: SELF_AI = zgłaszający zamknął zgłoszenie po pomocy asystenta AI.
-RESOLUTION_FIELD = "resolution"
-RESOLUTION_SELF_AI = "SELF_AI"
 NO_ASSISTANT_ANSWER = (
     "Asystent AI nie odpowiadał jeszcze w tym zgłoszeniu – najpierw zapytaj asystenta. "
     "Gdy asystent jest wyłączony, zgłoszenie zamyka technik."

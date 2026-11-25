@@ -10,6 +10,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useRequest } from '../hooks/useRequest'
 import { formatDateTime } from '../utils/sla'
 import { greeting, plural } from '../utils/time'
+import { firstName } from '../utils/user'
 
 // Widok zgłaszającego: karty zamiast tabeli – na każdej etap, kto się zgłoszeniem zajmuje i do kiedy odpowie.
 const STEP: Record<TicketStatus, number> = { NEW: 1, ASSIGNED: 2, IN_PROGRESS: 3, RESOLVED: 4, CLOSED: 4 }
@@ -36,7 +37,7 @@ export function MyTicketsPage() {
 
   const open = tickets?.filter(isOpen).sort((a, b) => a.slaDueAt.localeCompare(b.slaDueAt)) ?? []
   const closed = tickets?.filter((t) => !isOpen(t)).sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? '')) ?? []
-  const firstName = user?.fullName.split(' ')[0] ?? ''
+  const name = firstName(user)
   const nextDue = summary?.mine.nextDueAt
 
   return (
@@ -44,7 +45,7 @@ export function MyTicketsPage() {
       <div className="page-actions">
         <div className="hello">
           <h2>
-            {greeting()}, {firstName}
+            {greeting()}, {name}
           </h2>
           {tickets && (
             <p data-testid="my-summary">
