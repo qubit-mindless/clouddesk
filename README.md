@@ -10,7 +10,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 
 **Live:** https://clouddesk-qubit.polandcentral.cloudapp.azure.com · stan wdrożenia (wersja, rewizja, region): [`/status`](https://clouddesk-qubit.polandcentral.cloudapp.azure.com/status)
 
-> Status: aplikacja działa w Azure i wdraża się automatycznie po każdym merge do `main` (CI → obraz → Container Apps → vm-web → testy API i E2E na produkcji). Przed wydaniem v1.0.0: pulpit SLA i oś historii zgłoszenia.
+> Status: aplikacja działa w Azure i wdraża się automatycznie po każdym merge do `main` (CI → obraz → Container Apps → vm-web → testy API i E2E na produkcji). Komplet funkcji v1.0.0, w tym pulpit SLA i oś historii zgłoszenia; od 26.11 code freeze i wersja kandydująca `v1.0.0-rc1`.
 
 ## Spis treści
 - [O projekcie](#o-projekcie)
@@ -484,8 +484,16 @@ clouddesk/
 | 7–8 | CI (Gitleaks, Trivy, CodeQL) i CD do Azure (OIDC) | ✅ |
 | 9 | Hardening: NSG, HTTPS, logowanie i role, sekrety w Key Vault, limit prób logowania | ✅ |
 | 10 | FinOps, monitoring, `/health` i `/status`, asystent AI | ✅ |
-| 11–12 | Testy API i E2E, przypadki skrajne, widok zgłaszającego, powiadomienia, code freeze | 🚧 |
+| 11–12 | Testy API i E2E, przypadki skrajne, widok zgłaszającego, powiadomienia, pulpit SLA, oś historii, dane demo, code freeze | 🚧 |
 | 13–14 | v1.0.0, dokumentacja końcowa, próba generalna | ⏳ |
 
-**Po v1.0.0 (etykieta [`v2.0`](https://github.com/qubit-mindless/clouddesk/issues?q=label%3Av2.0)):** limity kosztów asystenta AI
-na użytkownika (#130), załączniki w Blob Storage, powiadomienia e-mail, samodzielna rejestracja kont.
+### Co dalej – v2.0
+Świadomie odłożone po wydaniu v1.0.0 – zadania z etykietą [`v2.0`](https://github.com/qubit-mindless/clouddesk/issues?q=label%3Av2.0):
+
+| Zadanie | Dlaczego później |
+|---|---|
+| Limit kosztów asystenta AI na użytkownika i liczenie nieudanych wywołań ([#130](https://github.com/qubit-mindless/clouddesk/issues/130)) | dziś działa limit 10 odpowiedzi na zgłoszenie i budżet z alertami – wystarcza przy kontach demo |
+| Podsumowanie rozmowy z asystentem dla technika ([#143](https://github.com/qubit-mindless/clouddesk/issues/143)) | kontrakt API gotowy (`docs/api-kontrakty.md`), bez implementacji przed code freeze |
+| Szybkie filtry, mikrointerakcje i skrót Ctrl+K ([#144](https://github.com/qubit-mindless/clouddesk/issues/144)) | dopracowanie UI – pierwszeństwo miały pulpit SLA i oś historii |
+| Komentarze i załączniki w Azure Blob Storage | tabele `comments` i `attachments` są w schemacie, bez API |
+| Powiadomienia e-mail, samodzielna rejestracja kont, blokada konta po nieudanych logowaniach | dziś: dzwonek w aplikacji, konta zakłada administrator, limit prób logowania w Nginx |
