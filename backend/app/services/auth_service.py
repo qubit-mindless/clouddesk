@@ -10,7 +10,7 @@ def user_dto(user: User) -> UserOut:
     return UserOut(
         id=user.id,
         email=user.email,
-        login=user.email.split("@", 1)[0],
+        login=user.login,
         full_name=user.full_name,
         role=user.role,
     )

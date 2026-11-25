@@ -3,8 +3,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, load_only
 
-from app.models import Ticket, TicketStatus, User, UserRole
-from app.repositories.summary_repository import CLOSED_STATUSES, OPEN_STATUSES
+from app.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketStatus, User, UserRole
 
 ResolvedRow = tuple[datetime, datetime, datetime, int | None]
 
