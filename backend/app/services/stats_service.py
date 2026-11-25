@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.core import clock
 from app.models import TicketPriority, TicketStatus, User
-from app.repositories.stats_repository import ResolvedRow, StatsRepository, StatusChangeRow
-from app.repositories.summary_repository import OPEN_STATUSES, SummaryRepository
+
+# OPEN_STATUSES przez stats_repository: działa przed i po przeniesieniu stałych do app.models (#181).
+from app.repositories.stats_repository import OPEN_STATUSES, ResolvedRow, StatsRepository, StatusChangeRow
+from app.repositories.summary_repository import SummaryRepository
 from app.schemas.stats import AiStats, AtRiskTicket, PreviousPeriod, SlaStats, Stats, TechnicianStats
 from app.schemas.summary import DayCount
 from app.services.errors import ForbiddenError
