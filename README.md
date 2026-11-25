@@ -211,6 +211,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head              # schemat bazy (model danych: docs/database/ERD.md)
 python -m app.db.seed             # konta demo i przykładowe zgłoszenia
+python -m app.db.seed_demo        # opcjonalnie: ok. 90 zgłoszeń z 30 dni (pulpit SLA, trend, aktywność)
 uvicorn app.main:app --reload
 
 # 3. Frontend – http://localhost:5173 (drugi terminal, z katalogu clouddesk/)
@@ -251,7 +252,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 | APP | Container Apps `cae-clouddesk` (tylko wewnętrzny LB) z `ca-clouddesk-backend`, obraz z GHCR po digeście | ✅ |
 | DATA | PostgreSQL 16 Flexible `psql-clouddesk-…` (B1ms) bez dostępu publicznego, hasło w Key Vault | ✅ |
 | AI | Azure OpenAI `oai-clouddesk-…` z modelem `gpt-4o-mini` (DataZoneStandard – dane w UE), dostęp backendu tożsamością zarządzaną, bez kluczy | ✅ |
-| Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic), uruchamiane `scripts/azure-migrate.sh [--seed]` | ✅ schemat 6 tabel + dane przykładowe |
+| Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic), uruchamiane `scripts/azure-migrate.sh` (opcje `--seed`, `--seed-demo`) | ✅ schemat 6 tabel + dane przykładowe |
 
 **Jak wdrażamy:**
 - **Infrastruktura:** `terraform plan` → przegląd planu z kosztami → `terraform apply` (PM/DevOps). Zmiany kodu Terraform przez PR z review.
@@ -263,7 +264,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
      bez SSH), sprawdzenie z zewnątrz: HTTP → HTTPS, certyfikat, strona i `/api/health` z wdrożonym SHA.
   4. **Testy API (Jest + Supertest) i E2E (Playwright)** na wdrożonej aplikacji.
 
-  Ręcznie: [`config/README.md`](config/README.md) (frontend), `scripts/azure-migrate.sh [--seed]` (migracje i dane demo).
+  Ręcznie: [`config/README.md`](config/README.md) (frontend), `scripts/azure-migrate.sh [--seed | --seed-demo]` (migracje, konta demo i przykładowe zgłoszenia; `--seed-demo` dodaje ok. 90 zgłoszeń z 30 dni, tylko gdy w bazie jest mniej niż 60 zgłoszeń).
 - **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
 
 **Koszt (cennik Azure, polandcentral, ceny katalogowe bez darmowych limitów):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Faktycznie płacimy mniej, bo VM B1s i PostgreSQL B1ms mieszczą się w darmowych limitach subskrypcji studenckiej – rzeczywisty koszt: sekcja [Monitoring i FinOps](#monitoring-i-finops). Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).

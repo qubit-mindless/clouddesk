@@ -6,6 +6,8 @@ Uwaga: test kasuje tabele, dlatego na PostgreSQL wymaga OSOBNEJ, pustej bazy.
 """
 
 import os
+from collections import Counter
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 os.environ.setdefault("DATABASE_URL", "sqlite://")
@@ -15,11 +17,13 @@ from alembic import command  # noqa: E402
 from alembic.autogenerate import compare_metadata  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from alembic.runtime.migration import MigrationContext  # noqa: E402
-from sqlalchemy import Engine, create_engine, inspect, pool  # noqa: E402
+from sqlalchemy import Engine, create_engine, func, inspect, pool, select  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
+from app.core.clock import as_utc  # noqa: E402
 from app.db.seed import seed  # noqa: E402
-from app.models import Base  # noqa: E402
+from app.db.seed_demo import MIN_TICKETS, seed_demo  # noqa: E402
+from app.models import Base, Ticket, TicketHistory, TicketStatus  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 APP_TABLES = {"users", "tickets", "ticket_history", "comments", "attachments", "ai_messages"}
@@ -116,3 +120,48 @@ def test_seed_sets_demo_password_once(monkeypatch, tmp_path):
         assert AuthService(db).login("admin@clouddesk.example", first) is None
         assert AuthService(db).login("admin@clouddesk.example", second) is not None
     engine.dispose()
+
+
+def test_seed_demo(engine):
+    """Dane demo (#137): 90 zgłoszeń z 30 dni z historią, część po SLA; drugie uruchomienie nic nie dodaje."""
+    now = datetime(2026, 11, 24, 12, 0, tzinfo=UTC)
+    _alembic(engine, "upgrade", "head")
+    with Session(engine) as db:
+        with pytest.raises(RuntimeError, match="kont demo"):
+            seed_demo(db, now=now)
+        seed(db)
+        # Zgłoszenia z seeda liczą czasy od prawdziwego „teraz” – sprawdzamy tylko te dodane przez seed_demo.
+        before = db.scalar(select(func.count()).select_from(Ticket))
+        last_id = db.scalar(select(func.max(Ticket.id)))
+        added = seed_demo(db, now=now)
+        assert added["tickets"] == 90
+        assert added["ticket_history"] > 2 * added["tickets"]
+        assert added["ai_messages"] > 0 and added["comments"] > 0
+        assert not any(seed_demo(db, now=now).values())
+        assert db.scalar(select(func.count()).select_from(Ticket)) == before + 90 >= MIN_TICKETS
+
+        tickets = list(db.scalars(select(Ticket).where(Ticket.id > last_id)))
+        resolved = [t for t in tickets if t.resolved_at is not None]
+        late = [t for t in resolved if as_utc(t.resolved_at) > as_utc(t.sla_due_at)]
+        open_breached = [t for t in tickets if t.resolved_at is None and as_utc(t.sla_due_at) < now]
+        assert 0.1 < len(late) / len(resolved) < 0.4
+        assert open_breached
+        assert {t.status for t in tickets} == set(TicketStatus)
+        assert {t.assignee.email.split("@")[0] for t in tickets if t.assignee} == {"tech.jan", "tech.ola"}
+        assert all(
+            t.resolved_at is not None
+            for t in tickets
+            if t.status in (TicketStatus.RESOLVED, TicketStatus.CLOSED)
+        )
+
+        history = list(db.scalars(select(TicketHistory).where(TicketHistory.ticket_id > last_id)))
+        assert all(as_utc(h.changed_at) <= now for h in history)
+        assert {"assignee", "status", "resolution"} <= set(Counter(h.field for h in history))
+
+        # Spójna oś czasu: nic z przyszłości, komentarze dopiero po przypisaniu, NEW tylko świeże.
+        for t in tickets:
+            assert all(as_utc(m.created_at) <= now for m in t.ai_messages)
+            assigned = [as_utc(h.changed_at) for h in t.history if h.field == "assignee"]
+            assert all(assigned and assigned[0] <= as_utc(c.created_at) <= now for c in t.comments)
+            if t.status == TicketStatus.NEW:
+                assert t.assignee is None and now - as_utc(t.created_at) < timedelta(hours=4)
