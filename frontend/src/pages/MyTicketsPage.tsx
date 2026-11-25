@@ -112,7 +112,9 @@ function TicketCard({ ticket: t }: { ticket: Ticket }) {
         <span className="muted">#{t.id}</span>
         <StatusBadge status={t.status} />
       </span>
-      <strong className="my-card-title">{t.title}</strong>
+      <strong className="my-card-title" title={t.title}>
+        {t.title}
+      </strong>
       <span className="steps" role="img" aria-label={`Etap ${STEP[t.status]} z 4: ${STEP_NAMES[STEP[t.status] - 1]}`}>
         {STEP_NAMES.map((name, i) => (
           <i key={name} className={i < STEP[t.status] ? 'on' : undefined} />

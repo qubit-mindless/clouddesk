@@ -55,9 +55,9 @@ export function TicketList({ tickets, highlighted, flashSeq = 0, onTake, takingI
           {tickets.map((t) => (
             <tr key={t.id} data-testid={`ticket-row-${t.id}`} className={`clickable ${highlighted?.has(t.id) ? `row-flash row-flash-${flashSeq % 2}` : ''}`} onClick={() => navigate(`/tickets/${t.id}`, { state })}>
               <td>{t.id}</td>
-              <td>
+              <td className="title-cell">
                 {/* Link zostaje dla klawiatury i czytników ekranu, kliknięcie w wiersz to skrót dla myszy. */}
-                <Link to={`/tickets/${t.id}`} state={state} onClick={(e) => e.stopPropagation()}>
+                <Link to={`/tickets/${t.id}`} state={state} title={t.title} onClick={(e) => e.stopPropagation()}>
                   {t.title}
                 </Link>
                 <span className="row-sub" title={t.reporter}>
