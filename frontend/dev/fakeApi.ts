@@ -321,11 +321,21 @@ export function fakeApi(): Plugin {
         if (id !== undefined && !ticket) return send(res, 404, { detail: 'Ticket not found' })
 
         if (req.method === 'GET' && !ticket) {
-          const { status, priority, assignee } = Object.fromEntries(url.searchParams)
-          const items = tickets.filter(
-            (t) => (staff || t.reporter === actor.login) && (!status || t.status === status) && (!priority || t.priority === priority) && (!assignee || t.assignee === assignee),
-          )
-          return send(res, 200, items.map(dto))
+          const { status, priority, assignee, q } = Object.fromEntries(url.searchParams)
+          // Strona jak w backendzie: od najnowszych, page od 1, size 1–100 (domyślnie 50), `total` – wszystkie pasujące.
+          const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1)
+          const size = Math.min(100, Math.max(1, Number(url.searchParams.get('size') ?? 50) || 50))
+          const items = tickets
+            .filter(
+              (t) =>
+                (staff || t.reporter === actor.login) &&
+                (!status || t.status === status) &&
+                (!priority || t.priority === priority) &&
+                (!assignee || t.assignee === assignee) &&
+                (!q || t.title.toLowerCase().includes(q.toLowerCase())),
+            )
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+          return send(res, 200, { items: items.slice((page - 1) * size, page * size).map(dto), total: items.length, page, size })
         }
         if (req.method === 'GET' && ticket) return send(res, 200, dto(ticket))
 

@@ -8,6 +8,7 @@ import type { AssistantConversation, AssistantMessage, Ticket } from '../api/typ
 import { useRequest } from '../hooks/useRequest'
 import { formatDateTime } from '../utils/sla'
 import { ErrorState } from './ErrorState'
+import { charCount } from '../utils/text'
 import { Loading } from './Loading'
 
 const MAX_LENGTH = 1000
@@ -94,13 +95,13 @@ export function AssistantPanel({ ticketId, reporter, autoSuggest = false, onReso
     event.preventDefault()
     const message = text.trim()
     if (!message) return setValidation('Napisz, z czym potrzebujesz pomocy.')
-    if (message.length > MAX_LENGTH) return setValidation(`Wiadomość może mieć najwyżej ${MAX_LENGTH} znaków.`)
+    if (charCount(message) > MAX_LENGTH) return setValidation(`Wiadomość może mieć najwyżej ${MAX_LENGTH} znaków.`)
     setValidation('')
     void send(message)
   }
 
   // Jak backend: liczy się tekst bez białych znaków na początku i końcu.
-  const tooLong = text.trim().length > MAX_LENGTH
+  const tooLong = charCount(text.trim()) > MAX_LENGTH
   const noQuota = conversation !== undefined && conversation.remaining <= 0
 
   // Starsze rozmowy mogą mieć pytania technika (przed zmianą pisać mógł każdy) – podpisujemy je jego loginem.
@@ -213,7 +214,7 @@ export function AssistantPanel({ ticketId, reporter, autoSuggest = false, onReso
                   />
                   <div className="assistant-form-footer">
                     <span className={tooLong ? 'field-error' : 'assistant-counter'}>
-                      {text.trim().length}/{MAX_LENGTH}
+                      {charCount(text.trim())}/{MAX_LENGTH}
                     </span>
                     <button type="submit" className="primary" disabled={sending || tooLong} data-testid="assistant-send">
                       {sending ? 'Wysyłanie…' : 'Wyślij'}

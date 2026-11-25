@@ -197,7 +197,8 @@ html[data-background='paused'] .blob { animation-play-state: paused; }
 .filters,
 .empty,
 .toast,
-.bento-tile {
+.bento-tile,
+.history {
   --mx: 50%;
   --my: -60%;
   border: 1px solid var(--glass-edge);
@@ -217,7 +218,7 @@ html[data-background='paused'] .blob { animation-play-state: paused; }
 @media (prefers-reduced-transparency: reduce) {
   :root { --glass-fill: var(--glass-fill-strong); --glass-glint: transparent; }
   .blob { animation: none; }
-  .app-header, .details, .assistant, .login-card, .my-card, .kpi, .side-card, .status-tile, .status-architecture, .table-wrap, .filters, .empty, .toast, .bento-tile {
+  .app-header, .details, .assistant, .login-card, .my-card, .kpi, .side-card, .status-tile, .status-architecture, .table-wrap, .filters, .empty, .toast, .bento-tile, .history {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -290,6 +291,9 @@ tr.clickable:hover { background: var(--row-hover); }
 tr:has(.sla-breached) td:first-child { box-shadow: inset 3px 0 0 var(--sla-breached); }
 tr:has(.sla-pill.sla-warning) td:first-child { box-shadow: inset 3px 0 0 var(--sla-warning); }
 /* Pod tytułem: kto zgłosił i kiedy (pakiet z makiety). */
+.title-cell { min-width: 18ch; overflow-wrap: anywhere; }
+/* Bardzo długi tytuł: na liście najwyżej 3 linie, całość w szczegółach (i w podpowiedzi). */
+.title-cell a { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .row-sub { display: block; margin-top: 2px; font-size: 0.8rem; color: var(--text-muted); }
 /* Cienki pasek pod pigułką SLA: ile czasu już upłynęło. */
 .sla-mini { display: block; width: 104px; height: 3px; margin-top: 6px; border-radius: 999px; background: var(--row-line); overflow: hidden; }
@@ -329,12 +333,12 @@ tr:has(.sla-pill.sla-warning) td:first-child { box-shadow: inset 3px 0 0 var(--s
 /* ---------------------------------------------------------------- szczegóły zgłoszenia */
 .details { margin-top: 16px; padding: 24px 28px; border-radius: var(--radius-pane); }
 .details header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.details h2 { margin: 0; }
+.details h2 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .details-badges { display: flex; gap: 8px; }
 .details dl { display: grid; grid-template-columns: max-content 1fr; gap: 10px 28px; margin: 22px 0; }
 .details dt { color: var(--text-muted); }
-.details dd { margin: 0; font-variant-numeric: tabular-nums; }
-.details-description { max-width: 72ch; white-space: pre-line; line-height: 1.65; }
+.details dd { min-width: 0; margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.details-description { max-width: 72ch; white-space: pre-line; line-height: 1.65; overflow-wrap: anywhere; }
 
 /* ---------------------------------------------------------------- strona /status (#140) */
 .status-summary { margin: 0 0 16px; padding: 12px 18px; border-radius: var(--radius-inner); font-weight: 600; }
@@ -409,6 +413,8 @@ select option { color: #141a3c; background: #fff; }
 [aria-invalid='true'], [aria-invalid='true']:focus-visible { border-color: var(--danger); }
 [aria-invalid='true']:focus-visible { box-shadow: 0 0 0 3px rgb(255 107 125 / 0.25); }
 
+.field-counter { justify-self: end; font-size: 0.8rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.field-counter.over { color: var(--danger); }
 .field-error, .form-error { color: var(--danger); font-size: 0.85rem; }
 .form-error { margin: 8px 0 0; }
 
@@ -434,6 +440,11 @@ select option { color: #141a3c; background: #fff; }
 .error-state { padding: 20px; border: 1px solid var(--red-fg); background: var(--red-bg); color: var(--red-fg); border-radius: var(--radius-inner); text-align: center; }
 .error-state p { margin: 0 0 12px; }
 
+.offline-banner {
+  position: sticky; top: 8px; z-index: 20; margin-bottom: 12px; padding: 10px 16px; border: 1px solid var(--orange-fg);
+  border-radius: var(--radius-inner); background: linear-gradient(var(--glass-fill-strong), var(--glass-fill-strong)), var(--bg);
+  color: var(--orange-fg); font-size: 0.9rem;
+}
 .toasts { position: fixed; right: 16px; bottom: 16px; left: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
 .toast { display: flex; align-items: center; gap: 12px; max-width: 420px; padding: 12px 16px; border-radius: var(--radius-inner); font-weight: 600; pointer-events: auto; }
 .toast button { padding: 0 6px; border: 0; background: transparent; color: inherit; font-size: 1.2rem; }
@@ -534,12 +545,16 @@ select option { color: #141a3c; background: #fff; }
 .hello b { color: var(--text); font-weight: 620; }
 .my-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 .my-card {
-  display: grid; gap: 10px; align-content: start; padding: 18px 20px; border-radius: var(--radius-pane);
+  min-width: 0; display: grid; gap: 10px; align-content: start; padding: 18px 20px; border-radius: var(--radius-pane);
   color: var(--text); text-decoration: none; transition: transform 0.15s, border-color 0.15s;
 }
 .my-card:hover { border-color: var(--glass-rim); transform: translateY(-1px); }
 .my-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.my-card-title { font-size: 1.02rem; font-weight: 620; }
+.my-card-title {
+  font-size: 1.02rem; font-weight: 620; overflow-wrap: anywhere;
+  /* Bardzo długi tytuł: najwyżej 3 linie na karcie, całość w szczegółach (i w podpowiedzi). */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+}
 .my-card-info { color: var(--text-muted); font-size: 0.88rem; }
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .steps i { height: 5px; border-radius: 99px; background: var(--field); }
@@ -717,6 +732,7 @@ select option { color: #141a3c; background: #fff; }
 
 /* Wskaźnik „na żywo”: kropka pulsuje, przy ograniczonym ruchu stoi. */
 .list-meta { display: flex; justify-content: flex-end; min-height: 1.4em; margin: -6px 0 8px; }
+.list-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 0.85rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .live-status { display: inline-flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--text-muted); }
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--chart-resolved); box-shadow: 0 0 0 0 var(--chart-resolved); animation: live-pulse 2s ease-out infinite; }
 .live-failed .live-dot { background: var(--sla-warning); animation: none; }
@@ -733,3 +749,27 @@ tr.row-flash-1 td { animation: row-flash-1 2.4s ease-out; }
   .live-dot { animation: none; }
   tr.row-flash td { animation: none; }
 }
+
+/* ---------------------------------------------------------------- oś historii (#139) */
+.history { margin-top: 16px; padding: 24px 28px; border-radius: var(--radius-pane); }
+.history h3 { margin-top: 0; }
+.history-hint { margin: 8px 0 0; color: var(--text-muted); font-size: 0.88rem; }
+.history-error { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.history-error .link-button { font-size: 0.88rem; }
+.timeline { position: relative; margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+/* Pionowa linia osi za ikonami. */
+.timeline::before { content: ''; position: absolute; top: 14px; bottom: 14px; left: 15px; width: 2px; background: var(--row-line); }
+.timeline-item { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; align-items: start; }
+.timeline-icon {
+  display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  /* Kryjące tło: półprzezroczyste szkło na var(--bg), żeby linia osi nie prześwitywała przez ikonę. */
+  border: 1px solid var(--field-edge); background: linear-gradient(var(--glass-fill-strong), var(--glass-fill-strong)), var(--bg);
+  font-size: 0.9rem; line-height: 1;
+}
+.timeline-status .timeline-icon { color: var(--blue-fg); border-color: var(--blue-fg); }
+.timeline-priority .timeline-icon { color: var(--orange-fg); border-color: var(--orange-fg); }
+.timeline-assignee .timeline-icon { color: var(--violet-fg); border-color: var(--violet-fg); }
+.timeline-created .timeline-icon { color: var(--green-fg); border-color: var(--green-fg); }
+.timeline-text { margin: 4px 0 0; overflow-wrap: anywhere; }
+.timeline-meta { margin: 2px 0 0; font-size: 0.8rem; color: var(--text-muted); }
+.timeline-meta time { font-variant-numeric: tabular-nums; }

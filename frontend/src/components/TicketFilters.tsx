@@ -1,6 +1,9 @@
 import type { TicketPriority, TicketStatus } from '../api/types'
 import { PRIORITY_LABEL, STATUS_LABEL } from '../api/labels'
 
+// Jak `q` w API (GET /tickets): dłuższe wyszukiwanie kończyłoby się błędem 422 zamiast listą.
+export const SEARCH_MAX = 200
+
 export interface TicketFilterValues {
   status: TicketStatus | ''
   priority: TicketPriority | ''
@@ -51,6 +54,7 @@ export function TicketFilters({ values, onChange }: Props) {
           type="search"
           data-testid="ticket-search"
           placeholder="Tytuł zgłoszenia"
+          maxLength={SEARCH_MAX}
           value={values.query}
           onChange={(e) => onChange({ ...values, query: e.target.value })}
         />

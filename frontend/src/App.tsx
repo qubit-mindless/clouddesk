@@ -3,6 +3,7 @@ import { AuthProvider } from './auth/AuthProvider'
 import { RequireAuth } from './auth/RequireAuth'
 import { AppNav } from './components/AppNav'
 import { NotificationBell } from './components/NotificationBell'
+import { OfflineBanner } from './components/OfflineBanner'
 import { ToastProvider } from './components/Toast'
 import { UserMenu } from './components/UserMenu'
 import { APP_VERSION } from './config'
@@ -51,6 +52,7 @@ export default function App() {
           <span className="blob blob-4" />
         </div>
         <main>
+          <OfflineBanner />
           <header className="app-header" hidden={onLogin}>
             <div>
               <h1>

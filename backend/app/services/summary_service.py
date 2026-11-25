@@ -14,18 +14,32 @@ AT_RISK_RATIO = 0.25
 LAST_DAYS = 7
 
 
+def sla_state(created: datetime, due: datetime, now: datetime) -> str | None:
+    """Otwarte zgłoszenie: "breached" (po terminie), "at_risk" (zostało < 25% czasu SLA) albo None.
+
+    Jedna reguła dla /api/me/summary i /api/stats.
+    """
+    created, due = clock.as_utc(created), clock.as_utc(due)
+    remaining = due - now
+    if remaining <= timedelta(0):
+        return "breached"
+    if remaining < (due - created) * AT_RISK_RATIO:
+        return "at_risk"
+    return None
+
+
 def sla_counts(deadlines: list[tuple[datetime, datetime]], now: datetime) -> tuple[int, int, datetime | None]:
     """(po terminie, zagrożone, najbliższy termin przed upływem) dla par (utworzenie, termin SLA)."""
     breached = at_risk = 0
     next_due: datetime | None = None
     for created, due in deadlines:
-        created, due = clock.as_utc(created), clock.as_utc(due)
-        remaining = due - now
-        if remaining <= timedelta(0):
+        state = sla_state(created, due, now)
+        if state == "breached":
             breached += 1
             continue
-        if remaining < (due - created) * AT_RISK_RATIO:
+        if state == "at_risk":
             at_risk += 1
+        due = clock.as_utc(due)
         if next_due is None or due < next_due:
             next_due = due
     return breached, at_risk, next_due

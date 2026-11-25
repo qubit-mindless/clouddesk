@@ -31,6 +31,16 @@ export type TicketUpdate = Partial<TicketCreate & Pick<Ticket, 'status' | 'assig
 export interface TicketQuery {
   status?: TicketStatus
   priority?: TicketPriority
+  // Fragment tytułu (backend: ILIKE, bez rozróżniania wielkości liter).
+  q?: string
+}
+
+// Strona listy z GET /tickets: `total` – ile zgłoszeń pasuje do filtrów łącznie.
+export interface TicketPage {
+  items: Ticket[]
+  total: number
+  page: number
+  size: number
 }
 
 export interface AssistantMessage {
