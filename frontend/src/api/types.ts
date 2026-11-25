@@ -62,16 +62,7 @@ export interface AssistantConversation {
   readOnlyReason: 'not_reporter' | 'resolved' | null
 }
 
-// Kontrakty nowych endpointów (#142) – opis pól, ról i kodów błędów w docs/api-kontrakty.md.
-
-// POST /tickets/{id}/assistant/summary (#143, opcjonalne): podsumowanie rozmowy dla technika.
-export interface AssistantSummary {
-  problem: string
-  checked: string[]
-  errors: string[]
-  nextStep: string
-  generatedAt: string
-}
+// Pulpit, historia i /health – opis pól, ról i kodów błędów w docs/api-kontrakty.md.
 
 // GET /tickets/{id}/history (#139): jedna zmiana jednego pola, od najstarszej.
 // `resolution` = SELF_AI, gdy zgłaszający sam zamknął zgłoszenie po pomocy asystenta (POST /tickets/{id}/resolve).
@@ -161,7 +152,7 @@ export interface LoginResponse {
   user: User
 }
 
-// Pakiet z makiety – kontrakty w docs/api-kontrakty.md („Pakiet z makiety”).
+// Aktywność, powiadomienia i /me/summary – kontrakty w docs/api-kontrakty.md.
 
 // GET /activity: ostatnie zdarzenia w widocznych zgłoszeniach (bez treści opisów i rozmów).
 export interface ActivityItem {

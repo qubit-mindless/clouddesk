@@ -18,6 +18,10 @@ from app.services.errors import AssistantRefusedError, AssistantUnavailableError
 log = logging.getLogger(__name__)
 
 COGNITIVE_SCOPE = "https://cognitiveservices.azure.com"
+# Komunikaty dla użytkownika (szczegóły błędu tylko w logu).
+UNAVAILABLE = "Asystent AI jest chwilowo niedostępny."
+NOT_CONFIGURED = "Asystent AI nie jest skonfigurowany na tym serwerze."
+REFUSED = "Asystent nie może odpowiedzieć na tę wiadomość. Sformułuj ją inaczej."
 Message = dict[str, str]
 
 
@@ -31,7 +35,7 @@ class DisabledClient:
     enabled = False
 
     def complete(self, messages: list[Message]) -> str:
-        raise AssistantUnavailableError("Asystent AI nie jest skonfigurowany na tym serwerze.")
+        raise AssistantUnavailableError(NOT_CONFIGURED)
 
 
 class ManagedIdentityToken:
@@ -63,7 +67,7 @@ class ManagedIdentityToken:
                 self._expires_at = float(body["expires_on"])
             except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
                 log.warning("Tożsamość zarządzana: nie udało się pobrać tokenu (%s)", type(exc).__name__)
-                raise AssistantUnavailableError("Asystent AI jest chwilowo niedostępny.") from exc
+                raise AssistantUnavailableError(UNAVAILABLE) from exc
             return self._token
 
 
@@ -103,26 +107,22 @@ class AzureOpenAIClient:
             )
         except httpx.HTTPError as exc:
             log.warning("Azure OpenAI: brak odpowiedzi (%s)", type(exc).__name__)
-            raise AssistantUnavailableError("Asystent AI jest chwilowo niedostępny.") from exc
+            raise AssistantUnavailableError(UNAVAILABLE) from exc
 
         if res.status_code == 400 and _is_content_filter(res):
-            raise AssistantRefusedError(
-                "Asystent nie może odpowiedzieć na tę wiadomość. Sformułuj ją inaczej."
-            )
+            raise AssistantRefusedError(REFUSED)
         if res.status_code >= 400:
             # Tylko kod – treść odpowiedzi może zawierać fragmenty rozmowy.
             log.warning("Azure OpenAI: HTTP %s", res.status_code)
-            raise AssistantUnavailableError("Asystent AI jest chwilowo niedostępny.")
+            raise AssistantUnavailableError(UNAVAILABLE)
         try:
             choice = res.json()["choices"][0]
             if choice.get("finish_reason") == "content_filter":
-                raise AssistantRefusedError(
-                    "Asystent nie może odpowiedzieć na tę wiadomość. Sformułuj ją inaczej."
-                )
+                raise AssistantRefusedError(REFUSED)
             content = (choice["message"]["content"] or "").strip()
         except (AttributeError, KeyError, IndexError, TypeError, ValueError) as exc:
             log.warning("Azure OpenAI: nieoczekiwany format odpowiedzi")
-            raise AssistantUnavailableError("Asystent AI jest chwilowo niedostępny.") from exc
+            raise AssistantUnavailableError(UNAVAILABLE) from exc
         if not content:
             raise AssistantUnavailableError("Asystent AI nie zwrócił odpowiedzi.")
         return content

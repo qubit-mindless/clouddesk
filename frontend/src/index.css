@@ -290,7 +290,7 @@ tr.clickable:hover { background: var(--row-hover); }
 /* Przekroczony termin SLA świeci na krawędzi wiersza. */
 tr:has(.sla-breached) td:first-child { box-shadow: inset 3px 0 0 var(--sla-breached); }
 tr:has(.sla-pill.sla-warning) td:first-child { box-shadow: inset 3px 0 0 var(--sla-warning); }
-/* Pod tytułem: kto zgłosił i kiedy (pakiet z makiety). */
+/* Pod tytułem: kto zgłosił i kiedy. */
 .title-cell { min-width: 18ch; overflow-wrap: anywhere; }
 /* Bardzo długi tytuł: na liście najwyżej 3 linie, całość w szczegółach (i w podpowiedzi). */
 .title-cell a { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }

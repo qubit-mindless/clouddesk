@@ -12,7 +12,7 @@ from app.models import AiMessage, AiMessageRole, Ticket, TicketStatus, User
 from app.repositories.ai_message_repository import AiMessageRepository
 from app.repositories.ticket_repository import TicketRepository
 from app.schemas.assistant import AssistantConversation, AssistantMessageOut
-from app.services.ai_client import AiClient, Message
+from app.services.ai_client import NOT_CONFIGURED, AiClient, Message
 from app.services.errors import (
     AssistantBusyError,
     AssistantClosedError,
@@ -119,7 +119,7 @@ class AssistantService:
         if reason == "resolved":
             raise AssistantClosedError(CLOSED_MESSAGE)
         if not self.client.enabled:
-            raise AssistantUnavailableError("Asystent AI nie jest skonfigurowany na tym serwerze.")
+            raise AssistantUnavailableError(NOT_CONFIGURED)
         if self.messages.count_answers(ticket_id) >= self.limit:
             raise LimitExceededError("Wyczerpano limit pytań do asystenta dla tego zgłoszenia.")
         return ticket

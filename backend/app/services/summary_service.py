@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.core import clock
 from app.models import User
+from app.models.ticket_history import RESOLUTION_SELF_AI
 from app.repositories.summary_repository import SummaryRepository
 from app.schemas.summary import AiTodaySummary, DayCount, MeSummary, MineSummary, TeamSummary
-from app.services.ticket_service import RESOLUTION_SELF_AI, STAFF_ROLES
+from app.services.ticket_service import STAFF_ROLES
 
 # Zagrożone = przed terminem, ale zostało mniej niż 25% czasu SLA (WARNING_RATIO we frontendzie, /api/stats).
 AT_RISK_RATIO = 0.25

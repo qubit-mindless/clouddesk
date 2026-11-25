@@ -89,7 +89,7 @@ variable "db_admin_login" {
 }
 
 variable "backend_image" {
-  description = "Obraz backendu przypięty po skrócie (repo@sha256:...), nie po tagu – adres z podsumowania workflow „Backend image”."
+  description = "Obraz backendu przypięty po skrócie (repo@sha256:...), nie po tagu – wdraża go job `backend-image` w Deploy (deploy.yml), obraz w GHCR z tagiem sha-<commit>."
   type        = string
   default     = "ghcr.io/qubit-mindless/clouddesk-backend@sha256:f7eae06f29659a7077c2bacff870526dcb47a21f5ce686c121c60e3bff1aa31e"
 

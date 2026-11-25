@@ -2,8 +2,7 @@
 
 Uzgodnione kształty JSON dla pakietu #145: według nich Oskar pisze backend, a Adam UI. Frontend może pracować na udawanym API
 (`VITE_FAKE_API=true`, `frontend/dev/fakeApi.ts`), które odpowiada dokładnie w tym formacie. Typy TypeScript:
-`frontend/src/api/types.ts`; funkcje klienta: `src/api/stats.ts`, `src/api/health.ts`, `getTicketHistory` w `src/api/tickets.ts`,
-`summarizeConversation` w `src/api/assistant.ts`.
+`frontend/src/api/types.ts`; funkcje klienta: `src/api/stats.ts`, `src/api/health.ts`, `getTicketHistory` w `src/api/tickets.ts`.
 
 Wspólne zasady (jak w istniejących endpointach):
 - JSON w camelCase (w Pythonie `CamelModel` z `app/schemas/ticket.py`), daty w ISO 8601 z UTC.
@@ -88,9 +87,12 @@ Przy awarii bazy dalej 503 z tym samym ciałem (`status: DOWN`, `database: DISCO
 zamiast rzucać błąd, żeby `/status` pokazało wersję i rewizję także wtedy. **Nie zwracamy:** nazwy hosta aplikacji,
 domeny środowiska, adresów IP z VNet, nazw Key Vault/Storage, niczego z `DATABASE_URL`.
 
-## `POST /api/tickets/{id}/assistant/summary` – podsumowanie dla technika (#143, opcjonalne)
+## `POST /api/tickets/{id}/assistant/summary` – podsumowanie dla technika (#143) – **odłożone do v2.0**
+Decyzja 25.11: bez implementacji w v1.0.0 (#143, etykieta `v2.0`). Kod klienta i udawanego API usunięty przy porządkach (#148);
+kontrakt zostaje jako punkt wyjścia.
+
 Role: TECHNICIAN, ADMIN; REPORTER (we własnym zgłoszeniu) → 403, cudze → 404. Ciało `{}`.
-Raz na 5 minut na zgłoszenie – częściej → 429 z nagłówkiem `Retry-After` (sekundy; we froncie `ApiError.retryAfterSeconds`).
+Raz na 5 minut na zgłoszenie – częściej → 429 z nagłówkiem `Retry-After` (sekundy).
 Brak rozmowy zgłaszającego z asystentem → 409 (nie ma czego podsumować). AI wyłączone lub niedostępne → 503.
 
 ```json

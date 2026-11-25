@@ -1,15 +1,11 @@
-# Obraz backendu: build linux/amd64 → skan Trivy → GHCR.
-# PR: tylko build i skan (bramka jakości). main: build, skan i publikacja jako sha-<commit> + latest.
-# Terraform wskazuje obraz po skrócie sha256 (digest), więc podmiana tagu nie zmienia tego, co działa w Azure.
+# Obraz backendu w PR: build linux/amd64 → skan Trivy (bramka jakości przed merge), bez publikacji.
+# Obraz na produkcję buduje, skanuje i publikuje w GHCR job `backend-image` w deploy.yml – z SHA commita (GIT_SHA dla /health)
+# i po zielonym CI. Wcześniej ten workflow publikował przy pushu na main drugi, równoległy obraz (`latest` bez SHA).
 name: Backend image
 
 on:
-  push:
-    branches: [main]
-    paths: ["backend/**", ".github/workflows/backend-image.yml"]
   pull_request:
     paths: ["backend/**", ".github/workflows/backend-image.yml"]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,29 +14,17 @@ concurrency:
   group: backend-image-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/clouddesk-backend
-
 jobs:
+  # Id joba bez zmian (pod nim widać check w PR-ach); obrazu nie publikuje – to robi Deploy.
   build-scan-push:
+    name: Build i skan obrazu (bez publikacji)
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.IMAGE }}
-          tags: |
-            type=sha,prefix=sha-,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      # Najpierw budujemy lokalnie w runnerze, żeby Trivy przeskanował dokładnie ten obraz, który potem wypchniemy.
+      # Budujemy lokalnie w runnerze i skanujemy dokładnie ten obraz.
       - name: Build (linux/amd64)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -48,7 +32,6 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: clouddesk-backend:scan
-          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -63,34 +46,3 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
           format: table
-
-      - name: Logowanie do GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - id: push
-        name: Publikacja w GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: backend
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-
-      - name: Podsumowanie
-        if: github.event_name != 'pull_request'
-        run: |
-          {
-            echo "### Obraz backendu"
-            echo "Do \`backend_image\` w Terraformie:"
-            echo '```'
-            echo "${IMAGE}@${{ steps.push.outputs.digest }}"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"

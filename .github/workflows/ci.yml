@@ -1,7 +1,7 @@
 # CI (Blok 7): przy każdym pushu na main i każdym PR do main sprawdzamy sekrety, podatności, build i testy.
 # Każdy job jest osobnym wymaganym checkiem w ochronie main, więc PR z błędem nie zostanie scalony.
-# Joby kolejnych osób (frontend, backend, migracje, zależności) dopisujemy pod secret-scan – z needs: secret-scan,
-# żeby budowanie ruszało dopiero, gdy w kodzie nie ma sekretów.
+# Joby frontendu, backendu, migracji i zależności mają needs: secret-scan – budowanie rusza dopiero,
+# gdy w kodzie nie ma sekretów.
 name: CI
 
 on:
@@ -159,7 +159,7 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.txt
 
-      # requirements*.txt mają zakresy (np. fastapi==0.118.*), których Trivy nie rozpoznaje – bez tego kroku
+      # requirements*.txt mają zakresy (np. fastapi==0.143.*), których Trivy nie rozpoznaje – bez tego kroku
       # backend w ogóle nie trafia do raportu. Instalujemy zależności jak w obrazie Dockera i zapisujemy dokładne
       # wersje. Plik musi nazywać się requirements.txt, bo Trivy wykrywa projekty pip tylko po tej nazwie.
       # Frontend nie potrzebuje tego kroku: package-lock.json ma już dokładne wersje.

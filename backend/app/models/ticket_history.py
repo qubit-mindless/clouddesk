@@ -12,6 +12,11 @@ from app.models.user import User
 if TYPE_CHECKING:
     from app.models.ticket import Ticket
 
+# Wiersz „Pomogło – zamknij” (POST /resolve): field = RESOLUTION_FIELD, new_value = RESOLUTION_SELF_AI.
+# ticket_service importuje je dalej – z niego biorą je też dane demo (seed_demo, #170).
+RESOLUTION_FIELD = "resolution"
+RESOLUTION_SELF_AI = "SELF_AI"
+
 
 class TicketHistory(Base):
     """Audyt zmian zgłoszenia: jedno pole = jeden wiersz (np. status NEW → ASSIGNED)."""

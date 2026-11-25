@@ -16,7 +16,7 @@ function isColdStart({ health, ms }: Measured) {
 }
 
 // Migawka z README (sekcja „Monitoring i FinOps”) – strona nie odpytuje Azure o koszty; aktualizować razem z README.
-const FINOPS = { month: 'listopad 2026', asOf: '21.11.2026', cost: '4,37 €', forecast: '6,40 €', budget: '35 €' }
+const FINOPS = { month: 'listopad 2026', asOf: '24.11.2026', cost: '5,17 €', forecast: 'ok. 6,50 €', budget: '35 €' }
 
 interface Measured {
   health: Health

@@ -7,7 +7,6 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 [![CI](https://github.com/qubit-mindless/clouddesk/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-mindless/clouddesk/actions/workflows/ci.yml)
 [![Cloud – Deploy do Azure](https://github.com/qubit-mindless/clouddesk/actions/workflows/deploy.yml/badge.svg)](https://github.com/qubit-mindless/clouddesk/actions/workflows/deploy.yml)
 [![CodeQL](https://github.com/qubit-mindless/clouddesk/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/qubit-mindless/clouddesk/security/code-scanning)
-[![Backend image](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml/badge.svg)](https://github.com/qubit-mindless/clouddesk/actions/workflows/backend-image.yml)
 
 **Live:** https://clouddesk-qubit.polandcentral.cloudapp.azure.com · stan wdrożenia (wersja, rewizja, region): [`/status`](https://clouddesk-qubit.polandcentral.cloudapp.azure.com/status)
 
@@ -326,7 +325,7 @@ Budżet `budget-clouddesk-monthly` (Terraform: [`terraform/budget.tf`](terraform
 | 100% (35 €) | faktyczny koszt | cały zespół |
 | 100% | **prognoza** – ostrzeżenie, zanim budżet zostanie przekroczony | cały zespół |
 
-Adresy zespołu są w `terraform.tfvars` (poza repozytorium). Koszt w listopadzie 2026 (stan na 21.11): **4,37 €**, prognoza na cały miesiąc: **6,40 €**.
+Adresy zespołu są w `terraform.tfvars` (poza repozytorium). Koszt w listopadzie 2026 (stan na 24.11): **5,17 €**, prognoza na cały miesiąc: ok. **6,50 €**.
 
 Większość kosztu to publiczny adres IP i sieć, Storage (stan Terraformu, kopie bazy) oraz strefy DNS. VM B1s, PostgreSQL B1ms i Log Analytics mieszczą się w darmowych limitach subskrypcji studenckiej.
 
@@ -438,7 +437,7 @@ Każdy PR do `main` i każdy push na `main` uruchamia workflow **CI** (`.github/
 | Migracje | `upgrade → downgrade → upgrade` na PostgreSQL 16 | Alembic, pytest |
 | Zależności | podatności HIGH/CRITICAL w `package-lock.json` i `requirements*.txt` | Trivy |
 
-Poza CI działają: **CodeQL** (analiza kodu JS/TS, Python i workflowów przy każdym PR), **GitHub Secret Scanning z push protection** (blokuje push z rozpoznanym sekretem), **Dependabot** (alerty i cotygodniowe aktualizacje) oraz workflow **Backend image** (obraz kontenera skanowany Trivy przed publikacją w GHCR).
+Poza CI działają: **CodeQL** (analiza kodu JS/TS, Python i workflowów przy każdym PR), **GitHub Secret Scanning z push protection** (blokuje push z rozpoznanym sekretem), **Dependabot** (alerty i cotygodniowe aktualizacje) oraz workflow **Backend image** (w każdym PR zmieniającym backend: build obrazu i skan Trivy; obraz na produkcję publikuje Deploy).
 
 `main` przyjmuje zmiany tylko przez PR z approve innej osoby i z zielonymi wszystkimi pięcioma jobami CI (wymagane checki w ochronie gałęzi). Akcje GitHub są przypięte po SHA, a workflowy mają minimalne uprawnienia (`contents: read`).
 
