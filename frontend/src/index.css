@@ -237,7 +237,8 @@ code { font-family: inherit; font-variant-numeric: tabular-nums; }
 
 :focus-visible { outline: 2px solid var(--tidal); outline-offset: 2px; border-radius: 8px; }
 /* Tekst tylko dla czytników ekranu. */
-.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* min-width: 0 – ukryta tabela (np. dane wykresu na pulpicie) nie dziedziczy min-width tabel i nie rozpycha strony na telefonie. */
+.visually-hidden { position: absolute; width: 1px; min-width: 0; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .app-header {
   position: sticky;
@@ -280,7 +281,8 @@ code { font-family: inherit; font-variant-numeric: tabular-nums; }
 .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--text-muted); }
 .filters-search { flex: 1; min-width: 200px; }
 
-.table-wrap { overflow-x: auto; border-radius: var(--radius-pane); }
+/* position: relative – ukryte teksty w wierszach (position: absolute) zostają w przewijanym kontenerze, zamiast rozpychać stronę. */
+.table-wrap { position: relative; overflow-x: auto; border-radius: var(--radius-pane); }
 table { width: 100%; min-width: 720px; border-collapse: collapse; background: transparent; }
 th, td { padding: 12px 16px; border-bottom: 1px solid var(--row-line); text-align: left; }
 th { background: transparent; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }

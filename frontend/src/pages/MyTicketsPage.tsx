@@ -22,11 +22,12 @@ function isOpen(t: Ticket) {
   return t.status !== 'RESOLVED' && t.status !== 'CLOSED'
 }
 
-
-function who(t: Ticket): string {
+function who(t: Ticket, now = Date.now()): string {
   if (!isOpen(t)) return t.resolvedAt ? `Rozwiązane ${formatDateTime(t.resolvedAt)}.` : 'Rozwiązane.'
-  if (!t.assignee) return `Czeka na technika. Termin odpowiedzi: ${formatDateTime(t.slaDueAt)}.`
-  return `Zajmuje się tym ${t.assigneeName ?? t.assignee}. Termin: ${formatDateTime(t.slaDueAt)}.`
+  // Po terminie nie piszemy „termin odpowiedzi: <data z przeszłości>”, tylko wprost, że minął.
+  const due = Date.parse(t.slaDueAt) <= now ? `Termin minął ${formatDateTime(t.slaDueAt)}` : `Termin: ${formatDateTime(t.slaDueAt)}`
+  if (!t.assignee) return `Czeka na technika. ${due.replace('Termin:', 'Termin odpowiedzi:')}.`
+  return `Zajmuje się tym ${t.assigneeName ?? t.assignee}. ${due}.`
 }
 
 export function MyTicketsPage() {
