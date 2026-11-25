@@ -389,7 +389,7 @@ Dashboard w Azure (Terraform) pokazuje: liczbę żądań z podziałem na 2xx/4xx
 |---|---|---|---|---|
 | Jednostkowe i integracyjne backendu | `backend/tests/` | pytest + TestClient (SQLite w pamięci) | logika zgłoszeń, walidacja, historia, SLA, role i logowanie, asystent AI, aktywność, powiadomienia, `/health` | job **Backend** w `ci.yml`, każdy PR |
 | Migracje bazy | `backend/tests/test_migrations.py` | pytest + Alembic | `upgrade → downgrade → upgrade` i zgodność migracji z modelami na PostgreSQL 16 | job **Migracje** w `ci.yml` |
-| API na działającej aplikacji | `tests/*.test.js` | Jest + Supertest | statusy HTTP, nagłówki, kształt JSON przez Nginx; na razie test dymny `/api/health`, pełne testy: #98 | lokalnie; w pipeline **po każdym wdrożeniu** (job `e2e-tests` w `deploy.yml`) |
+| API na działającej aplikacji | `tests/*.test.js` | Jest + Supertest | kontrakt REST (`api.test.js`): statusy 200/201/204/401/404/422, `Content-Type` i nagłówki bezpieczeństwa Nginx, kształt JSON (`items/total/page/size`, typy pól, `/api/health`), logowanie (401 + `WWW-Authenticate`), cykl życia zgłoszenia POST → GET → PATCH → DELETE; plus test dymny `/api/health` | lokalnie; w pipeline **po każdym wdrożeniu** (job `e2e-tests` w `deploy.yml`) |
 | E2E w przeglądarce | `tests/*.spec.js` | Playwright (Chromium, headless) | test dymny strony głównej (`smoke.spec.js`) i scenariusz kluczowej ścieżki (`e2e.spec.js`, #99): logowanie → nowe zgłoszenie przez formularz → widoczne na liście → szczegół → usunięcie; selektory `data-testid` i etykiety pól | lokalnie; w pipeline po każdym wdrożeniu (job `e2e-tests`) |
 
 ### Uruchomienie lokalne
@@ -413,7 +413,9 @@ npm run test:e2e                         # Playwright
 npx playwright show-report               # raport HTML z ostatniego przebiegu E2E
 ```
 
-Te same testy można puścić na produkcję: `LIVE_APP_URL=https://clouddesk-qubit.polandcentral.cloudapp.azure.com` – zawsze z `https://`, bo przy przekierowaniu 301 z `http://` klient HTTP zamienia `POST` na `GET`. **Zasada:** każdy test, który tworzy zgłoszenie, usuwa je na końcu – nie zaśmiecamy produkcji. Scenariusz E2E usuwa zgłoszenie przez UI, a gdy przerwie się wcześniej – przez API w `afterAll`; tytuł ma znacznik `[e2e <czas>]`, więc ewentualną pozostałość łatwo znaleźć.
+Te same testy można puścić na produkcję: `LIVE_APP_URL=https://clouddesk-qubit.polandcentral.cloudapp.azure.com` – zawsze z `https://`, bo przy przekierowaniu 301 z `http://` klient HTTP zamienia `POST` na `GET`. **Zasada:** każdy test, który tworzy zgłoszenie, usuwa je na końcu – nie zaśmiecamy produkcji (`api.test.js` oznacza swoje zgłoszenia `[api-test …]` w tytule i sprząta je w `afterAll`, także po błędzie).
+
+Bez `TEST_USER_EMAIL`/`TEST_USER_PASSWORD` w `api.test.js` pomijane są testy logowania i zgłoszeń – bez konta działają tylko `/api/health` i nagłówki. Nagłówki bezpieczeństwa dodaje Nginx, więc `CHECK_SECURITY_HEADERS=auto` (domyślnie) sprawdza je tylko, gdy `LIVE_APP_URL` nie wskazuje na `localhost`; `true`/`false` wymusza. PowerShell: `$env:LIVE_APP_URL="..."; npm run test:api`. Scenariusz E2E usuwa zgłoszenie przez UI, a gdy przerwie się wcześniej – przez API w `afterAll`; tytuł ma znacznik `[e2e <czas>]`, więc ewentualną pozostałość łatwo znaleźć.
 
 Sam scenariusz E2E da się też sprawdzić bez backendu, na fake API frontendu (dowolne hasło, konto technika): w `frontend/` `VITE_FAKE_API=true npx vite --port 5179`, a w `tests/` `LIVE_APP_URL=http://localhost:5179 TEST_USER_EMAIL=tech.jan@clouddesk.example TEST_USER_PASSWORD=x npx playwright test`.
 
