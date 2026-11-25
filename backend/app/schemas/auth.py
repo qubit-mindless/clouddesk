@@ -3,7 +3,7 @@ from typing import Annotated
 from pydantic import StringConstraints
 
 from app.models import UserRole
-from app.schemas.ticket import CamelModel
+from app.schemas.base import CamelModel
 
 Email = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=3, max_length=255)]
 # Górny limit chroni przed bardzo długimi hasłami wysyłanymi tylko po to, żeby obciążyć argon2.

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from app.schemas.ticket import CamelModel
+from app.schemas.base import CamelModel
 
 ACTIVITY_DEFAULT_LIMIT = 20
 ACTIVITY_MAX_LIMIT = 50

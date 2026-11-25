@@ -1,8 +1,8 @@
 import datetime as dt
 
 from app.models import TicketPriority, TicketStatus
+from app.schemas.base import CamelModel
 from app.schemas.summary import DayCount
-from app.schemas.ticket import CamelModel
 
 STATS_DEFAULT_DAYS = 30
 STATS_MIN_DAYS = 7

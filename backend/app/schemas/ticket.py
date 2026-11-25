@@ -2,19 +2,13 @@ from datetime import datetime
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
-from pydantic.alias_generators import to_camel
 
 from app.models import TicketPriority, TicketStatus
+from app.schemas.base import CamelModel
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=200)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)]
 Login = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
-
-
-class CamelModel(BaseModel):
-    """JSON w camelCase (createdAt, slaDueAt) – tak jak oczekuje frontend; w Pythonie snake_case."""
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
 
 
 class TicketCreate(CamelModel):

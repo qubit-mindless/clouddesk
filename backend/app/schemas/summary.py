@@ -1,6 +1,6 @@
 import datetime as dt
 
-from app.schemas.ticket import CamelModel
+from app.schemas.base import CamelModel
 
 
 class MineSummary(CamelModel):
