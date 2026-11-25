@@ -49,6 +49,7 @@ function describeChange({ field, oldValue, newValue }: TicketHistoryEntry): stri
 export function TicketTimeline({ ticket }: { ticket: Ticket }) {
   const now = useNow(60_000)
   const { data, error, loading, reload } = useRequest(String(ticket.id), (signal) => getTicketHistory(ticket.id, signal))
+  const gone = error instanceof ApiError && error.status === 404
 
   return (
     <section className="history" aria-labelledby="history-title" data-testid="ticket-history">
@@ -80,15 +81,15 @@ export function TicketTimeline({ ticket }: { ticket: Ticket }) {
       {error !== undefined && (
         <div className="history-error">
           <p className="history-hint" role="status" data-testid="history-error">
-            {/* 404 przy istniejącym zgłoszeniu = backend nie ma jeszcze GET /tickets/{id}/history – bez alarmu, tylko
-                informacja. Gdy endpoint trafi na main, 404 będzie znaczyć „zgłoszenie niedostępne” – wtedy zawęzić. */}
-            {error instanceof ApiError && error.status === 404
-              ? 'Historia zmian nie jest jeszcze dostępna.'
-              : `Nie udało się pobrać historii zmian. ${errorMessage(error)}`}
+            {/* 404 przy wczytanym zgłoszeniu = ktoś je w międzyczasie usunął albo straciliśmy do niego dostęp –
+                ponawianie nic nie da, więc bez przycisku. */}
+            {gone ? 'Zgłoszenie nie jest już dostępne – mogło zostać usunięte.' : `Nie udało się pobrać historii zmian. ${errorMessage(error)}`}
           </p>
-          <button type="button" className="link-button" onClick={reload} data-testid="history-retry">
-            Spróbuj ponownie
-          </button>
+          {!gone && (
+            <button type="button" className="link-button" onClick={reload} data-testid="history-retry">
+              Spróbuj ponownie
+            </button>
+          )}
         </div>
       )}
       {data && data.items.length === 0 && <p className="history-hint">Bez zmian od utworzenia.</p>}
