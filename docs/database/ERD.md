@@ -13,6 +13,7 @@ erDiagram
     tickets ||--o{ attachments : "ma załączniki"
     users ||--o{ attachments : "dodaje (uploaded_by)"
     tickets ||--o{ ai_messages : "czat z asystentem AI"
+    users |o--o{ ai_messages : "pyta (author_id)"
 
     users {
         int id PK
@@ -21,6 +22,7 @@ erDiagram
         varchar(200) full_name
         varchar(20) role "REPORTER | TECHNICIAN | ADMIN, domyślnie REPORTER"
         timestamptz created_at "domyślnie now()"
+        timestamptz notifications_seen_at "NULL, powiadomienia przeczytane do tej chwili"
     }
 
     tickets {
@@ -41,14 +43,14 @@ erDiagram
         int id PK
         int ticket_id FK "→ tickets, CASCADE, indeks"
         int changed_by FK "→ users, RESTRICT"
-        varchar(50) field "np. status"
+        varchar(50) field "status | assignee | priority | title | description | resolution"
         text old_value "NULL"
         text new_value "NULL"
         timestamptz changed_at "domyślnie now()"
     }
 
     comments {
-        int id PK
+        int id PK "v2.0 – na razie bez API"
         int ticket_id FK "→ tickets, CASCADE, indeks"
         int author_id FK "→ users, RESTRICT"
         text body
@@ -56,11 +58,11 @@ erDiagram
     }
 
     attachments {
-        int id PK
+        int id PK "v2.0 – na razie bez API"
         int ticket_id FK "→ tickets, CASCADE, indeks"
         int uploaded_by FK "→ users, RESTRICT"
         varchar(255) file_name
-        varchar(1024) blob_url "plik w Azure Blob Storage"
+        varchar(1024) blob_url "ścieżka pliku w Blob Storage (v2.0)"
         bigint size_bytes "CHECK >= 0"
         timestamptz created_at "domyślnie now()"
     }
@@ -69,6 +71,7 @@ erDiagram
         int id PK
         int ticket_id FK "→ tickets, CASCADE, indeks"
         varchar(20) role "user | assistant"
+        int author_id FK "→ users, NULL, SET NULL; NULL dla odpowiedzi asystenta"
         text content
         timestamptz created_at "domyślnie now()"
     }
@@ -80,23 +83,30 @@ erDiagram
 - **Usuwanie (`ON DELETE`):**
   - zgłoszenie pociąga za sobą swoją historię, komentarze, załączniki i czat AI (`CASCADE`);
   - użytkownika, który coś zgłosił, zmienił, skomentował lub dodał, nie da się usunąć (`RESTRICT`), bo audyt musi zostać kompletny;
-  - usunięcie technika zwalnia jego zgłoszenia (`SET NULL` na `assignee_id`), które wracają do puli.
+  - usunięcie technika zwalnia jego zgłoszenia (`SET NULL` na `assignee_id`), które wracają do puli;
+  - usunięcie użytkownika zostawia jego pytania do asystenta bez autora (`SET NULL` na `ai_messages.author_id`).
 - **Indeksy:**
   - `status`, `priority`, `sla_due_at` dla filtrów i sortowania listy (np. „SLA zagrożone”);
   - `assignee_id` dla kolejki technika;
   - `reporter_id` dla widoku „moje zgłoszenia”;
   - `ticket_id` w tabelach zależnych dla widoku szczegółów zgłoszenia.
   PostgreSQL nie zakłada indeksów na kluczach obcych sam.
-- **Hasła:** w bazie jest wyłącznie `password_hash`. Konta z danych testowych mają nieużywalny skrót `!`, więc nie da się na nie zalogować, dopóki moduł logowania nie ustawi hasła.
+- **Historia (`ticket_history`):** jedna zmiana pola = jeden wiersz z autorem i czasem. `field = resolution` z wartością `SELF_AI` oznacza zgłoszenie zamknięte przez zgłaszającego po pomocy asystenta („Pomogło – zamknij”). Z historii liczone są MTTR, aktywność i powiadomienia.
+- **Hasła:** w bazie jest wyłącznie `password_hash` (argon2id, `app/core/security.py`). Konta demo z seeda dostają hasło z `DEMO_PASSWORD`; bez tej zmiennej mają nieużywalny skrót `!`, więc nie da się na nie zalogować.
+- **Komentarze i załączniki** są w schemacie z myślą o v2.0 (komentarze w zgłoszeniu, pliki w Azure Blob Storage). Na razie nie ma do nich API – wiersze pochodzą tylko z danych testowych.
 - **Nazwy constraintów** wynikają ze stałej konwencji (`pk_`, `uq_`, `fk_`, `ix_`, `ck_`; `app/models/base.py`), więc kolejne migracje mogą się do nich odwoływać po nazwie.
 
 ## Mapowanie na API (dla DTO)
 | Kolumna | Pole JSON we frontendzie (`frontend/src/api/types.ts`) |
 |---|---|
 | `tickets.id`, `title`, `description`, `status`, `priority` | `id`, `title`, `description`, `status`, `priority` |
-| `tickets.reporter_id` → `users` | `reporter` (login, np. `anna.k`) |
-| `tickets.assignee_id` → `users` | `assignee` (login albo `null`) |
-| `tickets.created_at` | `createdAt` |
+| `tickets.reporter_id` → `users` | `reporter` (login, np. `anna.k`), `reporterName` (`users.full_name`) |
+| `tickets.assignee_id` → `users` | `assignee` (login albo `null`), `assigneeName` (`users.full_name` albo `null`) |
+| `tickets.created_at`, `updated_at` | `createdAt`, `updatedAt` |
 | `tickets.sla_due_at` | `slaDueAt` |
+| `tickets.resolved_at` | `resolvedAt` (`null` do rozwiązania) |
 
-Login w danych testowych (`backend/app/db/seed.py`) to część e-maila przed `@`. Ostateczny kształt DTO ustala backend w `app/schemas`.
+Login to część e-maila przed `@`. Kształt DTO ustala backend w `app/schemas`, a pełny kontrakt JSON opisuje `docs/api-kontrakty.md`.
+
+## Dane testowe
+- `python -m app.db.seed` – konta demo (admin, 2 techników, 8 zgłaszających) i 8 przykładowych zgłoszeń; dodaje zgłoszenia tylko do pustej tabeli.
