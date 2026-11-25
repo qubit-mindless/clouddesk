@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import activity, assistant, auth, health, me, notifications, tickets
+from app.api.routes import activity, assistant, auth, health, me, notifications, stats, tickets
 from app.core.config import get_settings
 from app.core.security import check_configuration
 
@@ -25,3 +25,4 @@ app.include_router(assistant.router)
 app.include_router(activity.router)
 app.include_router(notifications.router)
 app.include_router(me.router)
+app.include_router(stats.router)
