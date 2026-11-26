@@ -51,7 +51,7 @@ i nową wersję na produkcji – bez czekania na scenie.
 | 10:00–13:00 | Mateusz + Bartek | **Okno 4:** VNet i 3 podsieci, NSG (`DenyVnetInBound`, SSH zamknięty), PostgreSQL „dostęp publiczny: wyłączony”, Key Vault, Log Analytics (zapytanie o błędy), dashboard, budżet 50/80/100% | Bartek: model danych, migracje, codzienna kopia bazy. |
 | 13:00–15:00 | wszyscy | Pytania | Każdy odpowiada ze swojego obszaru (niżej). |
 
-Opcjonalnie (jeśli jest czas albo pytanie): **„Pomogło – zamknij”** na drugim zgłoszeniu Anny, pulpit SLA (`/dashboard`, widok 7 dni: zagrożone teraz, zgodność i MTTR ze strzałkami ↑↓, trend), „Przejmij” prosto z listy, limit logowania (429).
+Opcjonalnie (jeśli jest czas albo pytanie): **panel „Użytkownicy”** (konto `admin@`): lista kont z rolami, „Zablokuj” na koncie demo (np. `jakub.s`) → próba logowania tym kontem kończy się „Konto jest zablokowane…” → „Odblokuj”; **nie zakładamy nowych kont na produkcji** (nie da się ich usunąć) – zakładanie z hasłem tymczasowym pokazujemy na zrzucie albo lokalnie; **„Pomogło – zamknij”** na drugim zgłoszeniu Anny, pulpit SLA (`/dashboard`, widok 7 dni: zagrożone teraz, zgodność i MTTR ze strzałkami ↑↓, trend), „Przejmij” prosto z listy, limit logowania (429).
 
 ## Kto odpowiada na jakie pytania
 | Obszar | Osoba | Gdzie są szczegóły |

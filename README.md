@@ -42,7 +42,7 @@ zgłaszający rozwiązuje sam z pomocą asystenta AI, a technik dostaje zgłosze
 - Technik prowadzi zgłoszenie przez kolejne statusy, a każda zmiana trafia do historii.
 
 **Kluczowe funkcje:**
-- logowanie z rolami: Zgłaszający, Technik, Administrator (konta zakłada administrator; na prezentacji – przyciski kont demo);
+- logowanie z rolami: Zgłaszający, Technik, Administrator – konta zakłada administrator w panelu **Użytkownicy** (hasło tymczasowe generuje system, blokada konta działa od razu), a każdy zmienia swoje hasło w **Moje konto**; na prezentacji – przyciski kont demo;
 - zgłaszający: „Moje zgłoszenia” jako karty z etapem i terminem odpowiedzi, formularz z priorytetem opisanym po ludzku;
 - technik: lista z filtrami, wyszukiwaniem i paginacją, powitanie z licznikami (moje, po terminie, blisko terminu, dziś),
   „Aktywność na żywo” i karta „Asystent AI dziś” (ile problemów rozwiązano bez technika);
@@ -507,4 +507,4 @@ clouddesk/
 | Podsumowanie rozmowy z asystentem dla technika ([#143](https://github.com/qubit-mindless/clouddesk/issues/143)) | kontrakt API gotowy (`docs/api-kontrakty.md`), bez implementacji przed code freeze |
 | Szybkie filtry, mikrointerakcje i skrót Ctrl+K ([#144](https://github.com/qubit-mindless/clouddesk/issues/144)) | dopracowanie UI – pierwszeństwo miały pulpit SLA i oś historii |
 | Komentarze i załączniki w Azure Blob Storage | tabele `comments` i `attachments` są w schemacie, bez API |
-| Powiadomienia e-mail, samodzielna rejestracja kont, blokada konta po nieudanych logowaniach | dziś: dzwonek w aplikacji, konta zakłada administrator, limit prób logowania w Nginx |
+| Powiadomienia e-mail, samodzielna rejestracja kont, blokada konta po nieudanych logowaniach | dziś: dzwonek w aplikacji, konta zakłada administrator w panelu „Użytkownicy”, limit prób logowania w Nginx |
