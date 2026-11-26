@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { ROLE_LABEL } from '../api/labels'
 import { useAuth } from '../hooks/useAuth'
 
@@ -9,7 +10,10 @@ export function UserMenu() {
   return (
     <div className="user-menu" data-testid="user-menu">
       <span>
-        <strong data-testid="user-name">{user.fullName}</strong>
+        {/* Imię i nazwisko prowadzi do konta – tam zmiana własnego hasła. */}
+        <Link to="/account" className="user-name" data-testid="user-name" title="Moje konto – zmiana hasła">
+          {user.fullName}
+        </Link>
         <span className="user-role" data-testid="user-role">
           {ROLE_LABEL[user.role]}
         </span>
