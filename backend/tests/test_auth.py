@@ -1,10 +1,11 @@
 """Logowanie (JWT), ochrona /api/tickets i uprawnienia ról REPORTER / TECHNICIAN / ADMIN."""
 
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 
 from app.core import security
 from app.models import User
@@ -217,3 +218,111 @@ def test_technician_runs_workflow_and_history_has_real_author(login_as, db):
         authors = {h.author.email for h in session.scalars(select(TicketHistory))}
     assert authors == {email("tech.jan")}
     assert tech.delete(f"/api/tickets/{tid}").status_code == 204
+
+
+# --- blokada konta (panel administratora) ------------------------------------------------------
+
+LOCKED = {"detail": "Konto jest zablokowane. Skontaktuj się z administratorem."}
+
+
+def set_active(db, login: str, active: bool) -> None:
+    with db() as session:
+        session.execute(update(User).where(User.email == email(login)).values(is_active=active))
+        session.commit()
+
+
+def test_locked_account_login_403_only_with_correct_password(anonymous, db):
+    set_active(db, "piotr.m", False)
+    res = anonymous.post("/api/auth/login", json={"email": email("piotr.m"), "password": PASSWORD})
+    assert res.status_code == 403
+    assert res.json() == LOCKED
+    # Złe hasło do zablokowanego konta – zwykłe 401, bez zdradzania blokady.
+    res = anonymous.post("/api/auth/login", json={"email": email("piotr.m"), "password": "zle-haslo"})
+    assert res.status_code == 401 and res.json() == {"detail": "Nieprawidłowy e-mail lub hasło."}
+
+    set_active(db, "piotr.m", True)
+    res = anonymous.post("/api/auth/login", json={"email": email("piotr.m"), "password": PASSWORD})
+    assert res.status_code == 200
+
+
+def test_locked_account_token_stops_working(login_as, db):
+    client = login_as("piotr.m")
+    assert client.get("/api/auth/me").status_code == 200
+    set_active(db, "piotr.m", False)
+    res = client.get("/api/auth/me")
+    assert res.status_code == 401 and res.headers["WWW-Authenticate"] == "Bearer"
+    assert client.get("/api/tickets").status_code == 401
+    # Po odblokowaniu ten sam (nadal ważny) token znów działa.
+    set_active(db, "piotr.m", True)
+    assert client.get("/api/auth/me").status_code == 200
+
+
+# --- zmiana własnego hasła -----------------------------------------------------------------------
+
+NEW_PASSWORD = "nowe-haslo-" + secrets.token_urlsafe(8)
+
+
+def _login(anonymous, login: str, password: str) -> int:
+    return anonymous.post("/api/auth/login", json={"email": email(login), "password": password}).status_code
+
+
+@pytest.mark.parametrize("login", ["anna.k", "tech.jan", "admin"])
+def test_change_own_password(login_as, anonymous, login):
+    client = login_as(login)
+    res = client.post("/api/auth/password", json={"currentPassword": PASSWORD, "newPassword": NEW_PASSWORD})
+    assert res.status_code == 204 and res.content == b""
+    assert _login(anonymous, login, PASSWORD) == 401
+    assert _login(anonymous, login, NEW_PASSWORD) == 200
+    # Token sprzed zmiany działa do wygaśnięcia (znane ograniczenie JWT bez listy unieważnień).
+    assert client.get("/api/auth/me").status_code == 200
+
+
+def test_change_password_wrong_current(login_as, anonymous):
+    res = login_as("anna.k").post(
+        "/api/auth/password", json={"currentPassword": "nie-to-haslo", "newPassword": NEW_PASSWORD}
+    )
+    assert res.status_code == 422
+    assert res.json() == {
+        "detail": [
+            {"loc": ["body", "currentPassword"], "msg": "Nieprawidłowe obecne hasło.", "type": "value_error"}
+        ]
+    }
+    assert _login(anonymous, "anna.k", PASSWORD) == 200
+
+
+@pytest.mark.parametrize(
+    "new_password",
+    ["x" * 11, "y" * 129, PASSWORD],
+    ids=["za-krotkie", "za-dlugie", "takie-samo-jak-obecne"],
+)
+def test_change_password_rejects_new_password(login_as, anonymous, new_password):
+    res = login_as("anna.k").post(
+        "/api/auth/password", json={"currentPassword": PASSWORD, "newPassword": new_password}
+    )
+    assert res.status_code == 422
+    assert [e["loc"] for e in res.json()["detail"]] == [["body", "newPassword"]]
+    assert _login(anonymous, "anna.k", PASSWORD) == 200
+
+
+def test_change_password_counts_characters_not_bytes(login_as, anonymous):
+    # 12 znaków, ale 24 bajty w UTF-8 – mieści się w limicie.
+    polish = "ąęółśżźćńĄĘÓ"
+    res = login_as("anna.k").post(
+        "/api/auth/password", json={"currentPassword": PASSWORD, "newPassword": polish}
+    )
+    assert res.status_code == 204
+    assert _login(anonymous, "anna.k", polish) == 200
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{}, {"currentPassword": PASSWORD}, {"currentPassword": PASSWORD, "newPassword": NEW_PASSWORD, "x": 1}],
+    ids=["puste", "bez-nowego", "pole-spoza-kontraktu"],
+)
+def test_change_password_validation(login_as, payload):
+    assert login_as("anna.k").post("/api/auth/password", json=payload).status_code == 422
+
+
+def test_change_password_requires_login(anonymous):
+    payload = {"currentPassword": PASSWORD, "newPassword": NEW_PASSWORD}
+    assert anonymous.post("/api/auth/password", json=payload).status_code == 401
