@@ -25,10 +25,10 @@ def get_current_user(
     if credentials is None:
         raise _unauthorized("Wymagane logowanie.")
     user_id = decode_access_token(credentials.credentials)
-    # Użytkownika czytamy z bazy przy każdym żądaniu: usunięte konto albo zmiana roli działa od razu,
-    # a nie dopiero po wygaśnięciu tokenu.
+    # Użytkownika czytamy z bazy przy każdym żądaniu: usunięte lub zablokowane konto albo zmiana roli
+    # działa od razu, a nie dopiero po wygaśnięciu tokenu.
     user = UserRepository(db).get(user_id) if user_id is not None else None
-    if user is None:
+    if user is None or not user.is_active:
         raise _unauthorized("Sesja wygasła albo token jest nieprawidłowy. Zaloguj się ponownie.")
     return user
 

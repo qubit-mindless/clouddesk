@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router'
-import { canManageTicket } from '../auth/permissions'
+import { canManageTicket, isAdmin } from '../auth/permissions'
 import { useAuth } from '../hooks/useAuth'
 
-// Nawigacja w nagłówku. Pulpit SLA widzą tylko technik i administrator, więc zgłaszający nie dostaje menu wcale.
+// Nawigacja w nagłówku. Pulpit SLA widzą tylko technik i administrator, więc zgłaszający nie dostaje menu wcale;
+// „Użytkownicy” (konta) – tylko administrator.
 export function AppNav() {
   const { user } = useAuth()
   if (!canManageTicket(user)) return null
@@ -15,6 +16,11 @@ export function AppNav() {
       <NavLink to="/dashboard" data-testid="nav-dashboard">
         Pulpit
       </NavLink>
+      {isAdmin(user) && (
+        <NavLink to="/users" data-testid="nav-users">
+          Użytkownicy
+        </NavLink>
+      )}
     </nav>
   )
 }

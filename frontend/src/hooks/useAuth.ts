@@ -13,6 +13,8 @@ export interface AuthState {
   retry: () => void
   login: (email: string, password: string) => Promise<void>
   logout: () => void
+  // Ponowne pobranie zalogowanego użytkownika (np. po zmianie własnego imienia i nazwiska w panelu kont).
+  refreshUser: () => void
 }
 
 export const AuthContext = createContext<AuthState>({
@@ -23,6 +25,7 @@ export const AuthContext = createContext<AuthState>({
   retry: () => {},
   login: async () => {},
   logout: () => {},
+  refreshUser: () => {},
 })
 
 export function useAuth(): AuthState {
