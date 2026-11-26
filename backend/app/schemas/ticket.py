@@ -5,10 +5,13 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic.alias_generators import to_camel
 
 from app.models import TicketPriority, TicketStatus
+from app.schemas.validators import StorableText
 
-Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=200)]
-Description = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)]
-Login = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=200), StorableText]
+Description = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000), StorableText
+]
+Login = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100), StorableText]
 
 
 class CamelModel(BaseModel):
@@ -71,6 +74,6 @@ class TicketQuery(BaseModel):
     status: TicketStatus | None = None
     priority: TicketPriority | None = None
     assignee: Login | None = None
-    q: str | None = Field(default=None, max_length=200)
+    q: Annotated[str, Field(max_length=200), StorableText] | None = None
     page: int = Field(default=1, ge=1)
     size: int = Field(default=50, ge=1, le=100)

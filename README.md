@@ -158,6 +158,11 @@ flowchart LR
 ## API
 Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Azure API jest dostępne wyłącznie przez Nginx pod `/api` (backend nie ma publicznego adresu). Zgłoszenie (`Ticket`) ma obok loginów `reporter`/`assignee` także imiona i nazwiska do wyświetlenia: `reporterName`, `assigneeName` (`null`, gdy nieprzypisane). JSON w camelCase; błędy walidacji w formacie FastAPI: `{"detail": [{"loc": ["body", "<pole>"], "msg": "…"}]}`.
 
+Błędy zawsze jako JSON `{"detail": "…"}`, bez śladu stosu i szczegółów bazy (szczegóły tylko w logu kontenera):
+- **422** – także tekst ze znakiem NUL (`\u0000`) albo pojedynczym surogatem Unicode (PostgreSQL ich nie zapisze); limity długości liczone w znakach, zgodnie z kolumnami bazy;
+- **503** + nagłówek `Retry-After: 10` – baza chwilowo niedostępna (każdy endpoint korzystający z bazy, poza `/health`, który zwraca swój stan);
+- **500** – nieoczekiwany błąd serwera.
+
 | Metoda | Ścieżka | Opis | Odpowiedzi | Autoryzacja |
 |---|---|---|---|---|
 | GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`), rewizja, replika i region Container Apps, czas startu, stan asystenta AI – dla strony `/status`; z zewnątrz przez Nginx tylko `/api/health`; `/health` służy też monitoringowi | 200, 503 | – |
