@@ -403,3 +403,16 @@ def test_reset_password_not_found_and_validation(client, db):
     assert client.post("/api/users/9999/reset-password", json={}).status_code == 404
     anna = user_id(db, "anna.k")
     assert client.post(f"/api/users/{anna}/reset-password", json={"password": "x"}).status_code == 422
+
+
+def test_blocked_technician_cannot_be_assigned(login_as, db):
+    """Zablokowanego technika nie da się przypisać do zgłoszenia – 422 przy polu assignee."""
+    tid = (
+        login_as("anna.k")
+        .post("/api/tickets", json={"title": "Nie działa drukarka", "description": "Opis", "priority": "P3"})
+        .json()["id"]
+    )
+    add_user(db, "tech.blocked", UserRole.TECHNICIAN, active=False)
+    res = login_as("tech.jan").patch(f"/api/tickets/{tid}", json={"assignee": "tech.blocked"})
+    assert res.status_code == 422
+    assert res.json()["detail"][0]["loc"][-1] == "assignee"

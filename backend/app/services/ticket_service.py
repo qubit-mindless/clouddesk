@@ -153,6 +153,8 @@ class TicketService:
                     raise FieldValidationError("assignee", f"Nie ma użytkownika „{changes['assignee']}”.")
                 if new_assignee.role not in ASSIGNABLE_ROLES:
                     raise FieldValidationError("assignee", "Zgłoszenie można przypisać tylko technikowi.")
+                if not new_assignee.is_active:
+                    raise FieldValidationError("assignee", "Konto tego technika jest zablokowane.")
             record("assignee", login_of(ticket.assignee), login_of(new_assignee))
             ticket.assignee = new_assignee
 
