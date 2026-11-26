@@ -3,7 +3,7 @@
 Osobno od UserRepository (logowanie, sesja, przypisania), żeby tamten plik został bez zmian.
 """
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.models import User, UserRole
@@ -14,6 +14,10 @@ LIKE_ESCAPE = "\\"
 def escape_like(text: str) -> str:
     """%, _ i \\ z wyszukiwarki traktujemy dosłownie, a nie jako symbole wieloznaczne LIKE."""
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+# Klucz blokady pg_advisory_xact_lock dla zakładania kont (dowolna stała, unikalna w aplikacji).
+ACCOUNT_CREATION_LOCK = 72_410_001
 
 
 class AccountRepository:
@@ -40,6 +44,15 @@ class AccountRepository:
             select(User).where(*filters).order_by(User.full_name, User.id).offset(offset).limit(limit)
         ).all()
         return list(rows), total
+
+    def lock_account_creation(self) -> None:
+        """Blokada transakcyjna na czas zakładania konta (PostgreSQL).
+
+        Dwa równoległe żądania z tym samym loginem nie przejdą obu sprawdzeń `login_taken` –
+        baza pilnuje unikalności całego e-maila, a nie samego loginu.
+        """
+        if self.db.get_bind().dialect.name == "postgresql":
+            self.db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": ACCOUNT_CREATION_LOCK})
 
     def login_taken(self, login: str) -> bool:
         """Czy jakieś konto ma już ten login (część e-maila przed „@”), bez względu na wielkość liter."""

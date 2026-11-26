@@ -187,7 +187,7 @@ Błędy zawsze jako JSON `{"detail": "…"}`, bez śladu stosu i szczegółów b
 | GET | `/api/users` | panel kont: `items` (`id`, `email`, `login`, `fullName`, `role`, `isActive`, `createdAt` – bez skrótu hasła), `total`, `page`, `size`; filtry `q` (fragment e-maila lub imienia i nazwiska, bez rozróżniania wielkości liter), `role`; sort po imieniu i nazwisku; paginacja `page`, `size` (1–100) | 200, 401, 403, 422 | token, ADMIN |
 | POST | `/api/users` | nowe konto: `email`, `fullName` (2–200 znaków), `role` → `user` i `temporaryPassword` (16 znaków, generuje serwer, w bazie tylko skrót; pokazywane tylko w tej odpowiedzi). Zajęty e-mail (bez względu na wielkość liter) albo login (część przed „@”) → 409 | 201, 401, 403, 409, 422 | token, ADMIN |
 | PATCH | `/api/users/{id}` | zmiana wybranych pól: `fullName`, `role`, `isActive` (`false` = blokada: logowanie → 403, wydany token → 401 od razu). Puste ciało, `null` albo inne pole → 422. Własna rola i blokada własnego konta oraz zablokowanie/degradacja ostatniego aktywnego administratora → 409 | 200, 401, 403, 404, 409, 422 | token, ADMIN |
-| POST | `/api/users/{id}/reset-password` | nowe hasło tymczasowe (ciało `{}` albo brak) → `temporaryPassword`; poprzednie hasło przestaje działać, blokada konta zostaje | 200, 401, 403, 404, 422 | token, ADMIN |
+| POST | `/api/users/{id}/reset-password` | nowe hasło tymczasowe (ciało `{}` albo brak) → `temporaryPassword`; poprzednie hasło przestaje działać, blokada konta zostaje. Wydane tokeny działają do wygaśnięcia (60 min) – natychmiast odcina dostęp tylko blokada konta | 200, 401, 403, 404, 422 | token, ADMIN |
 
 Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni.
 

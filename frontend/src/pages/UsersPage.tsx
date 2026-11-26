@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useDebounced } from '../hooks/useDebounced'
 import { useRequest } from '../hooks/useRequest'
 import { useToast } from '../hooks/useToast'
+import { charCount } from '../utils/text'
 import { formatDateTime } from '../utils/time'
 
 const ROLES = Object.keys(ROLE_LABEL) as UserRole[]
@@ -39,6 +40,7 @@ interface Pending {
 
 function UsersContent({ me }: { me: User }) {
   const toast = useToast()
+  const { refreshUser } = useAuth()
   const [query, setQuery] = useState('')
   const [role, setRole] = useState<UserRole | ''>('')
   const q = useDebounced(query.trim(), 300)
@@ -88,7 +90,8 @@ function UsersContent({ me }: { me: User }) {
         )}
       </div>
 
-      {secret && <SecretPanel secret={secret} onClose={() => setSecret(null)} />}
+      {/* key: nowe hasło = nowy panel (stan „Skopiowano” nie przechodzi na kolejne hasło). */}
+      {secret && <SecretPanel key={secret.password} secret={secret} onClose={() => setSecret(null)} />}
 
       {creating && (
         <NewUserForm
@@ -160,6 +163,8 @@ function UsersContent({ me }: { me: User }) {
                       setEditingId(null)
                       toast(`Zapisano zmiany konta ${u.login}.`)
                       reload()
+                      // Własne konto: nowe imię i nazwisko od razu w nagłówku i w „Moje konto”.
+                      if (u.id === me.id) refreshUser()
                     }}
                   />
                 ) : (
@@ -270,7 +275,8 @@ function SecretPanel({ secret, onClose }: { secret: Secret; onClose: () => void 
       </div>
       <p className="muted">
         Pokazujemy je tylko teraz – przekaż je tej osobie osobnym kanałem. Po pierwszym logowaniu niech zmieni hasło w „Moje konto” (kliknięcie
-        imienia i nazwiska w nagłówku).
+        imienia i nazwiska w nagłówku). Nowe hasło nie wylogowuje już otwartych sesji (działają do godziny) – żeby odciąć dostęp od razu,
+        zablokuj konto.
       </p>
       <button type="button" onClick={onClose} data-testid="users-secret-close">
         Gotowe
@@ -292,8 +298,8 @@ function NewUserForm({ onCancel, onCreated }: { onCancel: () => void; onCreated:
     const found: FieldErrors = {}
     if (!EMAIL_PATTERN.test(email.trim())) found.email = 'Podaj poprawny adres e-mail.'
     const name = fullName.trim()
-    if (name.length < NAME_MIN) found.fullName = 'Podaj imię i nazwisko.'
-    else if (name.length > NAME_MAX) found.fullName = `Najwyżej ${NAME_MAX} znaków.`
+    if (charCount(name) < NAME_MIN) found.fullName = 'Podaj imię i nazwisko.'
+    else if (charCount(name) > NAME_MAX) found.fullName = `Najwyżej ${NAME_MAX} znaków.`
     setErrors(found)
     setFormError('')
     if (Object.keys(found).length) return
@@ -380,7 +386,7 @@ function EditRow({ user, isSelf, onCancel, onSaved }: { user: UserAdmin; isSelf:
 
   const save = async () => {
     const name = fullName.trim()
-    if (name.length < NAME_MIN) return setError('Podaj imię i nazwisko.')
+    if (charCount(name) < NAME_MIN) return setError('Podaj imię i nazwisko.')
     const changes = { ...(name !== user.fullName ? { fullName: name } : {}), ...(role !== user.role ? { role } : {}) }
     if (!Object.keys(changes).length) return onCancel()
     setSaving(true)
@@ -389,7 +395,8 @@ function EditRow({ user, isSelf, onCancel, onSaved }: { user: UserAdmin; isSelf:
       await updateUser(user.id, changes)
       onSaved()
     } catch (e) {
-      setError(errorMessage(e))
+      // Błąd pola z backendu (np. 422 przy fullName) – konkretny komunikat zamiast ogólnego „Popraw zaznaczone pola”.
+      setError((e instanceof ApiError && (e.fieldErrors.fullName ?? e.fieldErrors.role)) || errorMessage(e))
     } finally {
       setSaving(false)
     }

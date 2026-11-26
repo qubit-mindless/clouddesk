@@ -82,6 +82,7 @@ class UserService:
             raise ConflictError(EMAIL_TAKEN)
         login = data.email.split("@", 1)[0]
         # Login identyfikuje konto w API (np. przypisanie technika), więc musi być jednoznaczny.
+        self.accounts.lock_account_creation()
         if self.accounts.login_taken(login):
             raise ConflictError(
                 f"Login „{login}” (część adresu przed „@”) ma już inne konto – użyj innego adresu e-mail."

@@ -416,3 +416,21 @@ def test_blocked_technician_cannot_be_assigned(login_as, db):
     res = login_as("tech.jan").patch(f"/api/tickets/{tid}", json={"assignee": "tech.blocked"})
     assert res.status_code == 422
     assert res.json()["detail"][0]["loc"][-1] == "assignee"
+
+
+def test_resending_current_blocked_assignee_is_allowed(login_as, db, client):
+    """Pełny PATCH z obecnym (w międzyczasie zablokowanym) technikiem nie blokuje zmiany statusu."""
+    tid = (
+        login_as("anna.k")
+        .post("/api/tickets", json={"title": "Nie działa drukarka", "description": "Opis", "priority": "P3"})
+        .json()["id"]
+    )
+    tech = login_as("tech.jan")
+    assert (
+        tech.patch(f"/api/tickets/{tid}", json={"assignee": "tech.jan", "status": "ASSIGNED"}).status_code
+        == 200
+    )
+    assert client.patch(f"/api/users/{user_id(db, 'tech.jan')}", json={"isActive": False}).status_code == 200
+    res = client.patch(f"/api/tickets/{tid}", json={"assignee": "tech.jan", "status": "IN_PROGRESS"})
+    assert res.status_code == 200, res.text
+    assert res.json()["status"] == "IN_PROGRESS"
