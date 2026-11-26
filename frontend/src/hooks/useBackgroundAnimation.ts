@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 // Ten sam klucz i atrybut czyta skrypt w index.html przed pierwszym malowaniem strony – zmieniaj w obu miejscach.
-export const STORAGE_KEY = 'clouddesk.backgroundAnimation'
+const STORAGE_KEY = 'clouddesk.backgroundAnimation'
 
 function readStoredPreference(): boolean {
   try {

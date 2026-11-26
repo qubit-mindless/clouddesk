@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { getNotifications, markNotificationsRead } from '../api/activity'
-import { STATUS_LABEL } from '../api/labels'
-import type { AppNotification, Notifications, TicketStatus } from '../api/types'
+import { statusLabel } from '../api/labels'
+import type { AppNotification, Notifications } from '../api/types'
 import { timeAgo } from '../utils/time'
 
 // Co minutę, i tylko przy widocznej karcie – każde żądanie budzi backend skalujący się do zera.
@@ -17,7 +17,7 @@ function describe(n: AppNotification): string {
     case 'sla_breached':
       return `#${n.ticketId} przekroczyło termin SLA`
     case 'status':
-      return `#${n.ticketId}: status zmieniony na „${STATUS_LABEL[n.value as TicketStatus] ?? n.value}”`
+      return `#${n.ticketId}: status zmieniony na „${statusLabel(n.value)}”`
     case 'taken':
       return `Technik zajął się Twoim zgłoszeniem #${n.ticketId}`
   }

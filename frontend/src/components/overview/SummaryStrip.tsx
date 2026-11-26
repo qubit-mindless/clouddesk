@@ -1,5 +1,5 @@
 import type { MeSummary } from '../../api/types'
-import { formatDateTime } from '../../utils/sla'
+import { formatDateTime } from '../../utils/time'
 import { greeting, plural } from '../../utils/time'
 
 // Nad listą technika: powitanie z jednym zdaniem „co na mnie czeka” i cztery liczniki z /me/summary.

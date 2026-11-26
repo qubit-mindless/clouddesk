@@ -8,8 +8,8 @@ import { Loading } from '../components/Loading'
 import { StatusBadge } from '../components/StatusBadge'
 import { useAuth } from '../hooks/useAuth'
 import { useRequest } from '../hooks/useRequest'
-import { formatDateTime } from '../utils/sla'
-import { greeting, plural } from '../utils/time'
+import { isClosed } from '../utils/ticket'
+import { formatDateTime, greeting, plural } from '../utils/time'
 import { firstName } from '../utils/user'
 
 // Widok zgłaszającego: karty zamiast tabeli – na każdej etap, kto się zgłoszeniem zajmuje i do kiedy odpowie.
@@ -18,12 +18,8 @@ const STEP_NAMES = ['Nowe', 'Przypisane', 'W toku', 'Rozwiązane']
 // Rozwiązanych pokazujemy kilka ostatnich – reszta po kliknięciu, żeby otwarte zostały na wierzchu.
 const CLOSED_VISIBLE = 3
 
-function isOpen(t: Ticket) {
-  return t.status !== 'RESOLVED' && t.status !== 'CLOSED'
-}
-
 function who(t: Ticket, now = Date.now()): string {
-  if (!isOpen(t)) return t.resolvedAt ? `Rozwiązane ${formatDateTime(t.resolvedAt)}.` : 'Rozwiązane.'
+  if (isClosed(t)) return t.resolvedAt ? `Rozwiązane ${formatDateTime(t.resolvedAt)}.` : 'Rozwiązane.'
   // Po terminie nie piszemy „termin odpowiedzi: <data z przeszłości>”, tylko wprost, że minął.
   const due = Date.parse(t.slaDueAt) <= now ? `Termin minął ${formatDateTime(t.slaDueAt)}` : `Termin: ${formatDateTime(t.slaDueAt)}`
   if (!t.assignee) return `Czeka na technika. ${due.replace('Termin:', 'Termin odpowiedzi:')}.`
@@ -36,8 +32,8 @@ export function MyTicketsPage() {
   const { data: summary } = useRequest('me-summary', getMeSummary)
   const [showAllClosed, setShowAllClosed] = useState(false)
 
-  const open = tickets?.filter(isOpen).sort((a, b) => a.slaDueAt.localeCompare(b.slaDueAt)) ?? []
-  const closed = tickets?.filter((t) => !isOpen(t)).sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? '')) ?? []
+  const open = tickets?.filter((t) => !isClosed(t)).sort((a, b) => a.slaDueAt.localeCompare(b.slaDueAt)) ?? []
+  const closed = tickets?.filter(isClosed).sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? '')) ?? []
   const name = firstName(user)
   const nextDue = summary?.mine.nextDueAt
 

@@ -1,5 +1,6 @@
 import type { Ticket } from '../api/types'
-import { formatDateTime, formatRemaining, getSlaState } from '../utils/sla'
+import { formatRemaining, getSlaState } from '../utils/sla'
+import { formatDateTime } from '../utils/time'
 
 // Pigułka SLA z odliczaniem (#141): „2 h 14 min”, blisko terminu na bursztynowo, po terminie na czerwono z minusem.
 // Rozwiązane i zamknięte mają zamrożony wynik ✓/✗ (czy zdążyliśmy przed terminem). Stan jest też w tekście

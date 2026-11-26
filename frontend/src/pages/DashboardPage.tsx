@@ -15,7 +15,8 @@ import { PriorityBadge } from '../components/PriorityBadge'
 import { useAuth } from '../hooks/useAuth'
 import { useNow } from '../hooks/useNow'
 import { useRequest } from '../hooks/useRequest'
-import { formatDateTime, formatRemaining, getSlaState } from '../utils/sla'
+import { formatRemaining, getSlaState } from '../utils/sla'
+import { formatDateTime } from '../utils/time'
 
 // Okresy do wyboru – API przyjmuje 7–90 dni, w UI wystarczą trzy.
 const PERIODS = [7, 30, 90] as const

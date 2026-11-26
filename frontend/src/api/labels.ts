@@ -20,3 +20,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   TECHNICIAN: 'Technik',
   ADMIN: 'Administrator',
 }
+
+// Kod z historii lub powiadomienia (string, bo backend może dodać nowy) → etykieta; nieznany kod bez zmian, brak → „—”.
+export const statusLabel = (code: string | null): string => (code ? (STATUS_LABEL[code as TicketStatus] ?? code) : '—')
+export const priorityLabel = (code: string | null): string => (code ? (PRIORITY_LABEL[code as TicketPriority] ?? code) : '—')

@@ -1,14 +1,11 @@
 import type { Ticket, User } from '../api/types'
+import { isClosed } from '../utils/ticket'
 
 // Te same reguły co w TicketService backendu (#106). UI tylko ukrywa niedozwolone akcje –
 // o uprawnieniach decyduje backend (403/404), a jego komunikat pokazujemy, gdyby UI się rozjechał.
 
 function isStaff(user: User | null): boolean {
   return user?.role === 'TECHNICIAN' || user?.role === 'ADMIN'
-}
-
-export function isClosed(ticket: Ticket): boolean {
-  return ticket.status === 'RESOLVED' || ticket.status === 'CLOSED'
 }
 
 // Technik i administrator prowadzą zgłoszenie: zmieniają status i przypisanie.
