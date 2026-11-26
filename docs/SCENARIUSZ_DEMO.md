@@ -25,6 +25,8 @@ i nową wersję na produkcji – bez czekania na scenie.
 **30 minut przed**
 - [ ] Rozgrzać backend: `curl -s https://clouddesk-qubit.polandcentral.cloudapp.azure.com/api/health` (powtarzać co kilka minut do startu).
 - [ ] `/status` – wszystkie warstwy zielone, region `polandcentral`, asystent `ENABLED`.
+- [ ] Dane demo na produkcji (~100 zgłoszeń z 30 dni, `scripts/azure-migrate.sh --seed-demo`, wgrane 25.11): lista „Pokazano 50 z …”, pulpit z ruchem w każdym dniu.
+- [ ] Pulpit SLA (`/dashboard`) otwarty w widoku **7 dni**: dane demo obejmują ostatnie 30 dni, więc tylko przy 7 dniach poprzedni okres ma porównywalne dane i strzałki ↑↓ pokazują realny trend (przy 30 dniach „poprzednio” to kilka starych zgłoszeń – strzałki wyjdą mylące).
 - [ ] Okna przeglądarki (osobne profile albo okna prywatne, żeby sesje się nie mieszały):
   1. **Anna Kaczmarek – Zgłaszający** (`anna.k@clouddesk.example`), widok „Moje zgłoszenia”;
   2. **Jan Kowalski – Technik** (`tech.jan@clouddesk.example`), lista zgłoszeń;
@@ -49,7 +51,7 @@ i nową wersję na produkcji – bez czekania na scenie.
 | 10:00–13:00 | Mateusz + Bartek | **Okno 4:** VNet i 3 podsieci, NSG (`DenyVnetInBound`, SSH zamknięty), PostgreSQL „dostęp publiczny: wyłączony”, Key Vault, Log Analytics (zapytanie o błędy), dashboard, budżet 50/80/100% | Bartek: model danych, migracje, codzienna kopia bazy. |
 | 13:00–15:00 | wszyscy | Pytania | Każdy odpowiada ze swojego obszaru (niżej). |
 
-Opcjonalnie (jeśli jest czas albo pytanie): **„Pomogło – zamknij”** na drugim zgłoszeniu Anny, pulpit SLA (`/dashboard`), limit logowania (429).
+Opcjonalnie (jeśli jest czas albo pytanie): **„Pomogło – zamknij”** na drugim zgłoszeniu Anny, pulpit SLA (`/dashboard`, widok 7 dni: zagrożone teraz, zgodność i MTTR ze strzałkami ↑↓, trend), „Przejmij” prosto z listy, limit logowania (429).
 
 ## Kto odpowiada na jakie pytania
 | Obszar | Osoba | Gdzie są szczegóły |
