@@ -1,0 +1,5 @@
+# Fałszywe alarmy Gitleaks w historii repozytorium (format: commit:plik:reguła:linia).
+# Każdy wpis to wartość testowa, a nie sekret – opis w PR, który go dodał.
+#
+# Test odrzucania pola „password” przy zakładaniu konta (POST /api/users → 422); wartość testowa, nie hasło (PR #190, poprawka #191).
+587d4a421396ae8505c056cd397fc307cbd83491:backend/tests/test_users.py:generic-api-key:215
