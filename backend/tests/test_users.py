@@ -212,7 +212,8 @@ def test_create_duplicate_login_409(client):
         {**NEW_USER, "fullName": "Zero\x00"},
         {**NEW_USER, "role": "SUPERADMIN"},
         {"email": NEW_USER["email"], "fullName": NEW_USER["fullName"]},
-        {**NEW_USER, "password": "moje-haslo-123"},
+        # Pole spoza kontraktu – hasło nadaje serwer (wartość w locie – nie wygląda jak sekret).
+        {**NEW_USER, "password": "x" * 12},
         {},
     ],
     ids=[
