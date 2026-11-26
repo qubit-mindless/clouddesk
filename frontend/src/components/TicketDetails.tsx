@@ -1,5 +1,6 @@
 import type { Ticket } from '../api/types'
 import { formatDateTime } from '../utils/time'
+import { personLabel } from '../utils/user'
 import { PriorityBadge } from './PriorityBadge'
 import { useNow } from '../hooks/useNow'
 import { SlaDue, SlaProgress } from './SlaDue'
@@ -20,9 +21,9 @@ export function TicketDetails({ ticket }: { ticket: Ticket }) {
       </header>
       <dl>
         <dt>Zgłaszający</dt>
-        <dd>{ticket.reporter}</dd>
+        <dd>{personLabel(ticket.reporterName, ticket.reporter)}</dd>
         <dt>Technik</dt>
-        <dd>{ticket.assignee ?? 'nieprzypisane'}</dd>
+        <dd>{ticket.assignee ? personLabel(ticket.assigneeName, ticket.assignee) : 'nieprzypisane'}</dd>
         <dt>Utworzono</dt>
         <dd>{formatDateTime(ticket.createdAt)}</dd>
         <dt>Termin SLA</dt>
