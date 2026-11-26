@@ -4,10 +4,13 @@ from pydantic import StringConstraints
 
 from app.models import UserRole
 from app.schemas.base import CamelModel
+from app.schemas.validators import StorableText
 
-Email = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=3, max_length=255)]
+Email = Annotated[
+    str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=3, max_length=255), StorableText
+]
 # Górny limit chroni przed bardzo długimi hasłami wysyłanymi tylko po to, żeby obciążyć argon2.
-Password = Annotated[str, StringConstraints(min_length=1, max_length=128)]
+Password = Annotated[str, StringConstraints(min_length=1, max_length=128), StorableText]
 
 
 class LoginRequest(CamelModel):

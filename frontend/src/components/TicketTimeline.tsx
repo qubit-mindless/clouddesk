@@ -1,10 +1,11 @@
 import { ApiError, errorMessage } from '../api/client'
-import { PRIORITY_LABEL, STATUS_LABEL } from '../api/labels'
+import { priorityLabel, statusLabel } from '../api/labels'
 import { getTicketHistory } from '../api/tickets'
-import type { Ticket, TicketHistoryEntry, TicketPriority, TicketStatus } from '../api/types'
+import type { Ticket, TicketHistoryEntry } from '../api/types'
 import { useNow } from '../hooks/useNow'
 import { useRequest } from '../hooks/useRequest'
-import { formatAgo, formatDateTime } from '../utils/sla'
+import { formatDateTime, timeAgo } from '../utils/time'
+import { personLabel } from '../utils/user'
 
 // Oś historii zgłoszenia (#139): utworzenie (z samego zgłoszenia) i każda zmiana z ticket_history, od najstarszej.
 // Edycja odbywa się na osobnej stronie, więc po zapisie (PATCH) szczegóły i oś ładują się od nowa.
@@ -20,11 +21,6 @@ const ICON: Partial<Record<string, string>> = {
   description: '✎',
 }
 
-// „Imię Nazwisko (login)”, a gdy nazwiska brak albo jest równe loginowi – sam login.
-const person = (name: string | null | undefined, login: string) => (name && name !== login ? `${name} (${login})` : login)
-
-const statusLabel = (v: string | null) => (v ? (STATUS_LABEL[v as TicketStatus] ?? v) : '—')
-const priorityLabel = (v: string | null) => (v ? (PRIORITY_LABEL[v as TicketPriority] ?? v) : '—')
 
 function describeChange({ field, oldValue, newValue }: TicketHistoryEntry): string {
   switch (field) {
@@ -49,6 +45,7 @@ function describeChange({ field, oldValue, newValue }: TicketHistoryEntry): stri
 export function TicketTimeline({ ticket }: { ticket: Ticket }) {
   const now = useNow(60_000)
   const { data, error, loading, reload } = useRequest(String(ticket.id), (signal) => getTicketHistory(ticket.id, signal))
+  const gone = error instanceof ApiError && error.status === 404
 
   return (
     <section className="history" aria-labelledby="history-title" data-testid="ticket-history">
@@ -57,7 +54,7 @@ export function TicketTimeline({ ticket }: { ticket: Ticket }) {
         <TimelineItem
           icon="+"
           text="Utworzono zgłoszenie"
-          who={person(ticket.reporterName, ticket.reporter)}
+          who={personLabel(ticket.reporterName, ticket.reporter)}
           at={ticket.createdAt}
           now={now}
           testId="history-created"
@@ -67,7 +64,7 @@ export function TicketTimeline({ ticket }: { ticket: Ticket }) {
             key={entry.id}
             icon={ICON[entry.field] ?? '•'}
             text={describeChange(entry)}
-            who={person(entry.authorName, entry.author)}
+            who={personLabel(entry.authorName, entry.author)}
             at={entry.changedAt}
             now={now}
             testId={`history-item-${entry.id}`}
@@ -80,15 +77,15 @@ export function TicketTimeline({ ticket }: { ticket: Ticket }) {
       {error !== undefined && (
         <div className="history-error">
           <p className="history-hint" role="status" data-testid="history-error">
-            {/* 404 przy istniejącym zgłoszeniu = backend nie ma jeszcze GET /tickets/{id}/history – bez alarmu, tylko
-                informacja. Gdy endpoint trafi na main, 404 będzie znaczyć „zgłoszenie niedostępne” – wtedy zawęzić. */}
-            {error instanceof ApiError && error.status === 404
-              ? 'Historia zmian nie jest jeszcze dostępna.'
-              : `Nie udało się pobrać historii zmian. ${errorMessage(error)}`}
+            {/* 404 przy wczytanym zgłoszeniu = ktoś je w międzyczasie usunął albo straciliśmy do niego dostęp –
+                ponawianie nic nie da, więc bez przycisku. */}
+            {gone ? 'Zgłoszenie nie jest już dostępne – mogło zostać usunięte.' : `Nie udało się pobrać historii zmian. ${errorMessage(error)}`}
           </p>
-          <button type="button" className="link-button" onClick={reload} data-testid="history-retry">
-            Spróbuj ponownie
-          </button>
+          {!gone && (
+            <button type="button" className="link-button" onClick={reload} data-testid="history-retry">
+              Spróbuj ponownie
+            </button>
+          )}
         </div>
       )}
       {data && data.items.length === 0 && <p className="history-hint">Bez zmian od utworzenia.</p>}
@@ -115,7 +112,7 @@ function TimelineItem({ icon, text, who, at, now, testId, field }: ItemProps) {
       <div>
         <p className="timeline-text">{text}</p>
         <p className="timeline-meta">
-          {who} · <time dateTime={at} title={formatDateTime(at)}>{formatAgo(at, now)}</time>
+          {who} · <time dateTime={at} title={formatDateTime(at)}>{timeAgo(at, now)}</time>
         </p>
       </div>
     </li>

@@ -10,7 +10,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 
 **Live:** https://clouddesk-qubit.polandcentral.cloudapp.azure.com · stan wdrożenia (wersja, rewizja, region): [`/status`](https://clouddesk-qubit.polandcentral.cloudapp.azure.com/status)
 
-> Status: aplikacja działa w Azure i wdraża się automatycznie po każdym merge do `main` (CI → obraz → Container Apps → vm-web → testy API i E2E na produkcji). Przed wydaniem v1.0.0: pulpit SLA i oś historii zgłoszenia.
+> Status: aplikacja działa w Azure i wdraża się automatycznie po każdym merge do `main` (CI → obraz → Container Apps → vm-web → testy API i E2E na produkcji). Komplet funkcji v1.0.0, w tym pulpit SLA i oś historii zgłoszenia; code freeze w pt. 27.11 o 22:00, potem wersja kandydująca `v1.0.0-rc1`.
 
 ## Spis treści
 - [O projekcie](#o-projekcie)
@@ -158,6 +158,11 @@ flowchart LR
 ## API
 Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Azure API jest dostępne wyłącznie przez Nginx pod `/api` (backend nie ma publicznego adresu). Zgłoszenie (`Ticket`) ma obok loginów `reporter`/`assignee` także imiona i nazwiska do wyświetlenia: `reporterName`, `assigneeName` (`null`, gdy nieprzypisane). JSON w camelCase; błędy walidacji w formacie FastAPI: `{"detail": [{"loc": ["body", "<pole>"], "msg": "…"}]}`.
 
+Błędy zawsze jako JSON `{"detail": "…"}`, bez śladu stosu i szczegółów bazy (szczegóły tylko w logu kontenera):
+- **422** – także tekst ze znakiem NUL (`\u0000`) albo pojedynczym surogatem Unicode (PostgreSQL ich nie zapisze); limity długości liczone w znakach, zgodnie z kolumnami bazy;
+- **503** + nagłówek `Retry-After: 10` – baza chwilowo niedostępna (każdy endpoint korzystający z bazy, poza `/health`, który zwraca swój stan);
+- **500** – nieoczekiwany błąd serwera.
+
 | Metoda | Ścieżka | Opis | Odpowiedzi | Autoryzacja |
 |---|---|---|---|---|
 | GET | `/health`, `/api/health` | stan aplikacji i połączenia z bazą, wersja i SHA wdrożonego commita (`commit`; lokalnie `local`), rewizja, replika i region Container Apps, czas startu, stan asystenta AI – dla strony `/status`; z zewnątrz przez Nginx tylko `/api/health`; `/health` służy też monitoringowi | 200, 503 | – |
@@ -176,7 +181,7 @@ Dokumentacja interaktywna (OpenAPI): `http://localhost:8000/docs` lokalnie. W Az
 | GET | `/api/activity` | „Aktywność na żywo”: ostatnie zdarzenia w widocznych zgłoszeniach (REPORTER – tylko swoje), sort od najnowszych; `limit` 1–50 (domyślnie 20). `items`: `id` (`h-`/`t-`/`a-` + id wiersza), `kind` (`change` – zmiana z historii, `created` – utworzenie z priorytetem, `ai` – odpowiedź asystenta), `ticketId`, `ticketTitle`, `actor`, `actorName`, `field`, `oldValue`, `newValue`, `at`. Bez treści opisów i wiadomości AI (zmiana opisu – tylko fakt zmiany) | 200, 401, 422 | token |
 | GET | `/api/notifications` | dzwonek: powiadomienia z ostatnich 7 dni (najwyżej 20, od najnowszych), wyliczane z historii i zgłoszeń, bez własnych zmian użytkownika. `kind`: `assigned` (ktoś inny przypisał mi zgłoszenie), `new_p1` (zgłoszenie utworzone jako P1 – technicy i administratorzy), `sla_breached` (otwarte po terminie: przypisany technik, a nieprzypisane – technicy i administratorzy), `status` i `taken` (zmiana statusu / przypisanie technika w moim zgłoszeniu; REPORTER dostaje tylko te dwa). Pola: `id`, `kind`, `ticketId`, `ticketTitle`, `actorName`, `value`, `at`, `unread`; `unread` w odpowiedzi = liczba nieprzeczytanych | 200, 401 | token |
 | POST | `/api/notifications/read` | oznacza powiadomienia jako przeczytane: ciało `{}` albo `{"until": "<at najnowszego pokazanego powiadomienia>"}` (ISO 8601 ze strefą); zapisuje `min(until, teraz)` w `users.notifications_seen_at` (znacznik się nie cofa), powiadomienia z `at` ≤ znacznika mają `unread: false` | 204, 401, 422 | token |
-| GET | `/api/stats` | pulpit SLA; okno = `days` dni kalendarzowych w strefie Europe/Warsaw (7–90, domyślnie 30), ostatni = dziś. `byStatus` (wszystkie zgłoszenia), `byPriority` (otwarte), `sla` (`open`, `breachedOpen` – po terminie, `atRisk` – zostało < 25% czasu SLA, `resolved` i `resolvedOnTime` – rozwiązane/zamknięte w oknie, `compliancePct` – **tylko z zakończonych**, `null` bez danych), `mttrHours` (średni czas rozwiązania), `perTechnician` (`login`, `fullName`, `open`, `resolved`), `daily` (`days` pozycji `date`/`created`/`resolved`), `ai` (`answers`, `tickets`), `atRiskTop` (do 5 otwartych po terminie lub zagrożonych, od najbliższego terminu) | 200, 401, 403, 422 | token, TECHNICIAN/ADMIN |
+| GET | `/api/stats` | pulpit SLA; okno = `days` dni kalendarzowych w strefie Europe/Warsaw (7–90, domyślnie 30), ostatni = dziś. `byStatus` (wszystkie zgłoszenia), `byPriority` (otwarte), `sla` (`open`, `breachedOpen` – po terminie, `atRisk` – zostało < 25% czasu SLA, `resolved` i `resolvedOnTime` – rozwiązane/zamknięte w oknie, `compliancePct` – **tylko z zakończonych**, `null` bez danych), `mttrHours` (średni czas rozwiązania), `perTechnician` (`login`, `fullName`, `open`, `resolved`), `daily` (`days` pozycji `date`/`created`/`resolved`), `ai` (`answers`, `tickets`), `atRiskTop` (do 5 otwartych po terminie lub zagrożonych, od najbliższego terminu); do porównania ↑↓: `previous` (`compliancePct`, `mttrHours`, `aiAnswers` z poprzedniego okresu tej samej długości) i `openWeekAgo` (otwarte 7 dni temu, z historii statusu) | 200, 401, 403, 422 | token, TECHNICIAN/ADMIN |
 | GET | `/api/me/summary` | liczniki do powitania na pulpicie; „dziś” = dzień w strefie Europe/Warsaw. `mine` – technik/administrator: przypisane do mnie i otwarte, zgłaszający: moje otwarte (`open`, `breached` – po terminie, `atRisk` – przed terminem, zostało < 25% czasu SLA, `nextDueAt` – najbliższy termin przed upływem albo `null`). Tylko technik i administrator (dla REPORTER `null`): `team` (`breached`, `atRisk` wśród wszystkich otwartych, `createdToday`, `resolvedToday`, `last7Days` – 7 dni `date`/`created`/`resolved`, ostatni = dziś) i `aiToday` (`conversations` – zgłoszenia z odpowiedzią asystenta dziś, `resolvedByReporter` – z nich zamknięte dziś przez `/resolve`, `handedOver` = różnica, `answers` – odpowiedzi dziś) | 200, 401 | token |
 
 Termin SLA od utworzenia zgłoszenia: P1 – 4 h, P2 – 8 h, P3 – 2 dni, P4 – 5 dni.
@@ -211,6 +216,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head              # schemat bazy (model danych: docs/database/ERD.md)
 python -m app.db.seed             # konta demo i przykładowe zgłoszenia
+python -m app.db.seed_demo        # opcjonalnie: ok. 90 zgłoszeń z 30 dni (pulpit SLA, trend, aktywność)
 uvicorn app.main:app --reload
 
 # 3. Frontend – http://localhost:5173 (drugi terminal, z katalogu clouddesk/)
@@ -251,7 +257,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
 | APP | Container Apps `cae-clouddesk` (tylko wewnętrzny LB) z `ca-clouddesk-backend`, obraz z GHCR po digeście | ✅ |
 | DATA | PostgreSQL 16 Flexible `psql-clouddesk-…` (B1ms) bez dostępu publicznego, hasło w Key Vault | ✅ |
 | AI | Azure OpenAI `oai-clouddesk-…` z modelem `gpt-4o-mini` (DataZoneStandard – dane w UE), dostęp backendu tożsamością zarządzaną, bez kluczy | ✅ |
-| Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic), uruchamiane `scripts/azure-migrate.sh [--seed]` | ✅ schemat 6 tabel + dane przykładowe |
+| Migracje | zadanie Container Apps `caj-clouddesk-migrate` (Alembic), uruchamiane `scripts/azure-migrate.sh` (opcje `--seed`, `--seed-demo`) | ✅ schemat 6 tabel + dane przykładowe |
 
 **Jak wdrażamy:**
 - **Infrastruktura:** `terraform plan` → przegląd planu z kosztami → `terraform apply` (PM/DevOps). Zmiany kodu Terraform przez PR z review.
@@ -263,7 +269,7 @@ Całą infrastrukturę opisuje Terraform w [`terraform/`](terraform/) (szczegó�
      bez SSH), sprawdzenie z zewnątrz: HTTP → HTTPS, certyfikat, strona i `/api/health` z wdrożonym SHA.
   4. **Testy API (Jest + Supertest) i E2E (Playwright)** na wdrożonej aplikacji.
 
-  Ręcznie: [`config/README.md`](config/README.md) (frontend), `scripts/azure-migrate.sh [--seed]` (migracje i dane demo).
+  Ręcznie: [`config/README.md`](config/README.md) (frontend), `scripts/azure-migrate.sh [--seed | --seed-demo]` (migracje, konta demo i przykładowe zgłoszenia; `--seed-demo` dodaje ok. 90 zgłoszeń z 30 dni, tylko gdy w bazie jest mniej niż 60 zgłoszeń).
 - **Sekrety:** hasło bazy generuje Terraform i trzyma w Key Vault; backend czyta `DATABASE_URL` przez tożsamość zarządzaną. W repozytorium nie ma haseł, kluczy ani ID subskrypcji.
 
 **Koszt (cennik Azure, polandcentral, ceny katalogowe bez darmowych limitów):** ok. 31 €/mies. – VM z dyskiem i publicznym IP ok. 13 €, PostgreSQL B1ms z dyskiem ok. 17 €, prywatne strefy DNS ok. 1 €; Container Apps i logi mieszczą się w darmowych pulach. Faktycznie płacimy mniej, bo VM B1s i PostgreSQL B1ms mieszczą się w darmowych limitach subskrypcji studenckiej – rzeczywisty koszt: sekcja [Monitoring i FinOps](#monitoring-i-finops). Bazę można zatrzymać, gdy nie jest potrzebna (`az postgres flexible-server stop`).
@@ -341,7 +347,7 @@ Jak trzymamy koszty w ryzach:
 `GET /health` (wewnątrz VNet) i `GET /api/health` (z zewnątrz przez Nginx) odpytują bazę (`SELECT 1`) i zwracają:
 
 ```json
-{"status": "UP", "database": "CONNECTED", "version": "0.1.0", "commit": "<SHA wdrożonego commita>", "timestamp": "…",
+{"status": "UP", "database": "CONNECTED", "version": "1.0.0", "commit": "<SHA wdrożonego commita>", "timestamp": "…",
  "revision": "ca-clouddesk-backend--…", "replica": "…", "region": "polandcentral", "startedAt": "…", "assistant": "ENABLED"}
 ```
 
@@ -483,8 +489,16 @@ clouddesk/
 | 7–8 | CI (Gitleaks, Trivy, CodeQL) i CD do Azure (OIDC) | ✅ |
 | 9 | Hardening: NSG, HTTPS, logowanie i role, sekrety w Key Vault, limit prób logowania | ✅ |
 | 10 | FinOps, monitoring, `/health` i `/status`, asystent AI | ✅ |
-| 11–12 | Testy API i E2E, przypadki skrajne, widok zgłaszającego, powiadomienia, code freeze | 🚧 |
+| 11–12 | Testy API i E2E, przypadki skrajne, widok zgłaszającego, powiadomienia, pulpit SLA, oś historii, dane demo, code freeze | 🚧 |
 | 13–14 | v1.0.0, dokumentacja końcowa, próba generalna | ⏳ |
 
-**Po v1.0.0 (etykieta [`v2.0`](https://github.com/qubit-mindless/clouddesk/issues?q=label%3Av2.0)):** limity kosztów asystenta AI
-na użytkownika (#130), załączniki w Blob Storage, powiadomienia e-mail, samodzielna rejestracja kont.
+### Co dalej – v2.0
+Świadomie odłożone po wydaniu v1.0.0 – zadania z etykietą [`v2.0`](https://github.com/qubit-mindless/clouddesk/issues?q=label%3Av2.0):
+
+| Zadanie | Dlaczego później |
+|---|---|
+| Limit kosztów asystenta AI na użytkownika i liczenie nieudanych wywołań ([#130](https://github.com/qubit-mindless/clouddesk/issues/130)) | dziś działa limit 10 odpowiedzi na zgłoszenie i budżet z alertami – wystarcza przy kontach demo |
+| Podsumowanie rozmowy z asystentem dla technika ([#143](https://github.com/qubit-mindless/clouddesk/issues/143)) | kontrakt API gotowy (`docs/api-kontrakty.md`), bez implementacji przed code freeze |
+| Szybkie filtry, mikrointerakcje i skrót Ctrl+K ([#144](https://github.com/qubit-mindless/clouddesk/issues/144)) | dopracowanie UI – pierwszeństwo miały pulpit SLA i oś historii |
+| Komentarze i załączniki w Azure Blob Storage | tabele `comments` i `attachments` są w schemacie, bez API |
+| Powiadomienia e-mail, samodzielna rejestracja kont, blokada konta po nieudanych logowaniach | dziś: dzwonek w aplikacji, konta zakłada administrator, limit prób logowania w Nginx |

@@ -18,7 +18,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True)
-    # Tylko skrót hasła (np. bcrypt/argon2) – nigdy hasło jawnym tekstem.
+    # Tylko skrót hasła argon2id (app/core/security.py) – nigdy hasło jawnym tekstem.
     password_hash: Mapped[str] = mapped_column(String(255))
     full_name: Mapped[str] = mapped_column(String(200))
     # VARCHAR + CHECK zamiast natywnego ENUM: nową rolę dodaje się prostą migracją.

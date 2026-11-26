@@ -16,7 +16,7 @@ const PRIORITY_HINT: Record<TicketPriority, string> = {
   P4: 'drobiazg, prośba · do 5 dni',
 }
 
-export interface TicketFormValues {
+interface TicketFormValues {
   title: string
   description: string
   priority: TicketPriority | ''

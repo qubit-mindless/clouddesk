@@ -14,7 +14,10 @@ if TYPE_CHECKING:
 
 
 class Attachment(Base):
-    """Metadane załącznika – sam plik leży w Azure Blob Storage."""
+    """Metadane załącznika – tabela zarezerwowana na v2.0 (plik w Azure Blob Storage).
+
+    Na razie bez API i bez integracji z Blob Storage – wiersze są tylko w danych testowych (seed).
+    """
 
     __tablename__ = "attachments"
     __table_args__ = (CheckConstraint("size_bytes >= 0", name="size_bytes_non_negative"),)

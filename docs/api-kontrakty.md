@@ -107,7 +107,7 @@ Brak rozmowy zgłaszającego z asystentem → 409 (nie ma czego podsumować). AI
 Tekst bez Markdownu (`plain_text`), wejście z rozmowy przez `build_prompt` z losowym znacznikiem danych. Wynik nie jest
 zapisywany – UI trzyma go w stanie strony.
 
-## Pakiet z makiety (Mateusz, przed freeze 26.11)
+## Pakiet z makiety (Mateusz, przed code freeze)
 Nowe elementy z zaakceptowanej makiety UI. Te same zasady co wyżej (camelCase, 401/403/404/422, widoczność jak przy zgłoszeniu).
 **Dzień** liczymy w strefie Europe/Warsaw, jak w `/api/stats`.
 
@@ -197,8 +197,14 @@ Powiadomienia wyliczane z tych samych danych (bez osobnej tabeli). Pozycja jest 
   `handedOver` = `conversations − resolvedByReporter`; `answers` – odpowiedzi dziś.
 
 ### `GET /api/stats` – porównanie z poprzednim okresem (dopisek do #138)
-Pole `previous` (to samo okno długości `days` tuż przed bieżącym): `{ "compliancePct": 70.8, "mttrHours": 41.8, "aiAnswers": 8 }`
-(`null` w polach, gdy brak danych) oraz `openWeekAgo` (otwarte 7 dni temu, z historii statusów). Dopisuję je po scaleniu #138.
+- `previous`: `{ "compliancePct": 70.8, "mttrHours": 41.8, "aiAnswers": 8 }` – te same definicje co `sla.compliancePct`,
+  `mttrHours` i `ai.answers`, ale dla okresu tej samej długości tuż przed oknem: od początku dnia `days` dni przed
+  `daily[0].date` do tej samej pory co „teraz” `days` dni wcześniej (bieżące okno też kończy się teraz – bez tego rano
+  liczby z poprzedniego okresu byłyby zawsze większe). `compliancePct` i `mttrHours` = `null`, gdy wtedy nic nie rozwiązano.
+- `openWeekAgo`: ile zgłoszeń było otwartych dokładnie 7 dni temu (teraz − 7 × 24 h), odtworzone z historii statusu:
+  ostatnia zmiana statusu do tej chwili, a gdy wszystkie są późniejsze – stary status pierwszej z nich; zgłoszenie bez
+  historii statusu (np. z seeda) jest liczone jako otwarte, jeśli nadal jest otwarte albo rozwiązano je później.
+- UI: strzałki ↑↓ na kafelkach Otwarte, Zgodność, MTTR i Asystent AI (zielone = zmiana na lepsze).
 
 ### Konta demo na ekranie logowania
 Bez nowego endpointu: przy `VITE_DEMO_ACCOUNTS=true` front pokazuje przyciski kont z seeda, które **wpisują e-mail**;

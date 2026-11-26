@@ -1,5 +1,5 @@
 // Poziome słupki z liczbą obok etykiety – liczba jest tekstem, więc słupek to tylko podpowiedź wizualna.
-export interface Bar {
+interface Bar {
   key: string
   label: string
   value: number

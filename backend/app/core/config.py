@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = "local"
-    app_version: str = "0.1.0"
+    app_version: str = "1.0.0"
     # SHA commita, z którego zbudowano obraz (build-arg GIT_SHA w Dockerfile); lokalnie "local".
     git_sha: str = "local"
     # Strona /status (#140). Rewizję i replikę ustawia sam Azure Container Apps, region – Terraform

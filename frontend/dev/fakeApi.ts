@@ -90,7 +90,7 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null>
 }
 
 export function fakeApi(): Plugin {
-  const mocksUrl = new URL('../src/mocks/tickets.json', import.meta.url)
+  const mocksUrl = new URL('./tickets.json', import.meta.url)
   const demo = buildDemoData(JSON.parse(readFileSync(mocksUrl, 'utf8')), USERS)
   const tickets = demo.tickets
   const history = demo.history
@@ -128,7 +128,7 @@ export function fakeApi(): Plugin {
           return send(res, 200, {
             status: 'UP',
             database: 'CONNECTED',
-            version: '0.1.0',
+            version: '1.0.0',
             commit: 'local',
             timestamp: new Date().toISOString(),
             revision: 'ca-clouddesk-backend--fake',
@@ -181,7 +181,7 @@ export function fakeApi(): Plugin {
               .filter(([id]) => tickets.some((t) => t.id === id))
               .map(([id, items]) => [id, items.filter((m) => m.role === 'assistant').map((m) => m.createdAt)]),
           )
-          return send(res, 200, computeStats(tickets, USERS, answers, days))
+          return send(res, 200, computeStats(tickets, USERS, answers, days, history))
         }
 
         // Pakiet z makiety: aktywność, powiadomienia, podsumowanie użytkownika.
