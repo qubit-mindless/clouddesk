@@ -107,7 +107,7 @@ Brak rozmowy zgłaszającego z asystentem → 409 (nie ma czego podsumować). AI
 Tekst bez Markdownu (`plain_text`), wejście z rozmowy przez `build_prompt` z losowym znacznikiem danych. Wynik nie jest
 zapisywany – UI trzyma go w stanie strony.
 
-## Pakiet z makiety (Mateusz, przed freeze 26.11)
+## Pakiet z makiety (Mateusz, przed code freeze)
 Nowe elementy z zaakceptowanej makiety UI. Te same zasady co wyżej (camelCase, 401/403/404/422, widoczność jak przy zgłoszeniu).
 **Dzień** liczymy w strefie Europe/Warsaw, jak w `/api/stats`.
 
