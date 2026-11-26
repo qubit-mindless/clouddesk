@@ -118,6 +118,10 @@ export interface Stats {
   daily: DailyStats[]
   ai: { answers: number; tickets: number }
   atRiskTop: AtRiskTicket[]
+  // Porównanie ↑↓: okres tej samej długości tuż przed oknem (null – nic wtedy nie rozwiązano).
+  previous: { compliancePct: number | null; mttrHours: number | null; aiAnswers: number }
+  // Otwarte dokładnie 7 dni temu (z historii statusów) – porównanie z sla.open.
+  openWeekAgo: number
 }
 
 // GET /health (#140): publiczny stan wdrożenia. Pola rewizji, repliki i regionu są null poza Azure.

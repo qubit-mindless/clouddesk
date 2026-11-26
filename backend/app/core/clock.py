@@ -1,6 +1,6 @@
 """Czas aplikacji: „teraz” w UTC i dzień kalendarzowy w strefie Europe/Warsaw (liczniki „dziś”)."""
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 # Bazę stref daje pakiet tzdata z requirements.txt (nie polegamy na /usr/share/zoneinfo w obrazie).
@@ -19,6 +19,11 @@ def as_utc(value: datetime) -> datetime:
 def local_date(value: datetime) -> date:
     """Dzień kalendarzowy w Polsce, do którego należy chwila `value`."""
     return as_utc(value).astimezone(WARSAW).date()
+
+
+def days_earlier(value: datetime, days: int) -> datetime:
+    """Ta sama godzina na zegarze w Polsce `days` dni wcześniej (zmiana czasu nie przesuwa godziny)."""
+    return (as_utc(value).astimezone(WARSAW) - timedelta(days=days)).astimezone(UTC)
 
 
 def day_start(day: date) -> datetime:

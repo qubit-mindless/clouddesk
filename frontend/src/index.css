@@ -643,6 +643,10 @@ select option { color: #141a3c; background: #fff; }
 .tile-value { margin: 0; font-size: 2.2rem; font-weight: 720; line-height: 1.1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .tile-hint { margin: 6px 0 0; font-size: 0.82rem; color: var(--text-muted); }
 .tile-small[title] { cursor: help; }
+.tile-delta { margin: 8px 0 0; font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.delta-good { color: var(--green-fg); }
+.delta-bad { color: var(--red-fg); }
+.delta-neutral { color: var(--text-muted); }
 .tile-breached .tile-value { color: var(--sla-breached); }
 .tile-ai .tile-value {
   background: linear-gradient(100deg, var(--plasma), var(--tidal) 60%, var(--bloom));

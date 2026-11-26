@@ -27,6 +27,33 @@ const REFRESH_MS = 30_000
 const number = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 1 })
 const asOf = new Intl.DateTimeFormat('pl-PL', { timeStyle: 'short' })
 
+// Porównanie ↑↓ na kafelku: kierunek zmiany i czy to dobrze (zielony), źle (czerwony) czy obojętnie.
+interface Delta {
+  arrow: string
+  tone: 'good' | 'bad' | 'neutral'
+  text: string
+  title: string
+}
+
+type Direction = 'up' | 'down' | 'same'
+
+// `diff` – bieżąca wartość minus porównywana (null = nie ma z czym porównać); `better` – który kierunek jest dobry.
+// `{n}` w tekstach zastępuje wartość bezwzględna zmiany.
+function delta(diff: number | null, texts: Record<Direction, string>, better: 'up' | 'down', title: string): Delta | undefined {
+  if (diff === null) return undefined
+  const rounded = Math.round(diff * 10) / 10
+  const direction: Direction = rounded > 0 ? 'up' : rounded < 0 ? 'down' : 'same'
+  return {
+    arrow: direction === 'up' ? '↑' : direction === 'down' ? '↓' : '=',
+    tone: direction === 'same' ? 'neutral' : direction === better ? 'good' : 'bad',
+    text: texts[direction].replace('{n}', number.format(Math.abs(rounded))),
+    title,
+  }
+}
+
+const difference = (current: number | null, before: number | null) =>
+  current === null || before === null ? null : current - before
+
 function pickPeriod(value: string | null): number {
   const days = Number(value)
   return PERIODS.some((p) => p === days) ? days : DEFAULT_PERIOD
@@ -100,7 +127,10 @@ interface DashboardProps {
 }
 
 function Dashboard({ stats, busy, updatedAt, failed, refreshError, onReload }: DashboardProps) {
-  const { sla, days } = stats
+  const { sla, days, previous } = stats
+  // Krótko na kafelku („niż poprzednio”), a z czym dokładnie porównujemy – w podpowiedzi.
+  const before = 'poprzednio'
+  const previousTitle = `Porównanie z poprzednimi ${days} dniami (tuż przed wybranym okresem)`
 
   return (
     <div className="bento" aria-busy={busy} data-testid="dashboard">
@@ -119,7 +149,18 @@ function Dashboard({ stats, busy, updatedAt, failed, refreshError, onReload }: D
         <AtRiskList tickets={stats.atRiskTop} />
       </section>
 
-      <Tile id="open" label="Otwarte" value={sla.open} hint="NEW, ASSIGNED i IN_PROGRESS" />
+      <Tile
+        id="open"
+        label="Otwarte"
+        value={sla.open}
+        hint="NEW, ASSIGNED i IN_PROGRESS"
+        delta={delta(
+          sla.open - stats.openWeekAgo,
+          { up: '{n} więcej niż tydzień temu', down: '{n} mniej niż tydzień temu', same: 'tyle samo co tydzień temu' },
+          'down',
+          'Porównanie z liczbą otwartych dokładnie 7 dni temu (z historii zmian statusu)',
+        )}
+      />
       <Tile
         id="breached"
         label="Przekroczone SLA"
@@ -137,12 +178,24 @@ function Dashboard({ stats, busy, updatedAt, failed, refreshError, onReload }: D
             : `brak zakończonych w ${days} dni`
         }
         title="Liczone tylko z zakończonych (RESOLVED i CLOSED) w wybranym okresie. Otwarte po terminie są w kafelku „Przekroczone SLA”."
+        delta={delta(
+          difference(sla.compliancePct, previous.compliancePct),
+          { up: `{n} pp lepiej niż ${before}`, down: `{n} pp gorzej niż ${before}`, same: `tak samo jak ${before}` },
+          'up',
+          previousTitle,
+        )}
       />
       <Tile
         id="mttr"
         label="Średni czas rozwiązania"
         value={stats.mttrHours === null ? '—' : `${number.format(stats.mttrHours)} h`}
         hint="MTTR: od utworzenia do rozwiązania"
+        delta={delta(
+          difference(stats.mttrHours, previous.mttrHours),
+          { up: `{n} h wolniej niż ${before}`, down: `{n} h szybciej niż ${before}`, same: `tak samo jak ${before}` },
+          'down',
+          previousTitle,
+        )}
       />
 
       <section className="bento-tile tile-trend" aria-labelledby="tile-trend">
@@ -156,6 +209,13 @@ function Dashboard({ stats, busy, updatedAt, failed, refreshError, onReload }: D
         value={stats.ai.answers}
         hint={`w ${stats.ai.tickets} zgłoszeniach`}
         tone="ai"
+        delta={delta(
+          // Zero i zero to brak ruchu, nie „tyle samo” – wtedy bez porównania.
+          stats.ai.answers || previous.aiAnswers ? stats.ai.answers - previous.aiAnswers : null,
+          { up: `{n} więcej niż ${before}`, down: `{n} mniej niż ${before}`, same: `tyle samo co ${before}` },
+          'up',
+          previousTitle,
+        )}
       />
 
       <section className="bento-tile tile-priority" aria-labelledby="tile-priority">
@@ -211,14 +271,22 @@ interface TileProps {
   hint: string
   title?: string
   tone?: 'breached' | 'ai'
+  delta?: Delta
 }
 
-function Tile({ id, label, value, hint, title, tone }: TileProps) {
+function Tile({ id, label, value, hint, title, tone, delta }: TileProps) {
   return (
     <section className={`bento-tile tile-small ${tone ? `tile-${tone}` : ''}`} aria-labelledby={`tile-${id}`} title={title} data-testid={`tile-${id}`}>
       <h3 id={`tile-${id}`}>{label}</h3>
       <p className="tile-value">{value}</p>
       <p className="tile-hint">{hint}</p>
+      {delta && (
+        <p className={`tile-delta delta-${delta.tone}`} title={delta.title} data-testid={`tile-${id}-delta`}>
+          {/* Strzałka tylko dla oka – czytnik ekranu dostaje słowa („więcej”, „szybciej”). */}
+          <span aria-hidden="true">{delta.arrow} </span>
+          {delta.text}
+        </p>
+      )}
     </section>
   )
 }

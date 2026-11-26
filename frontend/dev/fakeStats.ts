@@ -1,5 +1,5 @@
 import type { AtRiskTicket, Stats, Ticket, TicketPriority, TicketStatus, User } from '../src/api/types.ts'
-import { CLOSED_STATUSES } from './fakeDemo.ts'
+import { CLOSED_STATUSES, type FakeHistoryEntry } from './fakeDemo.ts'
 
 // GET /stats w udawanym API – te same definicje co w docs/api-kontrakty.md, żeby pulpit na makiecie
 // pokazywał te same liczby, które policzy backend na tych samych danych.
@@ -14,6 +14,25 @@ const warsawDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Warsaw' }
 const dayOf = (ms: number) => warsawDay.format(ms)
 
 const round1 = (value: number) => Math.round(value * 10) / 10
+const WEEK_MS = 7 * 24 * 3_600_000
+
+const complianceOf = (done: Ticket[]) =>
+  done.length ? round1((done.filter((t) => Date.parse(t.resolvedAt as string) <= Date.parse(t.slaDueAt)).length / done.length) * 100) : null
+const mttrOf = (done: Ticket[]) =>
+  done.length ? round1(done.reduce((sum, t) => sum + Date.parse(t.resolvedAt as string) - Date.parse(t.createdAt), 0) / done.length / 3_600_000) : null
+
+// Ile zgłoszeń było otwartych w chwili `at` – ta sama reguła co was_open() w backendzie.
+function openAt(tickets: Ticket[], history: FakeHistoryEntry[], at: number): number {
+  const isOpen = (status: string | null) => status !== null && !CLOSED_STATUSES.includes(status as TicketStatus)
+  return tickets.filter((t) => {
+    if (Date.parse(t.createdAt) > at) return false
+    const changes = history.filter((h) => h.ticketId === t.id && h.field === 'status')
+    const before = changes.filter((h) => Date.parse(h.changedAt) <= at)
+    if (before.length) return isOpen(before[before.length - 1].newValue)
+    if (changes.length) return isOpen(changes[0].oldValue)
+    return isOpen(t.status) || (t.resolvedAt !== null && Date.parse(t.resolvedAt) > at)
+  }).length
+}
 
 // `assistantAnswers`: id zgłoszenia → daty odpowiedzi asystenta (tylko istniejące zgłoszenia).
 export function computeStats(
@@ -21,6 +40,7 @@ export function computeStats(
   users: User[],
   assistantAnswers: Map<number, string[]>,
   days: number,
+  history: FakeHistoryEntry[] = [],
   now = Date.now(),
 ): Stats {
   // Okno = `days` dni kalendarzowych w strefie Warszawy, ostatni to dziś. Ten sam zakres dla `daily`, `sla.resolved`,
@@ -29,6 +49,11 @@ export function computeStats(
   const [year, month, day] = dayOf(now).split('-').map(Number)
   const dates = Array.from({ length: days }, (_, i) => new Date(Date.UTC(year, month - 1, day - (days - 1 - i))).toISOString().slice(0, 10))
   const inWindow = (iso: string) => dayOf(Date.parse(iso)) >= dates[0]
+  // Poprzedni okres: tyle samo dni tuż przed oknem, do tej samej pory dnia co „teraz” (bieżące okno kończy się
+  // teraz). Backend liczy porę kalendarzem w strefie Warszawy; tu wystarczy przybliżenie co do zmiany czasu.
+  const previousStart = new Date(Date.UTC(year, month - 1, day - (2 * days - 1))).toISOString().slice(0, 10)
+  const previousEnd = now - days * 24 * 3_600_000
+  const inPrevious = (iso: string) => dayOf(Date.parse(iso)) >= previousStart && Date.parse(iso) < previousEnd
 
   const open = tickets.filter((t) => !CLOSED_STATUSES.includes(t.status))
   const resolved = tickets.filter((t) => t.resolvedAt !== null && inWindow(t.resolvedAt))
@@ -43,9 +68,8 @@ export function computeStats(
   const byStatus = Object.fromEntries(STATUSES.map((s) => [s, tickets.filter((t) => t.status === s).length])) as Stats['byStatus']
   const byPriority = Object.fromEntries(PRIORITIES.map((p) => [p, open.filter((t) => t.priority === p).length])) as Stats['byPriority']
 
-  const mttrHours = resolved.length
-    ? round1(resolved.reduce((sum, t) => sum + Date.parse(t.resolvedAt as string) - Date.parse(t.createdAt), 0) / resolved.length / 3_600_000)
-    : null
+  const mttrHours = mttrOf(resolved)
+  const previousResolved = tickets.filter((t) => t.resolvedAt !== null && inPrevious(t.resolvedAt))
 
   const perTechnician = users
     .filter((u) => u.role === 'TECHNICIAN')
@@ -85,12 +109,18 @@ export function computeStats(
       atRisk: open.filter(isAtRisk).length,
       resolved: resolved.length,
       resolvedOnTime: onTime.length,
-      compliancePct: resolved.length ? round1((onTime.length / resolved.length) * 100) : null,
+      compliancePct: complianceOf(resolved),
     },
     mttrHours,
     perTechnician,
     daily,
     ai: { answers: answers.reduce((sum, n) => sum + n, 0), tickets: answers.filter((n) => n > 0).length },
     atRiskTop,
+    previous: {
+      compliancePct: complianceOf(previousResolved),
+      mttrHours: mttrOf(previousResolved),
+      aiAnswers: [...assistantAnswers.values()].reduce((sum, dates) => sum + dates.filter(inPrevious).length, 0),
+    },
+    openWeekAgo: openAt(tickets, history, now - WEEK_MS),
   }
 }

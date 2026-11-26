@@ -181,7 +181,7 @@ export function fakeApi(): Plugin {
               .filter(([id]) => tickets.some((t) => t.id === id))
               .map(([id, items]) => [id, items.filter((m) => m.role === 'assistant').map((m) => m.createdAt)]),
           )
-          return send(res, 200, computeStats(tickets, USERS, answers, days))
+          return send(res, 200, computeStats(tickets, USERS, answers, days, history))
         }
 
         // Pakiet z makiety: aktywność, powiadomienia, podsumowanie użytkownika.

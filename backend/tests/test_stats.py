@@ -7,7 +7,16 @@ from sqlalchemy import select
 
 from app.core import clock
 from app.core.security import hash_password
-from app.models import AiMessage, AiMessageRole, Ticket, TicketPriority, TicketStatus, User, UserRole
+from app.models import (
+    AiMessage,
+    AiMessageRole,
+    Ticket,
+    TicketHistory,
+    TicketPriority,
+    TicketStatus,
+    User,
+    UserRole,
+)
 from tests.conftest import email
 
 # 22.11.2026, 11:00 w Polsce (UTC+1) – dzień w Polsce zaczął się 21.11 o 23:00 UTC.
@@ -245,3 +254,87 @@ def test_reopened_ticket_not_counted_as_resolved(client, db, frozen):
     add_ticket(db, status=TicketStatus.IN_PROGRESS, resolved=NOW - timedelta(hours=1))
     sla = client.get("/api/stats").json()["sla"]
     assert (sla["open"], sla["resolved"]) == (1, 0)
+
+
+# ------------------------------------------------- porównanie z poprzednim okresem i z tygodniem wstecz (↑↓)
+
+
+def add_status_change(db, ticket_id: int, at: datetime, old: str, new: str) -> None:
+    with db() as session:
+        session.add(
+            TicketHistory(
+                ticket_id=ticket_id,
+                changed_by=user_id(session, "tech.jan"),
+                field="status",
+                old_value=old,
+                new_value=new,
+                changed_at=at,
+            )
+        )
+        session.commit()
+
+
+def test_previous_period_empty(client, frozen):
+    body = client.get("/api/stats").json()
+    assert body["previous"] == {"compliancePct": None, "mttrHours": None, "aiAnswers": 0}
+    assert body["openWeekAgo"] == 0
+
+
+def test_previous_period_is_same_length_right_before_window(client, db, frozen):
+    """days=7: okno od 16.11 do teraz; poprzedni okres 9.11 00:00 – 15.11 11:00 czasu polskiego."""
+    window = clock.day_start(date(2026, 11, 16))
+    previous = clock.day_start(date(2026, 11, 9))
+    previous_end = clock.days_earlier(NOW, 7)
+    assert previous_end == datetime(2026, 11, 15, 10, 0, tzinfo=UTC)
+    # W poprzednim okresie: w terminie (4 h) i po terminie (8 h) → 50%, MTTR 6 h.
+    add_ticket(
+        db, status=TicketStatus.RESOLVED, created=previous, resolved=previous + timedelta(hours=4),
+        due=previous + timedelta(hours=8),
+    )  # fmt: skip
+    last = previous_end - timedelta(seconds=1)
+    add_ticket(
+        db, status=TicketStatus.CLOSED, created=last - timedelta(hours=8), resolved=last,
+        due=last - timedelta(hours=1),
+    )  # fmt: skip
+    # Nie liczą się: tuż przed poprzednim okresem, od jego końca i z bieżącego okna.
+    for done in (previous - timedelta(seconds=1), previous_end, window):
+        add_ticket(db, status=TicketStatus.RESOLVED, created=LONG_AGO, resolved=done, due=done)
+    ai = add_ticket(db)
+    for at in (previous + timedelta(days=1), previous - timedelta(seconds=1), previous_end, window):
+        add_message(db, ai, at)
+
+    body = client.get("/api/stats", params={"days": 7}).json()
+    assert body["previous"] == {"compliancePct": 50.0, "mttrHours": 6.0, "aiAnswers": 1}
+    assert (body["sla"]["resolved"], body["ai"]["answers"]) == (1, 1)
+
+
+def test_days_earlier_keeps_local_time_across_dst():
+    # 2.11 11:00 CET → 23.10 11:00 CEST (przed zmianą czasu 25.10), czyli 09:00 UTC, a nie 10:00.
+    assert clock.days_earlier(datetime(2026, 11, 2, 10, 0, tzinfo=UTC), 10) == datetime(
+        2026, 10, 23, 9, 0, tzinfo=UTC
+    )
+
+
+def test_open_week_ago_from_status_history(client, db, frozen):
+    week_ago = NOW - timedelta(days=7)
+    old = NOW - timedelta(days=10)
+    # Liczą się (otwarte 7 dni temu):
+    add_ticket(db, created=old)  # nadal otwarte, bez historii
+    # Rozwiązane później, bez historii:
+    add_ticket(db, status=TicketStatus.RESOLVED, created=old, resolved=NOW - timedelta(days=2))
+    closed_later = add_ticket(db, status=TicketStatus.CLOSED, created=old, resolved=NOW - timedelta(days=2))
+    add_status_change(db, closed_later, old + timedelta(days=1), "NEW", "ASSIGNED")
+    add_status_change(db, closed_later, NOW - timedelta(days=2), "ASSIGNED", "RESOLVED")
+    only_later = add_ticket(db, status=TicketStatus.RESOLVED, created=old, resolved=NOW - timedelta(days=1))
+    add_status_change(db, only_later, NOW - timedelta(days=1), "IN_PROGRESS", "RESOLVED")
+    # Nie liczą się:
+    add_ticket(db, created=NOW - timedelta(days=3))  # jeszcze nie istniało
+    # Rozwiązane już wcześniej:
+    add_ticket(db, status=TicketStatus.RESOLVED, created=old, resolved=NOW - timedelta(days=8))
+    reopened = add_ticket(db, status=TicketStatus.IN_PROGRESS, created=old)  # wtedy rozwiązane, potem otwarte
+    add_status_change(db, reopened, week_ago - timedelta(days=1), "NEW", "RESOLVED")
+    add_status_change(db, reopened, NOW - timedelta(days=1), "RESOLVED", "IN_PROGRESS")
+
+    body = client.get("/api/stats").json()
+    assert body["openWeekAgo"] == 4
+    assert body["sla"]["open"] == 3

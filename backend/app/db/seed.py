@@ -210,7 +210,9 @@ def seed(db: Session) -> dict[str, int]:
         )
         ticket.history = _history(ticket, by_login["admin"])
         if status in (TicketStatus.RESOLVED, TicketStatus.CLOSED):
-            ticket.resolved_at = ticket.history[-1].changed_at
+            # Chwila RESOLVED, nie późniejszego CLOSED – inaczej MTTR na pulpicie jest zawyżony.
+            resolved = next(h for h in ticket.history if h.new_value == TicketStatus.RESOLVED)
+            ticket.resolved_at = resolved.changed_at
         ticket.comments = [
             Comment(author=by_login[login], body=body, created_at=now - timedelta(minutes=10 * (i + 1)))
             for i, (login, body) in enumerate(COMMENTS.get(number, []))
