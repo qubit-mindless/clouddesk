@@ -347,7 +347,7 @@ Jak trzymamy koszty w ryzach:
 `GET /health` (wewnątrz VNet) i `GET /api/health` (z zewnątrz przez Nginx) odpytują bazę (`SELECT 1`) i zwracają:
 
 ```json
-{"status": "UP", "database": "CONNECTED", "version": "0.1.0", "commit": "<SHA wdrożonego commita>", "timestamp": "…",
+{"status": "UP", "database": "CONNECTED", "version": "1.0.0", "commit": "<SHA wdrożonego commita>", "timestamp": "…",
  "revision": "ca-clouddesk-backend--…", "replica": "…", "region": "polandcentral", "startedAt": "…", "assistant": "ENABLED"}
 ```
 
