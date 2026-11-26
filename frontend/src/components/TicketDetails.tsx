@@ -1,5 +1,5 @@
 import type { Ticket } from '../api/types'
-import { formatDateTime } from '../utils/sla'
+import { formatDateTime } from '../utils/time'
 import { PriorityBadge } from './PriorityBadge'
 import { useNow } from '../hooks/useNow'
 import { SlaDue, SlaProgress } from './SlaDue'

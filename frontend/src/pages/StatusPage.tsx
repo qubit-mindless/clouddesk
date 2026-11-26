@@ -40,7 +40,7 @@ function Commit({ sha, testId }: { sha: string; testId: string }) {
   )
 }
 
-function formatDateTime(iso: string) {
+function formatDateTimeSeconds(iso: string) {
   return new Date(iso).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'medium' })
 }
 
@@ -166,7 +166,7 @@ export function StatusPage() {
               <dt>Region</dt>
               <dd data-testid="status-region">{health.region ?? '—'}</dd>
               <dt>Działa od</dt>
-              <dd title={formatDateTime(health.startedAt)}>
+              <dd title={formatDateTimeSeconds(health.startedAt)}>
                 {formatUptime(health.startedAt, health.timestamp)}
               </dd>
             </Tile>
@@ -199,7 +199,7 @@ export function StatusPage() {
             </Tile>
           </div>
 
-          <p className="status-checked">Sprawdzono: {formatDateTime(health.timestamp)}</p>
+          <p className="status-checked">Sprawdzono: {formatDateTimeSeconds(health.timestamp)}</p>
         </>
       )}
     </>

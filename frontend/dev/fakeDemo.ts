@@ -1,6 +1,6 @@
 import type { HistoryField, Ticket, TicketPriority, TicketStatus, User } from '../src/api/types.ts'
 
-// Dane demo udawanego API: zgłoszenia z src/mocks/tickets.json przesunięte do „teraz” i ok. 60 zgłoszeń
+// Dane demo udawanego API: zgłoszenia z dev/tickets.json przesunięte do „teraz” i ok. 60 zgłoszeń
 // zamkniętych w ostatnich 30 dniach, z historią zmian. Generator jest deterministyczny (stałe ziarno),
 // więc po restarcie serwera pulpit wygląda tak samo – zmienia się tylko odniesienie do bieżącej daty.
 

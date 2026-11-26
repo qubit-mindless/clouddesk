@@ -90,7 +90,7 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null>
 }
 
 export function fakeApi(): Plugin {
-  const mocksUrl = new URL('../src/mocks/tickets.json', import.meta.url)
+  const mocksUrl = new URL('./tickets.json', import.meta.url)
   const demo = buildDemoData(JSON.parse(readFileSync(mocksUrl, 'utf8')), USERS)
   const tickets = demo.tickets
   const history = demo.history

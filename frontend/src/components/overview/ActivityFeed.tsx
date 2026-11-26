@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { getActivity } from '../../api/activity'
-import { PRIORITY_LABEL, STATUS_LABEL } from '../../api/labels'
-import type { ActivityItem, TicketPriority, TicketStatus } from '../../api/types'
+import { priorityLabel, statusLabel } from '../../api/labels'
+import type { ActivityItem } from '../../api/types'
 import { timeAgo } from '../../utils/time'
 
 // „Aktywność na żywo”: ostatnie zdarzenia w zgłoszeniach. Odświeża się co 30 s, tylko przy widocznej karcie.
@@ -18,16 +18,15 @@ function initials(name: string): string {
 }
 
 function describe(item: ActivityItem): string {
-  const status = (value: string | null) => (value ? (STATUS_LABEL[value as TicketStatus] ?? value) : '—')
   switch (item.kind) {
     case 'created':
-      return `zgłasza: ${PRIORITY_LABEL[item.newValue as TicketPriority] ?? item.newValue}`
+      return `zgłasza: ${priorityLabel(item.newValue)}`
     case 'ai':
       return 'odpowiedź asystenta'
   }
   switch (item.field) {
     case 'status':
-      return `status: ${status(item.oldValue)} → ${status(item.newValue)}`
+      return `status: ${statusLabel(item.oldValue)} → ${statusLabel(item.newValue)}`
     case 'assignee':
       return item.newValue ? `przypisanie: ${item.newValue}` : 'zwolnienie zgłoszenia'
     case 'priority':

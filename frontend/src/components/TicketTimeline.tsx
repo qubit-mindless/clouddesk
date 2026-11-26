@@ -1,10 +1,10 @@
 import { ApiError, errorMessage } from '../api/client'
-import { PRIORITY_LABEL, STATUS_LABEL } from '../api/labels'
+import { priorityLabel, statusLabel } from '../api/labels'
 import { getTicketHistory } from '../api/tickets'
-import type { Ticket, TicketHistoryEntry, TicketPriority, TicketStatus } from '../api/types'
+import type { Ticket, TicketHistoryEntry } from '../api/types'
 import { useNow } from '../hooks/useNow'
 import { useRequest } from '../hooks/useRequest'
-import { formatAgo, formatDateTime } from '../utils/sla'
+import { formatDateTime, timeAgo } from '../utils/time'
 
 // Oś historii zgłoszenia (#139): utworzenie (z samego zgłoszenia) i każda zmiana z ticket_history, od najstarszej.
 // Edycja odbywa się na osobnej stronie, więc po zapisie (PATCH) szczegóły i oś ładują się od nowa.
@@ -23,8 +23,6 @@ const ICON: Partial<Record<string, string>> = {
 // „Imię Nazwisko (login)”, a gdy nazwiska brak albo jest równe loginowi – sam login.
 const person = (name: string | null | undefined, login: string) => (name && name !== login ? `${name} (${login})` : login)
 
-const statusLabel = (v: string | null) => (v ? (STATUS_LABEL[v as TicketStatus] ?? v) : '—')
-const priorityLabel = (v: string | null) => (v ? (PRIORITY_LABEL[v as TicketPriority] ?? v) : '—')
 
 function describeChange({ field, oldValue, newValue }: TicketHistoryEntry): string {
   switch (field) {
@@ -116,7 +114,7 @@ function TimelineItem({ icon, text, who, at, now, testId, field }: ItemProps) {
       <div>
         <p className="timeline-text">{text}</p>
         <p className="timeline-meta">
-          {who} · <time dateTime={at} title={formatDateTime(at)}>{formatAgo(at, now)}</time>
+          {who} · <time dateTime={at} title={formatDateTime(at)}>{timeAgo(at, now)}</time>
         </p>
       </div>
     </li>

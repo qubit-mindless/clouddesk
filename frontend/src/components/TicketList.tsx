@@ -1,12 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router'
 import type { Ticket } from '../api/types'
 import { useNow } from '../hooks/useNow'
+import { isClosed } from '../utils/ticket'
 import { timeAgo } from '../utils/time'
 import { PriorityBadge } from './PriorityBadge'
 import { SlaDue, SlaMiniBar } from './SlaDue'
 import { StatusBadge } from './StatusBadge'
-
-const OPEN = new Set(['NEW', 'ASSIGNED', 'IN_PROGRESS'])
 
 interface Props {
   tickets: Ticket[]
@@ -73,7 +72,7 @@ export function TicketList({ tickets, highlighted, flashSeq = 0, onTake, takingI
               <td>
                 {t.assignee ? (
                   <span title={t.assignee}>{t.assigneeName ?? t.assignee}</span>
-                ) : onTake && OPEN.has(t.status) ? (
+                ) : onTake && !isClosed(t) ? (
                   <button
                     type="button"
                     className="take"
