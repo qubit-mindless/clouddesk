@@ -10,7 +10,7 @@ Projekt zespołowy „Aplikacja w wybranej chmurze publicznej”, Uniwersytet WS
 
 **Live:** https://clouddesk-qubit.polandcentral.cloudapp.azure.com · stan wdrożenia (wersja, rewizja, region): [`/status`](https://clouddesk-qubit.polandcentral.cloudapp.azure.com/status)
 
-> Status: aplikacja działa w Azure i wdraża się automatycznie po każdym merge do `main` (CI → obraz → Container Apps → vm-web → testy API i E2E na produkcji). Komplet funkcji v1.0.0, w tym pulpit SLA i oś historii zgłoszenia; od 26.11 code freeze i wersja kandydująca `v1.0.0-rc1`.
+> Status: aplikacja działa w Azure i wdraża się automatycznie po każdym merge do `main` (CI → obraz → Container Apps → vm-web → testy API i E2E na produkcji). Komplet funkcji v1.0.0, w tym pulpit SLA i oś historii zgłoszenia; code freeze w pt. 27.11 o 22:00, potem wersja kandydująca `v1.0.0-rc1`.
 
 ## Spis treści
 - [O projekcie](#o-projekcie)
