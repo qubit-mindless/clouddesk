@@ -210,6 +210,42 @@ Powiadomienia wyliczane z tych samych danych (bez osobnej tabeli). Pozycja jest 
 Bez nowego endpointu: przy `VITE_DEMO_ACCOUNTS=true` front pokazuje przyciski kont z seeda, które **wpisują e-mail**;
 hasło trzeba podać. Logowanie jednym kliknięciem bez hasła na publicznej produkcji pozwoliłoby każdemu działać jako technik.
 
+## Konta (panel administratora)
+Nowa kolumna `users.is_active` (BOOLEAN NOT NULL, domyślnie `true`; migracja Alembic). Tylko rola ADMIN – technik
+i zgłaszający → 403 (jeszcze przed walidacją ciała), bez tokenu → 401. Login = część e-maila przed „@”.
+```json
+{ "id": 7, "email": "nowa.osoba@firma.pl", "login": "nowa.osoba", "fullName": "Nowa Osoba",
+  "role": "TECHNICIAN", "isActive": true, "createdAt": "2026-11-26T18:40:00Z" }
+```
+To jest `UserAdmin` – nigdy ze skrótem hasła.
+
+| Metoda i ścieżka | Ciało | Odpowiedź |
+|---|---|---|
+| `GET /api/users?q=&role=&page=1&size=50` | – | 200 `{"items": [UserAdmin], "total", "page", "size"}` |
+| `POST /api/users` | `{"email", "fullName", "role"}` | 201 `{"user": UserAdmin, "temporaryPassword": "…"}` |
+| `PATCH /api/users/{id}` | podzbiór `{"fullName", "role", "isActive"}` | 200 `UserAdmin` |
+| `POST /api/users/{id}/reset-password` | `{}` albo brak | 200 `{"temporaryPassword": "…"}` |
+| `POST /api/auth/password` (każda rola) | `{"currentPassword", "newPassword"}` | 204 |
+
+- **Lista:** `q` – fragment e-maila albo imienia i nazwiska, bez rozróżniania wielkości liter (`%` i `_` dosłownie);
+  `role` – opcjonalny filtr; sort `fullName`, potem `id`; `size` 1–100, `page` ≥ 1 → inaczej 422.
+- **Nowe konto:** e-mail przycinany i zamieniany na małe litery (jak przy logowaniu), format `x@y.z`, do 255 znaków;
+  `fullName` 2–200 znaków po przycięciu. Zajęty adres (bez względu na wielkość liter) → 409
+  `{"detail": "Konto z tym adresem już istnieje."}`; zajęty login (inny adres z tą samą częścią przed „@”, np.
+  `tech.jan@inna-firma.pl`) → 409 z komunikatem o loginie – login identyfikuje konto w API (przypisanie technika).
+  Hasło tymczasowe: `secrets.token_urlsafe(12)` (16 znaków), w bazie tylko skrót argon2id, zwracane tylko w tej odpowiedzi.
+- **Zmiana:** liczą się pola obecne w ciele; puste ciało, `null` albo pole spoza listy → 422. Nieistniejące konto → 404.
+  Własna rola i blokada własnego konta → 409 `{"detail": "Nie możesz odebrać sobie roli administratora ani zablokować
+  własnego konta."}` (własne `fullName` – można). Zablokowanie albo degradacja ostatniego aktywnego administratora → 409.
+- **Blokada** (`isActive: false`): logowanie z poprawnym hasłem → 403 `{"detail": "Konto jest zablokowane. Skontaktuj
+  się z administratorem."}` (złe hasło – zwykłe 401), wydany token → 401 przy następnym żądaniu. Odblokowanie
+  przywraca dostęp. Seed (`python -m app.db.seed`) nie odblokowuje kont i nie zmienia kont spoza listy demo.
+- **Reset hasła:** nowe hasło tymczasowe, poprzednie przestaje działać; blokada konta zostaje. Nieistniejące → 404.
+- **Własne hasło:** `newPassword` 12–128 znaków (liczone znaki, nie bajty), inne niż obecne → inaczej 422 przy
+  `newPassword`; złe `currentPassword` → 422 `{"detail": [{"loc": ["body", "currentPassword"],
+  "msg": "Nieprawidłowe obecne hasło.", "type": "value_error"}]}`. Tokeny wydane wcześniej działają do wygaśnięcia (60 min).
+- **Log** (INFO, log kontenera): login administratora, operacja i login konta – bez haseł i bez imion i nazwisk.
+
 ## Udawane API
 - Dane demo: zgłoszenia z `src/mocks/tickets.json` przesunięte do „teraz” i 60 zgłoszeń z ostatnich 30 dni z historią
   (`dev/fakeDemo.ts`, stałe ziarno – po restarcie te same). Statystyki liczy `dev/fakeStats.ts` według definicji z tej strony.
