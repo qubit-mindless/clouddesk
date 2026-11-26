@@ -128,7 +128,7 @@ export function fakeApi(): Plugin {
           return send(res, 200, {
             status: 'UP',
             database: 'CONNECTED',
-            version: '0.1.0',
+            version: '1.0.0',
             commit: 'local',
             timestamp: new Date().toISOString(),
             revision: 'ca-clouddesk-backend--fake',
