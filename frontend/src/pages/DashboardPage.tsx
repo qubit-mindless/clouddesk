@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router'
-import { PRIORITY_LABEL } from '../api/labels'
+import { PRIORITY_LABEL, STATUS_LABEL } from '../api/labels'
 import { errorMessage } from '../api/client'
 import { getStats } from '../api/stats'
 import type { AtRiskTicket, Stats, TicketPriority } from '../api/types'
@@ -154,7 +154,7 @@ function Dashboard({ stats, busy, updatedAt, failed, refreshError, onReload }: D
         id="open"
         label="Otwarte"
         value={sla.open}
-        hint="NEW, ASSIGNED i IN_PROGRESS"
+        hint={`${STATUS_LABEL.NEW}, ${STATUS_LABEL.ASSIGNED.toLowerCase()} i ${STATUS_LABEL.IN_PROGRESS.toLowerCase()}`}
         delta={delta(
           sla.open - stats.openWeekAgo,
           { up: '{n} więcej niż tydzień temu', down: '{n} mniej niż tydzień temu', same: 'tyle samo co tydzień temu' },
