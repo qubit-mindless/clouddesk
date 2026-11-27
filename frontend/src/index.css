@@ -250,6 +250,8 @@ code { font-family: inherit; font-variant-numeric: tabular-nums; }
   margin-bottom: 28px;
   padding: 12px 14px 12px 24px;
   border-radius: 999px;
+  /* Nagłówek jest przyklejony: mocniejsze wypełnienie, żeby treść przewijana pod nim nie prześwitywała (#204). */
+  --glass-fill: var(--glass-fill-strong);
 }
 .app-header h1 { margin: 0; font-size: 1.55rem; font-weight: 780; letter-spacing: -0.03em; }
 /* Znak firmowy: jednolity kolor tekstu (paleta „Łupek” – bez tęczowego gradientu). */
