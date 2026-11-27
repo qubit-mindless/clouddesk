@@ -500,6 +500,13 @@ select option { color: #141a3c; background: #fff; }
 
 /* ---------------------------------------------------------------- nagłówek: powiadomienia */
 .header-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+/* Telefon: dzwonek, nazwisko z rolą i „Wyloguj” w pełnej szerokości nagłówka – długa rola nie wypycha przycisku poza kartę. */
+@media (max-width: 640px) {
+  .header-actions { width: 100%; min-width: 0; }
+  .user-menu { flex: 1; min-width: 0; justify-content: space-between; }
+  .user-menu > span { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+  .user-menu .user-role { margin-left: 0; }
+}
 .bell-wrap { position: relative; }
 .bell { position: relative; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border-radius: 50%; }
 .bell svg { width: 19px; height: 19px; }
