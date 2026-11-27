@@ -55,7 +55,7 @@ export function TicketDetailsPage() {
   return (
     <>
       <div className="page-actions">
-        <Link to={`/tickets${listSearch}`} data-testid="ticket-back">
+        <Link to={`/tickets${listSearch}`} className="button" data-testid="ticket-back">
           ← Wróć do listy
         </Link>
         {ticket && (

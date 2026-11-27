@@ -37,7 +37,7 @@ export function TicketEditPage() {
             ? 'Rozwiązanego lub zamkniętego zgłoszenia nie można już zmieniać.'
             : 'Nie możesz edytować tego zgłoszenia.'}
         </p>
-        <Link to={`/tickets/${ticket.id}`} state={state} replace>
+        <Link to={`/tickets/${ticket.id}`} state={state} replace className="button">
           ← Wróć do zgłoszenia
         </Link>
       </div>
