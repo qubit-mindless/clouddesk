@@ -41,25 +41,28 @@ export function TrendChart({ daily }: { daily: DailyStats[] }) {
         <span className="legend-created">Utworzone: {sum(created)}</span>
         <span className="legend-resolved">Rozwiązane: {sum(resolved)}</span>
       </figcaption>
-      <table className="visually-hidden">
-        <caption>Zgłoszenia utworzone i rozwiązane dziennie</caption>
-        <thead>
-          <tr>
-            <th scope="col">Dzień</th>
-            <th scope="col">Utworzone</th>
-            <th scope="col">Rozwiązane</th>
-          </tr>
-        </thead>
-        <tbody>
-          {daily.map((d) => (
-            <tr key={d.date}>
-              <th scope="row">{formatDay(d.date)}</th>
-              <td>{d.created}</td>
-              <td>{d.resolved}</td>
+      {/* Tabela sama nie przycina się do 1 px (rozszerza się do treści) – ukrywa ją dopiero otoczka. */}
+      <div className="visually-hidden">
+        <table>
+          <caption>Zgłoszenia utworzone i rozwiązane dziennie</caption>
+          <thead>
+            <tr>
+              <th scope="col">Dzień</th>
+              <th scope="col">Utworzone</th>
+              <th scope="col">Rozwiązane</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {daily.map((d) => (
+              <tr key={d.date}>
+                <th scope="row">{formatDay(d.date)}</th>
+                <td>{d.created}</td>
+                <td>{d.resolved}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   )
 }
