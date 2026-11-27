@@ -1,8 +1,7 @@
-from datetime import UTC, datetime
-
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from app.core import clock
 from app.core.config import get_settings
 from app.db import session
 from app.schemas.health import HealthDTO, LivenessDTO
@@ -10,7 +9,7 @@ from app.schemas.health import HealthDTO, LivenessDTO
 router = APIRouter(tags=["health"])
 
 # Moment startu procesu – na /status widać, kiedy replika wstała (np. wybudzenie ze skali 0).
-STARTED_AT = datetime.now(UTC)
+STARTED_AT = clock.utc_now()
 
 
 # /health – sonda Container Apps i monitoringu; /api/health – ten sam stan z zewnątrz,
@@ -23,7 +22,7 @@ def health() -> JSONResponse:
     info = {
         "version": settings.app_version,
         "commit": settings.git_sha,
-        "timestamp": datetime.now(UTC),
+        "timestamp": clock.utc_now(),
         # Pusta zmienna (np. „APP_REGION=” w .env) to brak wartości – null, nie "".
         "revision": settings.container_app_revision or None,
         "replica": settings.container_app_replica_name or None,

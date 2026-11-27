@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.schemas.ticket import CamelModel
+from app.schemas.base import CamelModel
 
 
 class HealthDTO(CamelModel):

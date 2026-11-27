@@ -3,12 +3,12 @@ import secrets
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from app.core import clock
 from app.core.config import get_settings
-from app.models import AiMessage, AiMessageRole, Ticket, TicketStatus, User
+from app.models import CLOSED_STATUSES, AiMessage, AiMessageRole, Ticket, User
 from app.repositories.ai_message_repository import AiMessageRepository
 from app.repositories.ticket_repository import TicketRepository
 from app.schemas.assistant import AssistantConversation, AssistantMessageOut
@@ -26,7 +26,6 @@ from app.services.ticket_service import TicketService, login_of
 SUGGEST_PROMPT = "Podpowiedz, co mogę sprawdzić samodzielnie, zanim technik zajmie się zgłoszeniem."
 # Ile ostatnich wiadomości rozmowy idzie do modelu jako kontekst (koszt i długość promptu).
 HISTORY_FOR_MODEL = 10
-CLOSED_STATUSES = (TicketStatus.RESOLVED, TicketStatus.CLOSED)
 CLOSED_MESSAGE = "Zgłoszenie jest rozwiązane – rozmowa z asystentem AI jest zamknięta."
 MAX_DESCRIPTION_IN_PROMPT = 3000
 
@@ -137,7 +136,7 @@ class AssistantService:
         history = self.messages.list_for_ticket(ticket_id)[-HISTORY_FOR_MODEL:]
         prompt = build_prompt(ticket, history, question)
         actor_id = self.actor.id
-        asked_at = datetime.now(UTC)
+        asked_at = clock.utc_now()
 
         # Kończymy transakcję odczytu przed wywołaniem AI (do 30 s): połączenie wraca do puli,
         # więc wolna usługa AI nie zablokuje bazy dla reszty API.
@@ -171,7 +170,7 @@ class AssistantService:
                 ticket_id=ticket_id,
                 role=AiMessageRole.ASSISTANT,
                 content=answer,
-                created_at=datetime.now(UTC),
+                created_at=clock.utc_now(),
             )
         )
         self.db.commit()

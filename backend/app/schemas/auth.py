@@ -3,7 +3,7 @@ from typing import Annotated
 from pydantic import AfterValidator, ConfigDict, StringConstraints
 
 from app.models import UserRole
-from app.schemas.ticket import CamelModel
+from app.schemas.base import CamelModel
 from app.schemas.validators import StorableText
 
 Email = Annotated[

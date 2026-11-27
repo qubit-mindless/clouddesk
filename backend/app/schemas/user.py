@@ -8,7 +8,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstra
 
 from app.models import UserRole
 from app.schemas.auth import Email
-from app.schemas.ticket import CamelModel
+from app.schemas.base import CamelModel
 from app.schemas.validators import StorableText
 
 # Prosty format x@y.z: bez spacji, jedna „@”, kropka w domenie. Pełną poprawność sprawdza dopiero poczta.

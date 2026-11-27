@@ -32,3 +32,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # Powiadomienia (dzwonek) starsze niż ta chwila są przeczytane; NULL = nic jeszcze nie przeczytano.
     notifications_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def login(self) -> str:
+        """Część e-maila przed „@” (tech.jan@clouddesk.example → tech.jan): w API, historii i seedzie."""
+        return self.email.split("@", 1)[0]

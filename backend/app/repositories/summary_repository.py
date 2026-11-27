@@ -3,11 +3,8 @@ from datetime import datetime
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
-from app.models import AiMessage, AiMessageRole, Ticket, TicketHistory, TicketStatus
+from app.models import CLOSED_STATUSES, OPEN_STATUSES, AiMessage, AiMessageRole, Ticket, TicketHistory
 from app.models.ticket_history import RESOLUTION_FIELD
-
-OPEN_STATUSES = (TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS)
-CLOSED_STATUSES = (TicketStatus.RESOLVED, TicketStatus.CLOSED)
 
 
 class SummaryRepository:

@@ -67,6 +67,8 @@ def check_configuration() -> None:
 def create_access_token(user_id: int, role: str) -> tuple[str, int]:
     """Zwraca token i jego czas życia w sekundach."""
     ttl = timedelta(minutes=get_settings().jwt_ttl_minutes)
+    # Celowo zegar systemowy, nie clock.utc_now(): PyJWT sprawdza `exp` względem prawdziwego czasu, więc token
+    # z czasem zamrożonym w teście byłby od razu przeterminowany.
     now = datetime.now(UTC)
     claims = {"sub": str(user_id), "role": role, "iss": ISSUER, "iat": now, "exp": now + ttl}
     return jwt.encode(claims, _signing_key(), algorithm=ALGORITHM), int(ttl.total_seconds())
