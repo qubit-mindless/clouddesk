@@ -207,3 +207,35 @@ export interface MeSummary {
   } | null
   aiToday: { conversations: number; resolvedByReporter: number; handedOver: number; answers: number } | null
 }
+
+// Panel administratora (konta) – kontrakt w docs/api-kontrakty.md („Konta”). Tylko rola ADMIN.
+export interface UserAdmin {
+  id: number
+  email: string
+  login: string
+  fullName: string
+  role: UserRole
+  isActive: boolean
+  createdAt: string
+}
+
+export interface UserAdminPage {
+  items: UserAdmin[]
+  total: number
+  page: number
+  size: number
+}
+
+export interface UserCreate {
+  email: string
+  fullName: string
+  role: UserRole
+}
+
+// Hasło tymczasowe wygenerowane przez serwer – pokazujemy je administratorowi tylko raz.
+export interface UserCreated {
+  user: UserAdmin
+  temporaryPassword: string
+}
+
+export type UserUpdate = Partial<Pick<UserAdmin, 'fullName' | 'role' | 'isActive'>>
