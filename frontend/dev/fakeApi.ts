@@ -1,3 +1,4 @@
+import { randomBytes, randomInt } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
@@ -34,8 +35,9 @@ const userMeta = new Map<number, { isActive: boolean; createdAt: string }>(
 )
 const userAdmin = (u: User) => ({ ...u, ...(userMeta.get(u.id) ?? { isActive: true, createdAt: new Date().toISOString() }) })
 // Hasło tymczasowe jak w backendzie: 16 znaków (secrets.token_urlsafe(12)).
-const temporaryPassword = () =>
-  Array.from({ length: 16 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_'[Math.floor(Math.random() * 59)]).join('')
+// Znaki hasła tymczasowego (bez łatwych do pomylenia: I, O, l, 0, 1).
+const CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_'
+const temporaryPassword = () => Array.from({ length: 16 }, () => CHARSET[randomInt(CHARSET.length)]).join('')
 
 const TOKEN_TTL_S = 3600
 // Pola, które może zmienić tylko technik lub administrator (nieznane klucze backend pomija).
@@ -163,7 +165,7 @@ export function fakeApi(): Plugin {
           if (userMeta.get(user.id)?.isActive === false) {
             return send(res, 403, { detail: 'Konto jest zablokowane. Skontaktuj się z administratorem.' })
           }
-          const token = `fake.${user.id}.${Math.random().toString(36).slice(2)}`
+          const token = `fake.${user.id}.${randomBytes(12).toString('hex')}`
           sessions.set(token, user)
           return send(res, 200, { accessToken: token, tokenType: 'bearer', expiresIn: TOKEN_TTL_S, user })
         }
