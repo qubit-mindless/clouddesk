@@ -19,6 +19,11 @@ export function canEditTicket(user: User | null, ticket: Ticket): boolean {
   return user !== null && ticket.reporter === user.login && !isClosed(ticket)
 }
 
+// Konta użytkowników (panel „Użytkownicy”) prowadzi tylko administrator.
+export function isAdmin(user: User | null): boolean {
+  return user?.role === 'ADMIN'
+}
+
 export function canDeleteTicket(user: User | null): boolean {
   return isStaff(user)
 }

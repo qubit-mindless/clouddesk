@@ -2,6 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import Ticket, TicketPriority, TicketStatus
+from app.repositories.like import LIKE_ESCAPE, escape_like
 
 
 class TicketRepository:
@@ -32,8 +33,7 @@ class TicketRepository:
             filters.append(Ticket.assignee_id == assignee_id)
         if q:
             # %, _ i \ z wyszukiwarki traktujemy dosłownie, a nie jako symbole wieloznaczne LIKE.
-            escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            filters.append(Ticket.title.ilike(f"%{escaped}%", escape="\\"))
+            filters.append(Ticket.title.ilike(f"%{escape_like(q)}%", escape=LIKE_ESCAPE))
 
         total = self.db.scalar(select(func.count()).select_from(Ticket).where(*filters)) or 0
         rows = self.db.scalars(

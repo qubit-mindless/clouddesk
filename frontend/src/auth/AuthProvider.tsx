@@ -62,6 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setEndReason('logout')
   }, [])
 
+  const refreshUser = useCallback(() => {
+    getMe().then(setUser, () => {})
+  }, [])
+
   const status: AuthState['status'] = checking
     ? 'checking'
     : user
@@ -70,8 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? 'unavailable'
         : 'anonymous'
   const value = useMemo<AuthState>(
-    () => ({ status, user, endReason, checkError, retry, login, logout }),
-    [status, user, endReason, checkError, retry, login, logout],
+    () => ({ status, user, endReason, checkError, retry, login, logout, refreshUser }),
+    [status, user, endReason, checkError, retry, login, logout, refreshUser],
   )
 
   return <AuthContext value={value}>{children}</AuthContext>

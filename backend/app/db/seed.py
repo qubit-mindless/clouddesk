@@ -192,7 +192,7 @@ def seed(db: Session) -> dict[str, int]:
         db.commit()
         return added
 
-    by_login = {u.email.split("@")[0]: u for u in db.scalars(select(User))}
+    by_login = {u.login: u for u in db.scalars(select(User))}
     now = datetime.now(UTC)
     for number, (title, description, status, priority, reporter, assignee, hours_ago) in enumerate(
         TICKETS, start=1

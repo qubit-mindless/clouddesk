@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.schemas.ticket import CamelModel
+from app.schemas.base import CamelModel
 
 
 class HistoryItem(CamelModel):

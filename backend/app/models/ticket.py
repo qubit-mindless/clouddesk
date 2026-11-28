@@ -27,6 +27,11 @@ class TicketStatus(StrEnum):
     CLOSED = "CLOSED"
 
 
+# Jedno miejsce dla „otwarte / zakończone” – listy, liczniki, SLA, asystent i powiadomienia.
+OPEN_STATUSES = (TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS)
+CLOSED_STATUSES = (TicketStatus.RESOLVED, TicketStatus.CLOSED)
+
+
 class TicketPriority(StrEnum):
     P1 = "P1"
     P2 = "P2"

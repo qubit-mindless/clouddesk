@@ -122,6 +122,47 @@ def test_seed_sets_demo_password_once(monkeypatch, tmp_path):
     engine.dispose()
 
 
+def test_seed_keeps_accounts_managed_by_admin(monkeypatch, tmp_path):
+    """Seed nie odblokowuje kont i nie rusza kont spoza listy demo (panel administratora)."""
+    import secrets
+
+    from app.core import config
+    from app.core.security import hash_password
+    from app.models import User, UserRole
+    from app.services.auth_service import AuthService
+
+    first, second, own = (secrets.token_urlsafe(12) for _ in range(3))
+    engine = create_engine(f"sqlite:///{tmp_path / 'seed-admin.db'}")
+    _alembic(engine, "upgrade", "head")
+    monkeypatch.setattr(config.get_settings(), "demo_password", first)
+    with Session(engine) as db:
+        seed(db)
+        # Administrator blokuje konto demo i zakłada własne konto (też zablokowane).
+        demo = db.scalars(select(User).where(User.email == "tech.ola@clouddesk.example")).one()
+        demo.is_active = False
+        custom = User(
+            email="nowy@firma.pl",
+            full_name="Nowe Konto",
+            role=UserRole.TECHNICIAN,
+            password_hash=hash_password(own),
+            is_active=False,
+        )
+        db.add(custom)
+        db.commit()
+        custom_hash = custom.password_hash
+
+        monkeypatch.setattr(config.get_settings(), "demo_password", second)
+        assert seed(db)["accounts_activated"] == 11  # tylko konta demo dostają nowe hasło
+        db.expire_all()
+        assert demo.is_active is False and custom.is_active is False
+        assert custom.password_hash == custom_hash
+
+        custom.is_active = True
+        db.commit()
+        assert AuthService(db).login("nowy@firma.pl", own) is not None
+    engine.dispose()
+
+
 def test_seed_demo(engine):
     """Dane demo (#137): 90 zgłoszeń z 30 dni z historią, część po SLA; drugie uruchomienie nic nie dodaje."""
     now = datetime(2026, 11, 24, 12, 0, tzinfo=UTC)

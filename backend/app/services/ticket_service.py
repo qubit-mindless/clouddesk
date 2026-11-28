@@ -1,9 +1,9 @@
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
 from app.core import clock
-from app.models import Ticket, TicketHistory, TicketPriority, TicketStatus, User, UserRole
+from app.models import CLOSED_STATUSES, Ticket, TicketHistory, TicketPriority, TicketStatus, User, UserRole
 from app.models.ticket_history import RESOLUTION_FIELD, RESOLUTION_SELF_AI
 from app.repositories.ai_message_repository import AiMessageRepository
 from app.repositories.ticket_repository import TicketRepository
@@ -18,8 +18,6 @@ SLA_BY_PRIORITY: dict[TicketPriority, timedelta] = {
     TicketPriority.P3: timedelta(days=2),
     TicketPriority.P4: timedelta(days=5),
 }
-CLOSED_STATUSES = {TicketStatus.RESOLVED, TicketStatus.CLOSED}
-ASSIGNABLE_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
 # Obsługa zgłoszeń (wszystkie zgłoszenia, status, przypisanie, usuwanie) – technik i administrator.
 STAFF_ROLES = {UserRole.TECHNICIAN, UserRole.ADMIN}
 # Zgłaszający może poprawić treść i priorytet własnego zgłoszenia, ale nie prowadzi go dalej.
@@ -31,7 +29,7 @@ NO_ASSISTANT_ANSWER = (
 
 
 def login_of(user: User | None) -> str | None:
-    return user.email.split("@", 1)[0] if user else None
+    return user.login if user else None
 
 
 def to_dto(ticket: Ticket) -> TicketOut:
@@ -97,7 +95,7 @@ class TicketService:
         return to_dto(self._get(ticket_id))
 
     def create(self, data: TicketCreate) -> TicketOut:
-        now = datetime.now(UTC)
+        now = clock.utc_now()
         ticket = Ticket(
             title=data.title,
             description=data.description,
@@ -151,8 +149,12 @@ class TicketService:
                 new_assignee = self.users.get_by_login(changes["assignee"])
                 if new_assignee is None:
                     raise FieldValidationError("assignee", f"Nie ma użytkownika „{changes['assignee']}”.")
-                if new_assignee.role not in ASSIGNABLE_ROLES:
+                if new_assignee.role not in STAFF_ROLES:
                     raise FieldValidationError("assignee", "Zgłoszenie można przypisać tylko technikowi.")
+                # Tylko przy zmianie: ponowne wysłanie obecnego (później zablokowanego) technika
+                # nie blokuje zapisu.
+                if not new_assignee.is_active and new_assignee.id != ticket.assignee_id:
+                    raise FieldValidationError("assignee", "Konto tego technika jest zablokowane.")
             record("assignee", login_of(ticket.assignee), login_of(new_assignee))
             ticket.assignee = new_assignee
 

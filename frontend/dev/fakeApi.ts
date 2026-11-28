@@ -1,3 +1,4 @@
+import { randomBytes, randomInt } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
@@ -27,6 +28,16 @@ const USERS: User[] = (
     ['jakub.s', 'Jakub Szymczak', 'REPORTER'],
   ] as const satisfies readonly (readonly [string, string, UserRole])[]
 ).map(([login, fullName, role], i): User => ({ id: i + 1, email: `${login}@clouddesk.example`, login, fullName, role }))
+
+// Konta (panel administratora): stan blokady i data założenia; nowe konta dopisujemy do USERS.
+const userMeta = new Map<number, { isActive: boolean; createdAt: string }>(
+  USERS.map((u, i) => [u.id, { isActive: true, createdAt: new Date(Date.UTC(2026, 9, 3 + i)).toISOString() }]),
+)
+const userAdmin = (u: User) => ({ ...u, ...(userMeta.get(u.id) ?? { isActive: true, createdAt: new Date().toISOString() }) })
+// Hasło tymczasowe jak w backendzie: 16 znaków (secrets.token_urlsafe(12)).
+// Znaki hasła tymczasowego (bez łatwych do pomylenia: I, O, l, 0, 1).
+const CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_'
+const temporaryPassword = () => Array.from({ length: 16 }, () => CHARSET[randomInt(CHARSET.length)]).join('')
 
 const TOKEN_TTL_S = 3600
 // Pola, które może zmienić tylko technik lub administrator (nieznane klucze backend pomija).
@@ -128,7 +139,7 @@ export function fakeApi(): Plugin {
           return send(res, 200, {
             status: 'UP',
             database: 'CONNECTED',
-            version: '0.1.0',
+            version: '1.0.0',
             commit: 'local',
             timestamp: new Date().toISOString(),
             revision: 'ca-clouddesk-backend--fake',
@@ -151,14 +162,19 @@ export function fakeApi(): Plugin {
           if (errors.length) return send(res, 422, { detail: errors })
           const user = USERS.find((u) => u.email === email)
           if (!user) return send(res, 401, { detail: 'Nieprawidłowy e-mail lub hasło.' })
-          const token = `fake.${user.id}.${Math.random().toString(36).slice(2)}`
+          if (userMeta.get(user.id)?.isActive === false) {
+            return send(res, 403, { detail: 'Konto jest zablokowane. Skontaktuj się z administratorem.' })
+          }
+          const token = `fake.${user.id}.${randomBytes(12).toString('hex')}`
           sessions.set(token, user)
           return send(res, 200, { accessToken: token, tokenType: 'bearer', expiresIn: TOKEN_TTL_S, user })
         }
 
         // Wszystko poza logowaniem wymaga tokenu, jak w backendzie.
         const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1]
-        const actor = token ? sessions.get(token) : undefined
+        const session = token ? sessions.get(token) : undefined
+        // Jak w backendzie: konto czytane przy każdym żądaniu – zablokowane albo zmienione działa od razu.
+        const actor = session && userMeta.get(session.id)?.isActive !== false ? USERS.find((u) => u.id === session.id) : undefined
         if (!actor) {
           res.setHeader('WWW-Authenticate', 'Bearer')
           return send(res, 401, { detail: 'Brak lub nieprawidłowy token.' })
@@ -166,6 +182,76 @@ export function fakeApi(): Plugin {
         const staff = actor.role !== 'REPORTER'
 
         if (url.pathname === '/auth/me' && req.method === 'GET') return send(res, 200, actor)
+
+        // Zmiana własnego hasła. Udawane API nie zna haseł – „zle-haslo” udaje błędne obecne hasło.
+        if (url.pathname === '/auth/password' && req.method === 'POST') {
+          const body = await readJson(req)
+          if (!body) return send(res, 400, { detail: 'Invalid JSON' })
+          const current = typeof body.currentPassword === 'string' ? body.currentPassword : ''
+          const next = typeof body.newPassword === 'string' ? body.newPassword : ''
+          if (current === 'zle-haslo') {
+            return send(res, 422, { detail: [{ loc: ['body', 'currentPassword'], msg: 'Nieprawidłowe obecne hasło.', type: 'value_error' }] })
+          }
+          if ([...next].length < 12 || [...next].length > 128 || next === current) {
+            return send(res, 422, { detail: [{ loc: ['body', 'newPassword'], msg: 'Nowe hasło: 12–128 znaków, inne niż obecne.', type: 'value_error' }] })
+          }
+          return send(res, 204)
+        }
+
+        // Konta – tylko administrator (kontrakt: docs/api-kontrakty.md, „Konta”).
+        const usersMatch = url.pathname.match(/^\/users(?:\/(\d+))?(\/reset-password)?\/?$/)
+        if (usersMatch) {
+          if (actor.role !== 'ADMIN') return send(res, 403, { detail: 'Konta może zarządzać tylko administrator.' })
+          const id = usersMatch[1] ? Number(usersMatch[1]) : undefined
+          const target = id !== undefined ? USERS.find((u) => u.id === id) : undefined
+          if (id !== undefined && !target) return send(res, 404, { detail: 'Nie ma takiego konta.' })
+          const activeAdmins = () => USERS.filter((u) => u.role === 'ADMIN' && userMeta.get(u.id)?.isActive !== false).length
+
+          if (!id && req.method === 'GET') {
+            const q = (url.searchParams.get('q') ?? '').trim().toLowerCase()
+            const role = url.searchParams.get('role')
+            const items = USERS.filter((u) => (!q || u.email.includes(q) || u.fullName.toLowerCase().includes(q)) && (!role || u.role === role))
+              .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pl') || a.id - b.id)
+              .map(userAdmin)
+            return send(res, 200, { items, total: items.length, page: 1, size: 100 })
+          }
+          if (!id && req.method === 'POST') {
+            const body = await readJson(req)
+            if (!body) return send(res, 400, { detail: 'Invalid JSON' })
+            const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+            const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : ''
+            const errors: FieldError[] = []
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push({ loc: ['body', 'email'], msg: 'Podaj poprawny adres e-mail.', type: 'value_error' })
+            if (fullName.length < 2 || fullName.length > 200) errors.push({ loc: ['body', 'fullName'], msg: 'Imię i nazwisko: 2–200 znaków.', type: 'value_error' })
+            const role = body.role as UserRole
+            if (!['REPORTER', 'TECHNICIAN', 'ADMIN'].includes(role)) errors.push({ loc: ['body', 'role'], msg: 'Nieznana rola.', type: 'enum' })
+            if (errors.length) return send(res, 422, { detail: errors })
+            if (USERS.some((u) => u.email === email)) return send(res, 409, { detail: 'Konto z tym adresem już istnieje.' })
+            const user: User = { id: Math.max(...USERS.map((u) => u.id)) + 1, email, login: email.split('@')[0], fullName, role }
+            USERS.push(user)
+            userMeta.set(user.id, { isActive: true, createdAt: new Date().toISOString() })
+            return send(res, 201, { user: userAdmin(user), temporaryPassword: temporaryPassword() })
+          }
+          if (target && usersMatch[2] && req.method === 'POST') return send(res, 200, { temporaryPassword: temporaryPassword() })
+          if (target && !usersMatch[2] && req.method === 'PATCH') {
+            const body = await readJson(req)
+            if (!body || !Object.keys(body).length) return send(res, 422, { detail: [{ loc: ['body'], msg: 'Podaj co najmniej jedno pole.', type: 'value_error' }] })
+            const self = target.id === actor.id
+            const demotes = body.role !== undefined && body.role !== target.role && target.role === 'ADMIN'
+            const blocks = body.isActive === false && userMeta.get(target.id)?.isActive !== false
+            if (self && (demotes || blocks)) {
+              return send(res, 409, { detail: 'Nie możesz odebrać sobie roli administratora ani zablokować własnego konta.' })
+            }
+            if (target.role === 'ADMIN' && (demotes || blocks) && activeAdmins() <= 1) {
+              return send(res, 409, { detail: 'To ostatni aktywny administrator – najpierw nadaj tę rolę komuś innemu.' })
+            }
+            if (typeof body.fullName === 'string') target.fullName = body.fullName.trim()
+            if (body.role) target.role = body.role as UserRole
+            if (typeof body.isActive === 'boolean') userMeta.set(target.id, { ...userAdmin(target), isActive: body.isActive })
+            return send(res, 200, userAdmin(target))
+          }
+          return send(res, 405, { detail: 'Method Not Allowed' })
+        }
 
         // Pulpit SLA (#138): tylko technik i administrator.
         if (url.pathname === '/stats' && req.method === 'GET') {

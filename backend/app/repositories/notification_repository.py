@@ -3,10 +3,8 @@ from datetime import datetime
 from sqlalchemy import and_, false, or_, select
 from sqlalchemy.orm import Session, contains_eager, joinedload, load_only
 
-from app.models import Ticket, TicketHistory, TicketPriority, TicketStatus
+from app.models import OPEN_STATUSES, Ticket, TicketHistory, TicketPriority
 from app.repositories.activity_repository import initial_priority
-
-OPEN_STATUSES = (TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS)
 
 
 class NotificationRepository:

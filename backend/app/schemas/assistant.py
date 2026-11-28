@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from pydantic import ConfigDict, StringConstraints
 
 from app.models import AiMessageRole
-from app.schemas.ticket import CamelModel
+from app.schemas.base import CamelModel
 from app.schemas.validators import StorableText
 
 MAX_MESSAGE_LENGTH = 1000

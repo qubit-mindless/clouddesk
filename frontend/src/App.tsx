@@ -10,6 +10,7 @@ import { APP_VERSION } from './config'
 import { useBackgroundAnimation } from './hooks/useBackgroundAnimation'
 import { useAuth } from './hooks/useAuth'
 import { useGlassPointer } from './hooks/useGlassPointer'
+import { AccountPage } from './pages/AccountPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { MyTicketsPage } from './pages/MyTicketsPage'
@@ -18,6 +19,7 @@ import { TicketDetailsPage } from './pages/TicketDetailsPage'
 import { TicketEditPage } from './pages/TicketEditPage'
 import { TicketListPage } from './pages/TicketListPage'
 import { TicketNewPage } from './pages/TicketNewPage'
+import { UsersPage } from './pages/UsersPage'
 
 // Zgłaszający widzi swoje zgłoszenia jako karty, technik i administrator – tabelę z filtrami.
 function TicketsHome() {
@@ -80,6 +82,8 @@ export default function App() {
               <Route path="/tickets/:id" element={<TicketDetailsPage />} />
               <Route path="/tickets/:id/edit" element={<TicketEditPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/users" element={<UsersPage />} />
+              <Route path="/account" element={<AccountPage />} />
               <Route path="*" element={<Navigate to="/tickets" replace />} />
             </Route>
           </Routes>
